@@ -1,0 +1,12 @@
+Name: user.rpc
+ListenOn: 0.0.0.0:8081
+Mode: dev
+
+# 基础层配置文件路径（会加载 mysql/redis/kafka/jwt/otel 等公共配置）。
+BaseConfigPath: configs/local/dev.yaml
+
+# 雪花算法节点号，单机开发默认 1。
+SnowflakeNode: 1
+
+# 可选：覆盖用户访问令牌有效期。为空时回退到 jwt.user.ttl。
+AccessTokenTTL: 24h

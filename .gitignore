@@ -10,3 +10,5 @@ vendor/
 
 .codex
 configs/local/dev.env
+go.work
+go.work.sum

@@ -1,0 +1,146 @@
+name: flashsale
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: flashsale-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${FLASH_MYSQL_ROOT_PASSWORD:?set FLASH_MYSQL_ROOT_PASSWORD in configs/local/dev.env}
+      TZ: Asia/Shanghai
+    ports:
+      - "${FLASH_MYSQL_PORT:-13306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  mysql-init-user:
+    image: mysql:8.4
+    container_name: flashsale-mysql-init-user
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_ROOT_PASSWORD: ${FLASH_MYSQL_ROOT_PASSWORD:?set FLASH_MYSQL_ROOT_PASSWORD in configs/local/dev.env}
+      MYSQL_APP_USER: ${FLASH_MYSQL_APP_USER:?set FLASH_MYSQL_APP_USER in configs/local/dev.env}
+      MYSQL_APP_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:?set FLASH_MYSQL_APP_PASSWORD in configs/local/dev.env}
+    command:
+      - /bin/bash
+      - -ec
+      - |
+        mysql -hmysql -uroot -p"$$MYSQL_ROOT_PASSWORD" -e "
+        CREATE USER IF NOT EXISTS '$$MYSQL_APP_USER'@'%' IDENTIFIED BY '$$MYSQL_APP_PASSWORD';
+        GRANT ALL PRIVILEGES ON flash_user.* TO '$$MYSQL_APP_USER'@'%';
+        GRANT ALL PRIVILEGES ON flash_admin.* TO '$$MYSQL_APP_USER'@'%';
+        GRANT ALL PRIVILEGES ON flash_product.* TO '$$MYSQL_APP_USER'@'%';
+        GRANT ALL PRIVILEGES ON flash_order.* TO '$$MYSQL_APP_USER'@'%';
+        GRANT ALL PRIVILEGES ON flash_seckill.* TO '$$MYSQL_APP_USER'@'%';
+        FLUSH PRIVILEGES;
+        "
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: flashsale-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${FLASH_REDIS_PORT:-16379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: flashsale-kafka
+    restart: unless-stopped
+    ports:
+      - "${FLASH_KAFKA_PORT:-39092}:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:${FLASH_KAFKA_PORT:-39092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: flashsale-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -ec
+      - |
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic order.create --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic order.create.dlq --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stock.compensate --partitions 3 --replication-factor 1
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: flashsale-jaeger
+    profiles: ["observability"]
+    ports:
+      - "${FLASH_JAEGER_UI_PORT:-16686}:16686"
+      - "${FLASH_OTEL_PORT:-4317}:4317"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:16686"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  prometheus:
+    image: prom/prometheus:v2.53.1
+    container_name: flashsale-prometheus
+    profiles: ["observability"]
+    ports:
+      - "${FLASH_PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    depends_on:
+      jaeger:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:10.4.5
+    container_name: flashsale-grafana
+    profiles: ["observability"]
+    ports:
+      - "${FLASH_GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${FLASH_GRAFANA_ADMIN_USER:?set FLASH_GRAFANA_ADMIN_USER in configs/local/dev.env}
+      GF_SECURITY_ADMIN_PASSWORD: ${FLASH_GRAFANA_ADMIN_PASSWORD:?set FLASH_GRAFANA_ADMIN_PASSWORD in configs/local/dev.env}
+    volumes:
+      - ../grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+
+volumes:
+  mysql_data:
+  redis_data:

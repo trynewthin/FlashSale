@@ -1,0 +1,62 @@
+service: flashsale-base
+
+log:
+  level: info
+  format: json
+
+mysql:
+  host: localhost
+  port: 13306
+  user: flash
+  password: ""
+  database: flash_user
+  params: parseTime=true&loc=Local&charset=utf8mb4
+  maxOpenConns: 50
+  maxIdleConns: 10
+  connMaxLifetime: 30m
+  databases:
+    - flash_user
+    - flash_admin
+    - flash_product
+    - flash_order
+    - flash_seckill
+
+redis:
+  addr: localhost:16379
+  password: ""
+  db: 0
+  dialTimeout: 5s
+  readTimeout: 3s
+  writeTimeout: 3s
+
+kafka:
+  brokers:
+    - localhost:39092
+  clientID: flashsale-local
+  groupID: flashsale-smoke
+  topics:
+    orderCreate: order.create
+    orderCreateDLQ: order.create.dlq
+    stockCompensate: stock.compensate
+
+jwt:
+  user:
+    secret: user-secret-change-me
+    issuer: flashsale-user
+    audience: flashsale-user-client
+    ttl: 24h
+  admin:
+    secret: admin-secret-change-me
+    issuer: flashsale-admin
+    audience: flashsale-admin-client
+    ttl: 12h
+
+otel:
+  endpoint: localhost:4317
+  insecure: true
+  serviceName: flashsale-base
+
+prometheus:
+  addr: :9100
+  path: /metrics
+  namespace: flashsale

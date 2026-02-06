@@ -1,0 +1,12 @@
+bin/
+coverage.out
+*.log
+*.tmp
+.env
+.vscode/
+.idea/
+.DS_Store
+vendor/
+
+.codex
+configs/local/dev.env

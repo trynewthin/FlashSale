@@ -4,6 +4,7 @@ package errorx
 import (
 	"errors"
 	"fmt"
+	"net/http"
 )
 
 // Code 表示业务或系统错误码。
@@ -35,6 +36,24 @@ const (
 	// CodeCacheError 表示缓存错误。
 	CodeCacheError Code = "CACHE_ERROR"
 )
+
+// HTTPStatus 返回错误码对应的 HTTP 状态码。
+func (c Code) HTTPStatus() int {
+	switch c {
+	case CodeSysBadRequest, CodeAuthInvalidPhone, CodeAuthWeakPassword:
+		return http.StatusBadRequest
+	case CodeAuthUnauthorized, CodeAuthInvalidCredentials:
+		return http.StatusUnauthorized
+	case CodeAuthForbidden:
+		return http.StatusForbidden
+	case CodeUserNotFound:
+		return http.StatusNotFound
+	case CodeAuthPhoneAlreadyRegistered:
+		return http.StatusConflict
+	default:
+		return http.StatusInternalServerError
+	}
+}
 
 // AppError 是统一错误结构，包含错误码、可读信息和底层原因。
 type AppError struct {

@@ -6,24 +6,55 @@ import "testing"
 // TestNormalizePhone 校验手机号格式约束。
 func TestNormalizePhone(t *testing.T) {
 	t.Parallel()
-	if _, err := normalizePhone("13800138000"); err != nil {
-		t.Fatalf("normalizePhone valid failed: %v", err)
+	cases := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{name: "valid", input: "13800138000", wantErr: false},
+		{name: "with country code", input: "+8613800138000", wantErr: true},
+		{name: "empty", input: "", wantErr: true},
+		{name: "spaces", input: "   ", wantErr: true},
+		{name: "ten digits", input: "1380013800", wantErr: true},
+		{name: "twelve digits", input: "138001380001", wantErr: true},
+		{name: "invalid prefix 1", input: "11111111111", wantErr: true},
+		{name: "invalid prefix 2", input: "12345678901", wantErr: true},
 	}
-	if _, err := normalizePhone("+8613800138000"); err == nil {
-		t.Fatalf("normalizePhone expected invalid phone error")
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := normalizePhone(tc.input)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("normalizePhone(%q) err=%v wantErr=%v", tc.input, err, tc.wantErr)
+			}
+		})
 	}
 }
 
 // TestValidatePasswordStrength 校验密码强度规则。
 func TestValidatePasswordStrength(t *testing.T) {
 	t.Parallel()
-	if err := validatePasswordStrength("abc12345"); err != nil {
-		t.Fatalf("validatePasswordStrength valid failed: %v", err)
+	cases := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{name: "valid basic", input: "abc12345", wantErr: false},
+		{name: "letters only", input: "abcdefgh", wantErr: true},
+		{name: "digits only", input: "12345678", wantErr: true},
+		{name: "too short", input: "ab12345", wantErr: true},
+		{name: "too long", input: "abc123456789012345678901234567890", wantErr: true},
+		{name: "valid with special chars", input: "Abc12345!@#", wantErr: false},
 	}
-	if err := validatePasswordStrength("abcdefgh"); err == nil {
-		t.Fatalf("validatePasswordStrength expected weak password")
-	}
-	if err := validatePasswordStrength("12345678"); err == nil {
-		t.Fatalf("validatePasswordStrength expected weak password")
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validatePasswordStrength(tc.input)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("validatePasswordStrength(%q) err=%v wantErr=%v", tc.input, err, tc.wantErr)
+			}
+		})
 	}
 }

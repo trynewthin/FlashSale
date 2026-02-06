@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "flashsale/apps/user/rpc/pb;pb";
+
+// UserRpc 定义普通用户模块一期 RPC 能力。
+service UserRpc {
+  // Register 用户注册并返回访问令牌。
+  rpc Register (RegisterReq) returns (AuthResp);
+  // Login 用户登录并返回访问令牌。
+  rpc Login (LoginReq) returns (AuthResp);
+  // GetProfile 获取用户资料。
+  rpc GetProfile (GetProfileReq) returns (ProfileResp);
+  // UpdateNickname 修改用户昵称并返回最新资料。
+  rpc UpdateNickname (UpdateNicknameReq) returns (ProfileResp);
+  // DeleteUser 软删除用户。
+  rpc DeleteUser (DeleteUserReq) returns (DeleteUserResp);
+}
+
+message RegisterReq {
+  string phone = 1;
+  string password = 2;
+  string nickname = 3;
+  string client_ip = 4;
+}
+
+message LoginReq {
+  string phone = 1;
+  string password = 2;
+  string client_ip = 3;
+}
+
+message GetProfileReq {
+  int64 user_id = 1;
+}
+
+message UpdateNicknameReq {
+  int64 user_id = 1;
+  string nickname = 2;
+}
+
+message DeleteUserReq {
+  int64 user_id = 1;
+}
+
+message AuthResp {
+  int64 user_id = 1;
+  string phone = 2;
+  string nickname = 3;
+  string access_token = 4;
+  int64 expires_in_sec = 5;
+}
+
+message ProfileResp {
+  int64 user_id = 1;
+  string phone = 2;
+  string nickname = 3;
+}
+
+message DeleteUserResp {
+  int64 user_id = 1;
+}

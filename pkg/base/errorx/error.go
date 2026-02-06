@@ -14,10 +14,20 @@ const (
 	CodeSysInternal Code = "SYS_INTERNAL"
 	// CodeSysBadRequest 表示请求参数非法。
 	CodeSysBadRequest Code = "SYS_BAD_REQUEST"
+	// CodeUserNotFound 表示用户不存在。
+	CodeUserNotFound Code = "USER_NOT_FOUND"
 	// CodeAuthUnauthorized 表示未认证。
 	CodeAuthUnauthorized Code = "AUTH_UNAUTHORIZED"
 	// CodeAuthForbidden 表示无权限。
 	CodeAuthForbidden Code = "AUTH_FORBIDDEN"
+	// CodeAuthInvalidPhone 表示手机号格式非法。
+	CodeAuthInvalidPhone Code = "AUTH_INVALID_PHONE"
+	// CodeAuthWeakPassword 表示密码强度不足。
+	CodeAuthWeakPassword Code = "AUTH_WEAK_PASSWORD"
+	// CodeAuthPhoneAlreadyRegistered 表示手机号已注册。
+	CodeAuthPhoneAlreadyRegistered Code = "AUTH_PHONE_ALREADY_REGISTERED"
+	// CodeAuthInvalidCredentials 表示账号或密码错误。
+	CodeAuthInvalidCredentials Code = "AUTH_INVALID_CREDENTIALS"
 	// CodeDBError 表示数据库错误。
 	CodeDBError Code = "DB_ERROR"
 	// CodeMQError 表示消息队列错误。

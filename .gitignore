@@ -12,3 +12,11 @@ vendor/
 configs/local/dev.env
 go.work
 go.work.sum
+# Local memory files (not version-controlled)
+.memory/
+.chat/
+AGENTS.md
+task_plan.md
+findings.md
+progress.md
+docs/project-memory.md

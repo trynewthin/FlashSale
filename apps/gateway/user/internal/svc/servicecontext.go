@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"flashsale/apps/gateway/user/internal/config"
+	"flashsale/apps/product/rpc/productrpc"
 	"flashsale/apps/user/rpc/userrpc"
 	baseauth "flashsale/pkg/base/authx"
 	baseconfig "flashsale/pkg/base/config"
@@ -17,10 +18,11 @@ import (
 
 // ServiceContext 封装用户网关业务依赖。
 type ServiceContext struct {
-	Config     config.Config
-	AppConfig  *baseconfig.AppConfig
-	Logger     *zap.Logger
-	UserRPCCli userrpc.UserRpc
+	Config        config.Config
+	AppConfig     *baseconfig.AppConfig
+	Logger        *zap.Logger
+	UserRPCCli    userrpc.UserRpc
+	ProductRPCCli productrpc.ProductRpc
 }
 
 // NewServiceContext 初始化用户网关依赖。
@@ -60,12 +62,17 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init user rpc client: %w", err)
 	}
+	productRPCClient, err := zrpc.NewClient(c.ProductRPC)
+	if err != nil {
+		return nil, fmt.Errorf("init product rpc client: %w", err)
+	}
 
 	return &ServiceContext{
-		Config:     c,
-		AppConfig:  appCfg,
-		Logger:     logger,
-		UserRPCCli: userrpc.NewUserRpc(rpcClient),
+		Config:        c,
+		AppConfig:     appCfg,
+		Logger:        logger,
+		UserRPCCli:    userrpc.NewUserRpc(rpcClient),
+		ProductRPCCli: productrpc.NewProductRpc(productRPCClient),
 	}, nil
 }
 

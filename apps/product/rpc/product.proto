@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package product;
+
+option go_package = "flashsale/apps/product/rpc/pb;pb";
+
+service ProductRpc {
+  rpc CreateProduct (CreateProductReq) returns (CreateProductResp);
+  rpc UpdateProduct (UpdateProductReq) returns (UpdateProductResp);
+  rpc DeleteProduct (DeleteProductReq) returns (DeleteProductResp);
+  rpc GetProductAdmin (GetProductAdminReq) returns (GetProductAdminResp);
+  rpc ListProductsAdmin (ListProductsAdminReq) returns (ListProductsAdminResp);
+
+  rpc GetProductPublic (GetProductPublicReq) returns (GetProductPublicResp);
+  rpc ListProductsPublic (ListProductsPublicReq) returns (ListProductsPublicResp);
+}
+
+message CreateProductReq {
+  string name = 1;
+  string main_image = 2;
+  string description = 3;
+  int64 price_cent = 4;
+  int64 stock = 5;
+  int32 status = 6;
+}
+
+message CreateProductResp {
+  AdminProduct product = 1;
+}
+
+message UpdateProductReq {
+  int64 product_id = 1;
+  string name = 2;
+  string main_image = 3;
+  string description = 4;
+  int64 price_cent = 5;
+  int64 stock = 6;
+  int32 status = 7;
+}
+
+message UpdateProductResp {
+  AdminProduct product = 1;
+}
+
+message DeleteProductReq {
+  int64 product_id = 1;
+}
+
+message DeleteProductResp {
+  int64 product_id = 1;
+}
+
+message GetProductAdminReq {
+  int64 product_id = 1;
+}
+
+message GetProductAdminResp {
+  AdminProduct product = 1;
+}
+
+message ListProductsAdminReq {
+  int64 page = 1;
+  int64 page_size = 2;
+  string keyword = 3;
+  bool include_deleted = 4;
+}
+
+message ListProductsAdminResp {
+  repeated AdminProduct list = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message GetProductPublicReq {
+  int64 product_id = 1;
+}
+
+message GetProductPublicResp {
+  PublicProduct product = 1;
+}
+
+message ListProductsPublicReq {
+  int64 page = 1;
+  int64 page_size = 2;
+  string keyword = 3;
+}
+
+message ListProductsPublicResp {
+  repeated PublicProduct list = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message AdminProduct {
+  int64 product_id = 1;
+  string sku_code = 2;
+  string name = 3;
+  string main_image = 4;
+  string description = 5;
+  int64 price_cent = 6;
+  int64 stock = 7;
+  int32 status = 8;
+  int64 created_at_unix = 9;
+  int64 updated_at_unix = 10;
+}
+
+message PublicProduct {
+  int64 product_id = 1;
+  string sku_code = 2;
+  string name = 3;
+  string main_image = 4;
+  string description = 5;
+  int64 price_cent = 6;
+  bool in_stock = 7;
+}

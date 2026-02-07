@@ -22,6 +22,9 @@ func TestCodeHTTPStatus(t *testing.T) {
 		{name: "forbidden", code: CodeAuthForbidden, want: http.StatusForbidden},
 		{name: "not found", code: CodeUserNotFound, want: http.StatusNotFound},
 		{name: "phone exists", code: CodeAuthPhoneAlreadyRegistered, want: http.StatusConflict},
+		{name: "product not found", code: CodeProductNotFound, want: http.StatusNotFound},
+		{name: "product sku exists", code: CodeProductSKUAlreadyExists, want: http.StatusConflict},
+		{name: "product invalid status", code: CodeProductInvalidStatus, want: http.StatusBadRequest},
 		{name: "default", code: CodeDBError, want: http.StatusInternalServerError},
 	}
 	for _, tc := range cases {

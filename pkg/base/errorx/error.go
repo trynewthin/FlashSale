@@ -29,6 +29,12 @@ const (
 	CodeAuthPhoneAlreadyRegistered Code = "AUTH_PHONE_ALREADY_REGISTERED"
 	// CodeAuthInvalidCredentials 表示账号或密码错误。
 	CodeAuthInvalidCredentials Code = "AUTH_INVALID_CREDENTIALS"
+	// CodeProductNotFound 表示商品不存在。
+	CodeProductNotFound Code = "PRODUCT_NOT_FOUND"
+	// CodeProductSKUAlreadyExists 表示商品编码已存在。
+	CodeProductSKUAlreadyExists Code = "PRODUCT_SKU_ALREADY_EXISTS"
+	// CodeProductInvalidStatus 表示商品状态非法。
+	CodeProductInvalidStatus Code = "PRODUCT_INVALID_STATUS"
 	// CodeDBError 表示数据库错误。
 	CodeDBError Code = "DB_ERROR"
 	// CodeMQError 表示消息队列错误。
@@ -40,15 +46,15 @@ const (
 // HTTPStatus 返回错误码对应的 HTTP 状态码。
 func (c Code) HTTPStatus() int {
 	switch c {
-	case CodeSysBadRequest, CodeAuthInvalidPhone, CodeAuthWeakPassword:
+	case CodeSysBadRequest, CodeAuthInvalidPhone, CodeAuthWeakPassword, CodeProductInvalidStatus:
 		return http.StatusBadRequest
 	case CodeAuthUnauthorized, CodeAuthInvalidCredentials:
 		return http.StatusUnauthorized
 	case CodeAuthForbidden:
 		return http.StatusForbidden
-	case CodeUserNotFound:
+	case CodeUserNotFound, CodeProductNotFound:
 		return http.StatusNotFound
-	case CodeAuthPhoneAlreadyRegistered:
+	case CodeAuthPhoneAlreadyRegistered, CodeProductSKUAlreadyExists:
 		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError

@@ -14,6 +14,7 @@ type Config struct {
 	ListenOn       string `json:",default=0.0.0.0:8083"`
 	BaseConfigPath string `json:",default=configs/local/dev.yaml"`
 	UserRPC        zrpc.RpcClientConf
+	ProductRPC     zrpc.RpcClientConf
 }
 
 const adminGatewayListenOnEnv = "FLASHSALE_ADMIN_GATEWAY_LISTEN_ON"

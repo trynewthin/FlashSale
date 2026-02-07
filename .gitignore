@@ -9,6 +9,8 @@ coverage.out
 vendor/
 
 .codex
+.memory/
+AGENTS.md
 configs/local/dev.env
 go.work
 go.work.sum

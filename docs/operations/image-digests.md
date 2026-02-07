@@ -1,5 +1,7 @@
 # 镜像 Digest 记录
 
+更新时间：2026-02-07
+
 可通过以下命令获取镜像 Digest：
 
 ```powershell

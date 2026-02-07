@@ -1,14 +1,17 @@
-# FlashSale 基础设施底座
+# FlashSale 基础层与核心模块仓库
 
-本仓库用于承载基于 `go-zero/goctl` 微服务体系的基础层能力，不包含具体业务模块实现。
+本仓库承载基于 `go-zero/goctl` 的基础能力与已落地核心模块实现。
 
-## 覆盖范围
+## 当前实现范围
 
 - 本地 Docker 环境：MySQL、Redis、Kafka
 - 可选可观测性环境：Jaeger、Prometheus、Grafana
 - 公共 Go 基础包：`pkg/base/*`
 - 分库迁移脚本：`deploy/migrations/*`
 - 基础连通性自检：`cmd/smoke/*`
+- 用户 RPC 服务：`apps/user/rpc`
+- 用户网关：`apps/gateway/user`
+- 管理员网关：`apps/gateway/admin`
 
 ## 快速开始
 
@@ -72,8 +75,11 @@ docker image inspect --format='{{index .RepoDigests 0}}' redis:7.2-alpine
 docker image inspect --format='{{index .RepoDigests 0}}' confluentinc/cp-kafka:7.6.1
 ```
 
-并将结果登记到 `docs/image-digests.md`。
+并将结果登记到 `docs/operations/image-digests.md`。
 
 ## 架构文档
 
-- 代码架构说明：`docs/code-architecture.md`
+- 文档索引：`docs/README.md`
+- 系统总览：`docs/architecture/system-overview.md`
+- 网关运行态：`docs/architecture/gateway-runtime.md`
+- 用户 RPC 运行态：`docs/architecture/user-rpc-runtime.md`

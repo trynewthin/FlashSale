@@ -15,7 +15,10 @@ import (
 
 type contextKey string
 
-const subjectKey contextKey = "admin_subject"
+const (
+	subjectKey     contextKey = "admin_subject"
+	accessTokenKey contextKey = "access_token"
+)
 
 // AuthRequired 要求请求携带合法管理员域 JWT。
 func AuthRequired(svcCtx *svc.ServiceContext, next http.Handler) http.Handler {
@@ -40,10 +43,11 @@ func AuthRequired(svcCtx *svc.ServiceContext, next http.Handler) http.Handler {
 		}
 		subject := authz.Subject{
 			AdminID:   adminID,
-			Domains:   parseRoleDomains(r.Header.Get("X-Role-Domains")),
-			DataScope: strings.TrimSpace(r.Header.Get("X-Data-Scope")),
+			Domains:   parseRoleDomains(claims.Domains),
+			DataScope: strings.TrimSpace(claims.DataScope),
 		}
 		ctx := context.WithValue(r.Context(), subjectKey, subject)
+		ctx = context.WithValue(ctx, accessTokenKey, token)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -77,6 +81,16 @@ func SubjectFromContext(ctx context.Context) (authz.Subject, bool) {
 	return subject, ok
 }
 
+// AccessTokenFromContext 读取管理员鉴权 token。
+func AccessTokenFromContext(ctx context.Context) (string, bool) {
+	if ctx == nil {
+		return "", false
+	}
+	token, ok := ctx.Value(accessTokenKey).(string)
+	token = strings.TrimSpace(token)
+	return token, ok && token != ""
+}
+
 func bearerToken(v string) string {
 	v = strings.TrimSpace(v)
 	if v == "" {
@@ -89,8 +103,7 @@ func bearerToken(v string) string {
 	return strings.TrimSpace(strings.TrimPrefix(v, prefix))
 }
 
-func parseRoleDomains(v string) []authz.RoleDomain {
-	parts := strings.Split(strings.TrimSpace(v), ",")
+func parseRoleDomains(parts []string) []authz.RoleDomain {
 	domains := make([]authz.RoleDomain, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)

@@ -81,7 +81,9 @@ func TryLock(ctx context.Context, c *redis.Client, key string, ttl time.Duration
 	}
 
 	unlock := func() error {
-		_, err := unlockScript.Run(ctx, c, []string{key}, token).Result()
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_, err := unlockScript.Run(unlockCtx, c, []string{key}, token).Result()
 		return err
 	}
 	return unlock, true, nil

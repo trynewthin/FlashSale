@@ -5,11 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
+	"net/url"
 	"time"
 
 	"flashsale/pkg/base/config"
-	_ "github.com/go-sql-driver/mysql"
+	mysqlDriver "github.com/go-sql-driver/mysql"
 )
 
 const (
@@ -68,10 +68,36 @@ func BuildDSN(cfg config.MySQLConfig) (string, error) {
 	if params == "" {
 		params = "parseTime=true&loc=Local&charset=utf8mb4"
 	}
-	if !strings.Contains(params, "parseTime=") {
-		params += "&parseTime=true"
+
+	parsedParams, err := url.ParseQuery(params)
+	if err != nil {
+		return "", fmt.Errorf("parse mysql params: %w", err)
 	}
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?%s", user, cfg.Password, host, port, database, params), nil
+	if _, ok := parsedParams["parseTime"]; !ok {
+		parsedParams.Set("parseTime", "true")
+	}
+	if _, ok := parsedParams["loc"]; !ok {
+		parsedParams.Set("loc", "Local")
+	}
+	if _, ok := parsedParams["charset"]; !ok {
+		parsedParams.Set("charset", "utf8mb4")
+	}
+
+	mysqlCfg := mysqlDriver.Config{
+		User:   user,
+		Passwd: cfg.Password,
+		Net:    "tcp",
+		Addr:   fmt.Sprintf("%s:%d", host, port),
+		DBName: database,
+		Params: make(map[string]string, len(parsedParams)),
+	}
+	for k, values := range parsedParams {
+		if len(values) == 0 {
+			continue
+		}
+		mysqlCfg.Params[k] = values[0]
+	}
+	return mysqlCfg.FormatDSN(), nil
 }
 
 // applyPoolDefaults 为连接池补齐默认参数，避免零值导致资源策略失控。

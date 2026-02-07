@@ -38,13 +38,35 @@ type ServiceContext struct {
 }
 
 // NewServiceContext 初始化服务上下文并加载基础层依赖。
-func NewServiceContext(c config.Config) (*ServiceContext, error) {
+func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
+	var (
+		logger        *zap.Logger
+		traceShutdown func(context.Context) error
+		db            *sql.DB
+	)
+	defer func() {
+		if err == nil {
+			return
+		}
+		if db != nil {
+			_ = db.Close()
+		}
+		if traceShutdown != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = traceShutdown(ctx)
+			cancel()
+		}
+		if logger != nil {
+			_ = logger.Sync()
+		}
+	}()
+
 	appCfg, err := baseconfig.Load(c.BaseConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("load base config: %w", err)
 	}
 
-	logger, err := baselog.New(baselog.LogConfig{
+	logger, err = baselog.New(baselog.LogConfig{
 		Service: appCfg.Service,
 		Level:   appCfg.Log.Level,
 		Format:  appCfg.Log.Format,
@@ -53,7 +75,7 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		return nil, fmt.Errorf("init logger: %w", err)
 	}
 
-	traceShutdown, err := basetracing.Init(basetracing.TraceConfig{
+	traceShutdown, err = basetracing.Init(basetracing.TraceConfig{
 		Endpoint:    appCfg.OTEL.Endpoint,
 		Insecure:    appCfg.OTEL.Insecure,
 		ServiceName: appCfg.OTEL.ServiceName,
@@ -62,14 +84,13 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		return nil, fmt.Errorf("init tracing: %w", err)
 	}
 
-	db, err := mysqlx.Open(appCfg.MySQL)
+	db, err = mysqlx.Open(appCfg.MySQL)
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
 	}
 	pingCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := mysqlx.Ping(pingCtx, db); err != nil {
-		_ = db.Close()
 		return nil, fmt.Errorf("ping mysql: %w", err)
 	}
 
@@ -87,7 +108,6 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 			TTL:      appCfg.JWT.Admin.TTL,
 		},
 	}); err != nil {
-		_ = db.Close()
 		return nil, fmt.Errorf("init auth: %w", err)
 	}
 
@@ -97,7 +117,6 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	}
 	node, err := snowflake.NewNode(nodeID)
 	if err != nil {
-		_ = db.Close()
 		return nil, fmt.Errorf("new snowflake node: %w", err)
 	}
 

@@ -23,6 +23,7 @@ func main() {
 
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
+	config.ApplyEnvOverrides(&c)
 
 	ctx, err := svc.NewServiceContext(c)
 	if err != nil {

@@ -2,24 +2,30 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
+	"time"
 
 	"flashsale/apps/gateway/user/internal/middleware"
 	"flashsale/apps/gateway/user/internal/svc"
 	"flashsale/apps/user/rpc/pb"
 	"flashsale/pkg/base/errorx"
+	"flashsale/pkg/base/grpcerr"
 	"flashsale/pkg/base/responsex"
+	"flashsale/pkg/base/rpcmeta"
 )
+
+const defaultRPCTimeout = 3 * time.Second
 
 // RegisterRoutes 注册用户网关 HTTP 路由。
 func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	h := &UserHandler{svcCtx: svcCtx}
 	mux.HandleFunc("GET /healthz", h.Health)
-	mux.HandleFunc("POST /api/v1/user/register", h.Register)
-	mux.HandleFunc("POST /api/v1/user/login", h.Login)
+	mux.Handle("POST /api/v1/user/register", middleware.RegisterRateLimit(http.HandlerFunc(h.Register)))
+	mux.Handle("POST /api/v1/user/login", middleware.LoginRateLimit(http.HandlerFunc(h.Login)))
 	mux.Handle("GET /api/v1/user/profile", middleware.AuthRequired(svcCtx, http.HandlerFunc(h.GetProfile)))
 	mux.Handle("PATCH /api/v1/user/nickname", middleware.AuthRequired(svcCtx, http.HandlerFunc(h.UpdateNickname)))
 	mux.Handle("DELETE /api/v1/user", middleware.AuthRequired(svcCtx, http.HandlerFunc(h.DeleteUser)))
@@ -50,14 +56,16 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysBadRequest, "请求体非法", err))
 		return
 	}
-	resp, err := h.svcCtx.UserRPCCli.Register(r.Context(), &pb.RegisterReq{
+	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	defer cancel()
+	resp, err := h.svcCtx.UserRPCCli.Register(rpcCtx, &pb.RegisterReq{
 		Phone:    req.Phone,
 		Password: req.Password,
 		Nickname: req.Nickname,
 		ClientIp: clientIP(r),
 	})
 	if err != nil {
-		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysInternal, "注册失败", err))
+		writeRPCFail(w, err)
 		return
 	}
 	writeOK(w, resp)
@@ -77,13 +85,15 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysBadRequest, "请求体非法", err))
 		return
 	}
-	resp, err := h.svcCtx.UserRPCCli.Login(r.Context(), &pb.LoginReq{
+	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	defer cancel()
+	resp, err := h.svcCtx.UserRPCCli.Login(rpcCtx, &pb.LoginReq{
 		Phone:    req.Phone,
 		Password: req.Password,
 		ClientIp: clientIP(r),
 	})
 	if err != nil {
-		writeFail(w, http.StatusUnauthorized, errorx.Wrap(errorx.CodeAuthUnauthorized, "登录失败", err))
+		writeRPCFail(w, err)
 		return
 	}
 	writeOK(w, resp)
@@ -96,9 +106,17 @@ func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		writeFail(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证信息缺失"))
 		return
 	}
-	resp, err := h.svcCtx.UserRPCCli.GetProfile(r.Context(), &pb.GetProfileReq{UserId: uid})
+	token, ok := middleware.AccessTokenFromContext(r.Context())
+	if !ok {
+		writeFail(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证令牌缺失"))
+		return
+	}
+	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	defer cancel()
+	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
+	resp, err := h.svcCtx.UserRPCCli.GetProfile(rpcCtx, &pb.GetProfileReq{UserId: uid})
 	if err != nil {
-		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysInternal, "查询用户资料失败", err))
+		writeRPCFail(w, err)
 		return
 	}
 	writeOK(w, resp)
@@ -111,6 +129,11 @@ func (h *UserHandler) UpdateNickname(w http.ResponseWriter, r *http.Request) {
 		writeFail(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证信息缺失"))
 		return
 	}
+	token, ok := middleware.AccessTokenFromContext(r.Context())
+	if !ok {
+		writeFail(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证令牌缺失"))
+		return
+	}
 	var req struct {
 		Nickname string `json:"nickname"`
 	}
@@ -118,9 +141,12 @@ func (h *UserHandler) UpdateNickname(w http.ResponseWriter, r *http.Request) {
 		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysBadRequest, "请求体非法", err))
 		return
 	}
-	resp, err := h.svcCtx.UserRPCCli.UpdateNickname(r.Context(), &pb.UpdateNicknameReq{UserId: uid, Nickname: req.Nickname})
+	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	defer cancel()
+	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
+	resp, err := h.svcCtx.UserRPCCli.UpdateNickname(rpcCtx, &pb.UpdateNicknameReq{UserId: uid, Nickname: req.Nickname})
 	if err != nil {
-		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysInternal, "更新昵称失败", err))
+		writeRPCFail(w, err)
 		return
 	}
 	writeOK(w, resp)
@@ -133,9 +159,17 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		writeFail(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证信息缺失"))
 		return
 	}
-	resp, err := h.svcCtx.UserRPCCli.DeleteUser(r.Context(), &pb.DeleteUserReq{UserId: uid})
+	token, ok := middleware.AccessTokenFromContext(r.Context())
+	if !ok {
+		writeFail(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证令牌缺失"))
+		return
+	}
+	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	defer cancel()
+	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
+	resp, err := h.svcCtx.UserRPCCli.DeleteUser(rpcCtx, &pb.DeleteUserReq{UserId: uid})
 	if err != nil {
-		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysInternal, "删除用户失败", err))
+		writeRPCFail(w, err)
 		return
 	}
 	writeOK(w, resp)
@@ -161,6 +195,14 @@ func writeFail(w http.ResponseWriter, status int, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(responsex.Fail(err))
+}
+
+func writeRPCFail(w http.ResponseWriter, err error) {
+	appErr := grpcerr.FromStatus(err)
+	if appErr == nil {
+		appErr = errorx.New(errorx.CodeSysInternal, "internal error")
+	}
+	writeFail(w, appErr.Code.HTTPStatus(), appErr)
 }
 
 func clientIP(r *http.Request) string {

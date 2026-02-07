@@ -93,7 +93,9 @@ func Guard(ctx context.Context, key string, ttl time.Duration, run func() error)
 		return ErrInProgress
 	}
 	defer func() {
-		_, _ = unlockScript.Run(ctx, c, []string{lockKey}, token).Result()
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_, _ = unlockScript.Run(unlockCtx, c, []string{lockKey}, token).Result()
 	}()
 
 	if err := run(); err != nil {

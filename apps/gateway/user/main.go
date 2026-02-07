@@ -10,6 +10,7 @@ import (
 	"flashsale/apps/gateway/user/internal/config"
 	"flashsale/apps/gateway/user/internal/handler"
 	"flashsale/apps/gateway/user/internal/svc"
+	basemiddleware "flashsale/pkg/base/middleware"
 	"github.com/zeromicro/go-zero/core/conf"
 )
 
@@ -20,6 +21,7 @@ func main() {
 
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
+	config.ApplyEnvOverrides(&c)
 
 	svcCtx, err := svc.NewServiceContext(c)
 	if err != nil {
@@ -31,10 +33,14 @@ func main() {
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux, svcCtx)
+	httpHandler := http.Handler(mux)
+	httpHandler = basemiddleware.RequestLogger(svcCtx.Logger, httpHandler)
+	httpHandler = basemiddleware.Recover(svcCtx.Logger, httpHandler)
+	httpHandler = basemiddleware.Trace(httpHandler)
 
 	srv := &http.Server{
 		Addr:              c.ListenOn,
-		Handler:           mux,
+		Handler:           httpHandler,
 		ReadHeaderTimeout: 3 * time.Second,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      10 * time.Second,

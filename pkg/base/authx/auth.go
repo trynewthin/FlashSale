@@ -36,6 +36,8 @@ type JWTConfig struct {
 // Claims 是项目统一 JWT Claims。
 type Claims struct {
 	TokenType TokenType `json:"token_type"`
+	Domains   []string  `json:"domains,omitempty"`
+	DataScope string    `json:"data_scope,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -66,6 +68,15 @@ func Init(cfg JWTConfig) error {
 
 // Issue 根据令牌域签发 JWT。
 func Issue(tt TokenType, subject string, ttl time.Duration) (string, error) {
+	return issue(tt, subject, ttl, nil, "")
+}
+
+// IssueWithClaims 根据令牌域签发带扩展 claims 的 JWT。
+func IssueWithClaims(tt TokenType, subject string, ttl time.Duration, domains []string, dataScope string) (string, error) {
+	return issue(tt, subject, ttl, domains, dataScope)
+}
+
+func issue(tt TokenType, subject string, ttl time.Duration, domains []string, dataScope string) (string, error) {
 	domain, err := domainConfig(tt)
 	if err != nil {
 		return "", err
@@ -83,6 +94,8 @@ func Issue(tt TokenType, subject string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		TokenType: tt,
+		Domains:   domains,
+		DataScope: dataScope,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   subject,
 			Issuer:    domain.Issuer,

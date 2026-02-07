@@ -14,7 +14,10 @@ import (
 
 type contextKey string
 
-const userIDKey contextKey = "user_id"
+const (
+	userIDKey      contextKey = "user_id"
+	accessTokenKey contextKey = "access_token"
+)
 
 // AuthRequired 要求请求携带合法的用户域 JWT。
 func AuthRequired(svcCtx *svc.ServiceContext, next http.Handler) http.Handler {
@@ -38,6 +41,7 @@ func AuthRequired(svcCtx *svc.ServiceContext, next http.Handler) http.Handler {
 			return
 		}
 		ctx := context.WithValue(r.Context(), userIDKey, uid)
+		ctx = context.WithValue(ctx, accessTokenKey, token)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -49,6 +53,16 @@ func UserIDFromContext(ctx context.Context) (int64, bool) {
 	}
 	uid, ok := ctx.Value(userIDKey).(int64)
 	return uid, ok && uid > 0
+}
+
+// AccessTokenFromContext 从上下文读取已认证 token。
+func AccessTokenFromContext(ctx context.Context) (string, bool) {
+	if ctx == nil {
+		return "", false
+	}
+	token, ok := ctx.Value(accessTokenKey).(string)
+	token = strings.TrimSpace(token)
+	return token, ok && token != ""
 }
 
 func bearerToken(v string) string {

@@ -2,17 +2,24 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"flashsale/apps/gateway/admin/internal/authz"
 	"flashsale/apps/gateway/admin/internal/middleware"
 	"flashsale/apps/gateway/admin/internal/svc"
 	"flashsale/apps/user/rpc/pb"
 	"flashsale/pkg/base/errorx"
+	"flashsale/pkg/base/grpcerr"
 	"flashsale/pkg/base/responsex"
+	"flashsale/pkg/base/rpcmeta"
 )
+
+const defaultRPCTimeout = 3 * time.Second
 
 // RegisterRoutes 注册管理员网关路由。
 func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
@@ -73,9 +80,17 @@ func (h *AdminHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 		writeFail(w, http.StatusInternalServerError, errorx.New(errorx.CodeSysInternal, "gateway not initialized"))
 		return
 	}
-	resp, err := h.svcCtx.UserRPCCli.GetProfile(r.Context(), &pb.GetProfileReq{UserId: userID})
+	token, ok := middleware.AccessTokenFromContext(r.Context())
+	if !ok {
+		writeFail(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证令牌缺失"))
+		return
+	}
+	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	defer cancel()
+	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
+	resp, err := h.svcCtx.UserRPCCli.GetProfile(rpcCtx, &pb.GetProfileReq{UserId: userID})
 	if err != nil {
-		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysInternal, "查询用户资料失败", err))
+		writeRPCFail(w, err)
 		return
 	}
 	writeOK(w, resp)
@@ -95,16 +110,24 @@ func (h *AdminHandler) UpdateUserNickname(w http.ResponseWriter, r *http.Request
 	var req struct {
 		Nickname string `json:"nickname"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysBadRequest, "请求体非法", err))
 		return
 	}
-	resp, err := h.svcCtx.UserRPCCli.UpdateNickname(r.Context(), &pb.UpdateNicknameReq{
+	token, ok := middleware.AccessTokenFromContext(r.Context())
+	if !ok {
+		writeFail(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证令牌缺失"))
+		return
+	}
+	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	defer cancel()
+	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
+	resp, err := h.svcCtx.UserRPCCli.UpdateNickname(rpcCtx, &pb.UpdateNicknameReq{
 		UserId:   userID,
 		Nickname: req.Nickname,
 	})
 	if err != nil {
-		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysInternal, "更新用户昵称失败", err))
+		writeRPCFail(w, err)
 		return
 	}
 	writeOK(w, resp)
@@ -121,9 +144,17 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		writeFail(w, http.StatusInternalServerError, errorx.New(errorx.CodeSysInternal, "gateway not initialized"))
 		return
 	}
-	resp, err := h.svcCtx.UserRPCCli.DeleteUser(r.Context(), &pb.DeleteUserReq{UserId: userID})
+	token, ok := middleware.AccessTokenFromContext(r.Context())
+	if !ok {
+		writeFail(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证令牌缺失"))
+		return
+	}
+	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	defer cancel()
+	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
+	resp, err := h.svcCtx.UserRPCCli.DeleteUser(rpcCtx, &pb.DeleteUserReq{UserId: userID})
 	if err != nil {
-		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysInternal, "删除用户失败", err))
+		writeRPCFail(w, err)
 		return
 	}
 	writeOK(w, resp)
@@ -139,6 +170,24 @@ func writeFail(w http.ResponseWriter, status int, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(responsex.Fail(err))
+}
+
+func writeRPCFail(w http.ResponseWriter, err error) {
+	appErr := grpcerr.FromStatus(err)
+	if appErr == nil {
+		appErr = errorx.New(errorx.CodeSysInternal, "internal error")
+	}
+	writeFail(w, appErr.Code.HTTPStatus(), appErr)
+}
+
+func decodeJSON(r *http.Request, out any) error {
+	if r == nil || r.Body == nil {
+		return errors.New("empty request body")
+	}
+	defer r.Body.Close()
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	return dec.Decode(out)
 }
 
 func parsePathUserID(r *http.Request) (int64, bool) {

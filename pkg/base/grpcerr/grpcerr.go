@@ -59,15 +59,15 @@ func FromStatus(err error) *errorx.AppError {
 
 func codeToGRPC(code errorx.Code) codes.Code {
 	switch code {
-	case errorx.CodeSysBadRequest, errorx.CodeAuthInvalidPhone, errorx.CodeAuthWeakPassword:
+	case errorx.CodeSysBadRequest, errorx.CodeAuthInvalidPhone, errorx.CodeAuthWeakPassword, errorx.CodeProductInvalidStatus:
 		return codes.InvalidArgument
 	case errorx.CodeAuthUnauthorized, errorx.CodeAuthInvalidCredentials:
 		return codes.Unauthenticated
 	case errorx.CodeAuthForbidden:
 		return codes.PermissionDenied
-	case errorx.CodeUserNotFound:
+	case errorx.CodeUserNotFound, errorx.CodeProductNotFound:
 		return codes.NotFound
-	case errorx.CodeAuthPhoneAlreadyRegistered:
+	case errorx.CodeAuthPhoneAlreadyRegistered, errorx.CodeProductSKUAlreadyExists:
 		return codes.AlreadyExists
 	default:
 		return codes.Internal
@@ -97,6 +97,9 @@ func parseCode(raw string) (errorx.Code, bool) {
 	case errorx.CodeSysInternal,
 		errorx.CodeSysBadRequest,
 		errorx.CodeUserNotFound,
+		errorx.CodeProductNotFound,
+		errorx.CodeProductSKUAlreadyExists,
+		errorx.CodeProductInvalidStatus,
 		errorx.CodeAuthUnauthorized,
 		errorx.CodeAuthForbidden,
 		errorx.CodeAuthInvalidPhone,

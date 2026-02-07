@@ -23,12 +23,15 @@ const defaultRPCTimeout = 3 * time.Second
 // RegisterRoutes 注册用户网关 HTTP 路由。
 func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	h := &UserHandler{svcCtx: svcCtx}
+	ph := &ProductPublicHandler{svcCtx: svcCtx}
 	mux.HandleFunc("GET /healthz", h.Health)
 	mux.Handle("POST /api/v1/user/register", middleware.RegisterRateLimit(http.HandlerFunc(h.Register)))
 	mux.Handle("POST /api/v1/user/login", middleware.LoginRateLimit(http.HandlerFunc(h.Login)))
 	mux.Handle("GET /api/v1/user/profile", middleware.AuthRequired(svcCtx, http.HandlerFunc(h.GetProfile)))
 	mux.Handle("PATCH /api/v1/user/nickname", middleware.AuthRequired(svcCtx, http.HandlerFunc(h.UpdateNickname)))
 	mux.Handle("DELETE /api/v1/user", middleware.AuthRequired(svcCtx, http.HandlerFunc(h.DeleteUser)))
+	mux.HandleFunc("GET /api/v1/products", ph.ListProducts)
+	mux.HandleFunc("GET /api/v1/products/{product_id}", ph.GetProduct)
 }
 
 // UserHandler 处理用户网关请求。

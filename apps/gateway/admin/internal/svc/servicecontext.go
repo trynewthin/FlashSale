@@ -7,6 +7,7 @@ import (
 
 	"flashsale/apps/gateway/admin/internal/authz"
 	"flashsale/apps/gateway/admin/internal/config"
+	"flashsale/apps/product/rpc/productrpc"
 	"flashsale/apps/user/rpc/userrpc"
 	baseauth "flashsale/pkg/base/authx"
 	baseconfig "flashsale/pkg/base/config"
@@ -17,11 +18,12 @@ import (
 
 // ServiceContext 封装管理员网关依赖。
 type ServiceContext struct {
-	Config     config.Config
-	AppConfig  *baseconfig.AppConfig
-	Logger     *zap.Logger
-	Authorizer authz.Authorizer
-	UserRPCCli userrpc.UserRpc
+	Config        config.Config
+	AppConfig     *baseconfig.AppConfig
+	Logger        *zap.Logger
+	Authorizer    authz.Authorizer
+	UserRPCCli    userrpc.UserRpc
+	ProductRPCCli productrpc.ProductRpc
 }
 
 // NewServiceContext 初始化管理员网关依赖。
@@ -61,13 +63,18 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init user rpc client: %w", err)
 	}
+	productRPCClient, err := zrpc.NewClient(c.ProductRPC)
+	if err != nil {
+		return nil, fmt.Errorf("init product rpc client: %w", err)
+	}
 
 	return &ServiceContext{
-		Config:     c,
-		AppConfig:  appCfg,
-		Logger:     logger,
-		Authorizer: authz.NewStaticAuthorizer(),
-		UserRPCCli: userrpc.NewUserRpc(rpcClient),
+		Config:        c,
+		AppConfig:     appCfg,
+		Logger:        logger,
+		Authorizer:    authz.NewStaticAuthorizer(),
+		UserRPCCli:    userrpc.NewUserRpc(rpcClient),
+		ProductRPCCli: productrpc.NewProductRpc(productRPCClient),
 	}, nil
 }
 

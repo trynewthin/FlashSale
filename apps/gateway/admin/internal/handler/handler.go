@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"flashsale/apps/gateway/admin/internal/authz"
@@ -15,6 +14,7 @@ import (
 	"flashsale/apps/user/rpc/pb"
 	"flashsale/pkg/base/errorx"
 	"flashsale/pkg/base/grpcerr"
+	"flashsale/pkg/base/handlerx"
 	"flashsale/pkg/base/responsex"
 	"flashsale/pkg/base/rpcmeta"
 )
@@ -24,6 +24,7 @@ const defaultRPCTimeout = 3 * time.Second
 // RegisterRoutes 注册管理员网关路由。
 func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	h := &AdminHandler{svcCtx: svcCtx}
+	ph := &ProductAdminHandler{svcCtx: svcCtx}
 	mux.HandleFunc("GET /healthz", h.Health)
 	mux.Handle(
 		"GET /api/v1/admin/ping",
@@ -40,6 +41,26 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	mux.Handle(
 		"DELETE /api/v1/admin/users/{user_id}",
 		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainUserManagement, http.HandlerFunc(h.DeleteUser))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/products",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainProductManagement, http.HandlerFunc(ph.CreateProduct))),
+	)
+	mux.Handle(
+		"PATCH /api/v1/admin/products/{product_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainProductManagement, http.HandlerFunc(ph.UpdateProduct))),
+	)
+	mux.Handle(
+		"DELETE /api/v1/admin/products/{product_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainProductManagement, http.HandlerFunc(ph.DeleteProduct))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/products/{product_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainProductManagement, http.HandlerFunc(ph.GetProduct))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/products",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainProductManagement, http.HandlerFunc(ph.ListProducts))),
 	)
 }
 
@@ -191,16 +212,5 @@ func decodeJSON(r *http.Request, out any) error {
 }
 
 func parsePathUserID(r *http.Request) (int64, bool) {
-	if r == nil {
-		return 0, false
-	}
-	raw := r.PathValue("user_id")
-	if raw == "" {
-		return 0, false
-	}
-	uid, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || uid <= 0 {
-		return 0, false
-	}
-	return uid, true
+	return handlerx.ParsePathInt64(r, "user_id")
 }

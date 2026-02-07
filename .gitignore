@@ -9,4 +9,6 @@ coverage.out
 vendor/
 
 .codex
+.memory/
+AGENTS.md
 configs/local/dev.env

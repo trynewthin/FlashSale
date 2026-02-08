@@ -21,6 +21,7 @@ func NewOrderRpcServer(svcCtx *svc.ServiceContext) *OrderRpcServer {
 	return &OrderRpcServer{svcCtx: svcCtx}
 }
 
+// CreateOrder 处理用户下单请求。
 func (s *OrderRpcServer) CreateOrder(ctx context.Context, in *pb.CreateOrderReq) (*pb.CreateOrderResp, error) {
 	if err := authorizeUser(ctx, in.GetUserId()); err != nil {
 		return nil, grpcerr.ToStatus(err)
@@ -33,6 +34,7 @@ func (s *OrderRpcServer) CreateOrder(ctx context.Context, in *pb.CreateOrderReq)
 	return resp, nil
 }
 
+// ConfirmPaymentAndInfo 处理用户支付与收货信息确认请求。
 func (s *OrderRpcServer) ConfirmPaymentAndInfo(ctx context.Context, in *pb.ConfirmPaymentAndInfoReq) (*pb.ConfirmPaymentAndInfoResp, error) {
 	if err := authorizeUser(ctx, in.GetUserId()); err != nil {
 		return nil, grpcerr.ToStatus(err)
@@ -45,6 +47,7 @@ func (s *OrderRpcServer) ConfirmPaymentAndInfo(ctx context.Context, in *pb.Confi
 	return resp, nil
 }
 
+// CancelOrder 处理用户取消订单请求。
 func (s *OrderRpcServer) CancelOrder(ctx context.Context, in *pb.CancelOrderReq) (*pb.CancelOrderResp, error) {
 	if err := authorizeUser(ctx, in.GetUserId()); err != nil {
 		return nil, grpcerr.ToStatus(err)
@@ -57,6 +60,7 @@ func (s *OrderRpcServer) CancelOrder(ctx context.Context, in *pb.CancelOrderReq)
 	return resp, nil
 }
 
+// ConfirmReceipt 处理用户确认收货请求。
 func (s *OrderRpcServer) ConfirmReceipt(ctx context.Context, in *pb.ConfirmReceiptReq) (*pb.ConfirmReceiptResp, error) {
 	if err := authorizeUser(ctx, in.GetUserId()); err != nil {
 		return nil, grpcerr.ToStatus(err)
@@ -69,6 +73,7 @@ func (s *OrderRpcServer) ConfirmReceipt(ctx context.Context, in *pb.ConfirmRecei
 	return resp, nil
 }
 
+// GetOrderUser 处理用户订单详情查询请求。
 func (s *OrderRpcServer) GetOrderUser(ctx context.Context, in *pb.GetOrderUserReq) (*pb.GetOrderUserResp, error) {
 	if err := authorizeUser(ctx, in.GetUserId()); err != nil {
 		return nil, grpcerr.ToStatus(err)
@@ -81,6 +86,7 @@ func (s *OrderRpcServer) GetOrderUser(ctx context.Context, in *pb.GetOrderUserRe
 	return resp, nil
 }
 
+// ListOrdersUser 处理用户订单列表查询请求。
 func (s *OrderRpcServer) ListOrdersUser(ctx context.Context, in *pb.ListOrdersUserReq) (*pb.ListOrdersUserResp, error) {
 	if err := authorizeUser(ctx, in.GetUserId()); err != nil {
 		return nil, grpcerr.ToStatus(err)
@@ -93,6 +99,7 @@ func (s *OrderRpcServer) ListOrdersUser(ctx context.Context, in *pb.ListOrdersUs
 	return resp, nil
 }
 
+// ReviewOrderAdmin 处理管理侧审核订单请求。
 func (s *OrderRpcServer) ReviewOrderAdmin(ctx context.Context, in *pb.ReviewOrderAdminReq) (*pb.ReviewOrderAdminResp, error) {
 	adminID, err := authorizeAdminOrderDomain(ctx)
 	if err != nil {
@@ -115,6 +122,7 @@ func (s *OrderRpcServer) ReviewOrderAdmin(ctx context.Context, in *pb.ReviewOrde
 	return resp, nil
 }
 
+// ShipOrderAdmin 处理管理侧发货请求。
 func (s *OrderRpcServer) ShipOrderAdmin(ctx context.Context, in *pb.ShipOrderAdminReq) (*pb.ShipOrderAdminResp, error) {
 	adminID, err := authorizeAdminOrderDomain(ctx)
 	if err != nil {
@@ -136,6 +144,7 @@ func (s *OrderRpcServer) ShipOrderAdmin(ctx context.Context, in *pb.ShipOrderAdm
 	return resp, nil
 }
 
+// GetOrderAdmin 处理管理侧订单详情查询请求。
 func (s *OrderRpcServer) GetOrderAdmin(ctx context.Context, in *pb.GetOrderAdminReq) (*pb.GetOrderAdminResp, error) {
 	if _, err := authorizeAdminOrderDomain(ctx); err != nil {
 		return nil, grpcerr.ToStatus(err)
@@ -148,6 +157,7 @@ func (s *OrderRpcServer) GetOrderAdmin(ctx context.Context, in *pb.GetOrderAdmin
 	return resp, nil
 }
 
+// ListOrdersAdmin 处理管理侧订单列表查询请求。
 func (s *OrderRpcServer) ListOrdersAdmin(ctx context.Context, in *pb.ListOrdersAdminReq) (*pb.ListOrdersAdminResp, error) {
 	if _, err := authorizeAdminOrderDomain(ctx); err != nil {
 		return nil, grpcerr.ToStatus(err)

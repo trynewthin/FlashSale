@@ -414,7 +414,6 @@ func (m *memoryOrderRepo) CompleteRefund(_ context.Context, orderID int64, now t
 	}
 	o.RefundStatus = model.RefundStatusRefunded
 	o.RefundedAt = &now
-	o.CloseReason = model.CloseReasonRefundComplete
 	o.UpdatedAt = now
 	m.events = append(m.events, event)
 	return nil
@@ -735,6 +734,7 @@ func TestTimeoutJobFlow(t *testing.T) {
 		ShippingStatus: model.ShippingStatusNotShipped,
 		RefundStatus:   model.RefundStatusRefunding,
 		RefundDueAt:    ptrTime(now.Add(-2 * time.Minute)),
+		CloseReason:    model.CloseReasonAuditReject,
 		CreatedAt:      now.Add(-60 * time.Minute),
 		UpdatedAt:      now.Add(-2 * time.Minute),
 	})
@@ -766,15 +766,15 @@ func TestTimeoutJobFlow(t *testing.T) {
 		t.Fatalf("review-timeout close mismatch: status=%d review=%d", o2.OrderStatus, o2.ReviewStatus)
 	}
 	o3, _ := repo.FindByID(context.Background(), 3)
-	if o3.RefundStatus != model.RefundStatusRefunded || o3.CloseReason != model.CloseReasonRefundComplete {
+	if o3.RefundStatus != model.RefundStatusRefunded || o3.CloseReason != model.CloseReasonAuditReject {
 		t.Fatalf("refund complete mismatch: refund=%d reason=%s", o3.RefundStatus, o3.CloseReason)
 	}
 	o4, _ := repo.FindByID(context.Background(), 4)
 	if o4.OrderStatus != model.OrderStatusClosed || o4.CloseReason != model.CloseReasonAutoCompleted {
 		t.Fatalf("auto-receive close mismatch: status=%d reason=%s", o4.OrderStatus, o4.CloseReason)
 	}
-	if got := product.stockByID[5001]; got != 2 {
-		t.Fatalf("timeout release stock mismatch: got=%d want=2", got)
+	if got := product.stockByID[5001]; got != 3 {
+		t.Fatalf("timeout release stock mismatch: got=%d want=3", got)
 	}
 }
 

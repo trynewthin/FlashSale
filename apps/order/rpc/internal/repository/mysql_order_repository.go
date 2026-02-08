@@ -138,6 +138,7 @@ func (r *MySQLOrderRepository) ListAdmin(ctx context.Context, query AdminListQue
 	return r.list(ctx, where, args, query.Page, query.PageSize)
 }
 
+// MarkPaidAutoPass 将待支付订单更新为已支付且自动审核通过。
 func (r *MySQLOrderRepository) MarkPaidAutoPass(ctx context.Context, orderID, userID int64, paidAt time.Time, payChannel, payRef string, receiverName, receiverPhone, receiverAddress, buyerRemark string, event model.OrderEvent) error {
 	sqlText := "UPDATE orders SET payment_status = ?, paid_at = ?, pay_channel = ?, pay_reference = ?, receiver_name = ?, receiver_phone = ?, receiver_address = ?, buyer_remark = ?, order_status = ?, review_status = ?, review_mode = ?, review_due_at = NULL WHERE id = ? AND user_id = ? AND order_status = ? AND payment_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
@@ -159,6 +160,7 @@ func (r *MySQLOrderRepository) MarkPaidAutoPass(ctx context.Context, orderID, us
 	}, event)
 }
 
+// MarkPaidManualReview 将待支付订单更新为已支付且进入人工审核。
 func (r *MySQLOrderRepository) MarkPaidManualReview(ctx context.Context, orderID, userID int64, paidAt time.Time, payChannel, payRef string, receiverName, receiverPhone, receiverAddress, buyerRemark string, reviewDueAt time.Time, event model.OrderEvent) error {
 	sqlText := "UPDATE orders SET payment_status = ?, paid_at = ?, pay_channel = ?, pay_reference = ?, receiver_name = ?, receiver_phone = ?, receiver_address = ?, buyer_remark = ?, order_status = ?, review_status = ?, review_mode = ?, review_due_at = ? WHERE id = ? AND user_id = ? AND order_status = ? AND payment_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
@@ -181,6 +183,7 @@ func (r *MySQLOrderRepository) MarkPaidManualReview(ctx context.Context, orderID
 	}, event)
 }
 
+// CancelUnpaid 取消未支付订单并写入关闭原因。
 func (r *MySQLOrderRepository) CancelUnpaid(ctx context.Context, orderID, userID int64, now time.Time, reason string, event model.OrderEvent) error {
 	sqlText := "UPDATE orders SET order_status = ?, close_reason = ?, closed_at = ? WHERE id = ? AND user_id = ? AND order_status = ? AND payment_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
@@ -194,6 +197,7 @@ func (r *MySQLOrderRepository) CancelUnpaid(ctx context.Context, orderID, userID
 	}, event)
 }
 
+// CancelPaidPendingReview 取消“已支付待审核”订单并标记退款中。
 func (r *MySQLOrderRepository) CancelPaidPendingReview(ctx context.Context, orderID, userID int64, now time.Time, reason string, refundDueAt time.Time, event model.OrderEvent) error {
 	sqlText := "UPDATE orders SET order_status = ?, close_reason = ?, closed_at = ?, refund_status = ?, refund_due_at = ? WHERE id = ? AND user_id = ? AND order_status = ? AND payment_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
@@ -209,6 +213,7 @@ func (r *MySQLOrderRepository) CancelPaidPendingReview(ctx context.Context, orde
 	}, event)
 }
 
+// ReviewApprove 将人工审核中的订单审核通过并推进到待发货。
 func (r *MySQLOrderRepository) ReviewApprove(ctx context.Context, orderID, adminID int64, now time.Time, reason string, event model.OrderEvent) error {
 	sqlText := "UPDATE orders SET order_status = ?, review_status = ?, reviewed_at = ?, reviewed_by = ?, review_reason = ? WHERE id = ? AND order_status = ? AND review_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
@@ -223,6 +228,7 @@ func (r *MySQLOrderRepository) ReviewApprove(ctx context.Context, orderID, admin
 	}, event)
 }
 
+// ReviewReject 将人工审核中的订单驳回并关闭为退款中。
 func (r *MySQLOrderRepository) ReviewReject(ctx context.Context, orderID, adminID int64, now time.Time, reason string, refundDueAt time.Time, event model.OrderEvent) error {
 	sqlText := "UPDATE orders SET order_status = ?, review_status = ?, reviewed_at = ?, reviewed_by = ?, review_reason = ?, refund_status = ?, refund_due_at = ?, close_reason = ?, closed_at = ? WHERE id = ? AND order_status = ? AND review_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
@@ -241,6 +247,7 @@ func (r *MySQLOrderRepository) ReviewReject(ctx context.Context, orderID, adminI
 	}, event)
 }
 
+// Ship 将待发货订单推进为已发货状态。
 func (r *MySQLOrderRepository) Ship(ctx context.Context, orderID, adminID int64, trackingNo string, now time.Time, event model.OrderEvent) error {
 	sqlText := "UPDATE orders SET order_status = ?, shipping_status = ?, shipped_at = ?, shipped_by = ?, tracking_no = ? WHERE id = ? AND order_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
@@ -254,6 +261,7 @@ func (r *MySQLOrderRepository) Ship(ctx context.Context, orderID, adminID int64,
 	}, event)
 }
 
+// ConfirmReceipt 将已发货订单确认收货并关闭。
 func (r *MySQLOrderRepository) ConfirmReceipt(ctx context.Context, orderID, userID int64, now time.Time, event model.OrderEvent) error {
 	sqlText := "UPDATE orders SET order_status = ?, shipping_status = ?, close_reason = ?, closed_at = ? WHERE id = ? AND user_id = ? AND order_status = ? AND shipping_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
@@ -268,6 +276,7 @@ func (r *MySQLOrderRepository) ConfirmReceipt(ctx context.Context, orderID, user
 	}, event)
 }
 
+// AutoReceive 将超时未确认收货订单自动收货并关闭。
 func (r *MySQLOrderRepository) AutoReceive(ctx context.Context, orderID int64, now time.Time, event model.OrderEvent) error {
 	sqlText := "UPDATE orders SET order_status = ?, shipping_status = ?, close_reason = ?, closed_at = ? WHERE id = ? AND order_status = ? AND shipping_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
@@ -281,10 +290,12 @@ func (r *MySQLOrderRepository) AutoReceive(ctx context.Context, orderID int64, n
 	}, event)
 }
 
+// ListPayTimeout 查询支付超时待关闭订单。
 func (r *MySQLOrderRepository) ListPayTimeout(ctx context.Context, before time.Time, limit int) ([]*model.Order, error) {
 	return r.listByCondition(ctx, "order_status = ? AND payment_status = ? AND created_at <= ?", []any{model.OrderStatusPendingPay, model.PaymentStatusUnpaid, before}, limit)
 }
 
+// ClosePayTimeout 关闭支付超时订单。
 func (r *MySQLOrderRepository) ClosePayTimeout(ctx context.Context, orderID int64, now time.Time, event model.OrderEvent) error {
 	sqlText := "UPDATE orders SET order_status = ?, close_reason = ?, closed_at = ? WHERE id = ? AND order_status = ? AND payment_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
@@ -297,10 +308,12 @@ func (r *MySQLOrderRepository) ClosePayTimeout(ctx context.Context, orderID int6
 	}, event)
 }
 
+// ListReviewTimeout 查询审核超时待处理订单。
 func (r *MySQLOrderRepository) ListReviewTimeout(ctx context.Context, before time.Time, limit int) ([]*model.Order, error) {
 	return r.listByCondition(ctx, "order_status = ? AND review_status = ? AND review_due_at IS NOT NULL AND review_due_at <= ?", []any{model.OrderStatusPendingReview, model.ReviewStatusManualPending, before}, limit)
 }
 
+// CloseReviewTimeoutRefunding 将审核超时订单关闭并标记退款中。
 func (r *MySQLOrderRepository) CloseReviewTimeoutRefunding(ctx context.Context, orderID int64, now time.Time, refundDueAt time.Time, event model.OrderEvent) error {
 	sqlText := "UPDATE orders SET order_status = ?, review_status = ?, refund_status = ?, refund_due_at = ?, close_reason = ?, closed_at = ? WHERE id = ? AND order_status = ? AND review_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
@@ -316,6 +329,7 @@ func (r *MySQLOrderRepository) CloseReviewTimeoutRefunding(ctx context.Context, 
 	}, event)
 }
 
+// ListStockReleasePending 查询待执行库存回补的已关闭订单。
 func (r *MySQLOrderRepository) ListStockReleasePending(ctx context.Context, limit int) ([]*model.Order, error) {
 	condition := "order_status = ? AND stock_released = ? AND close_reason IN (?, ?, ?, ?)"
 	args := []any{
@@ -329,6 +343,7 @@ func (r *MySQLOrderRepository) ListStockReleasePending(ctx context.Context, limi
 	return r.listByCondition(ctx, condition, args, limit)
 }
 
+// MarkStockReleased 标记订单库存已回补，并写入事件。
 func (r *MySQLOrderRepository) MarkStockReleased(ctx context.Context, orderID int64, now time.Time, event model.OrderEvent) error {
 	if r == nil || r.db == nil {
 		return fmt.Errorf("repository db is nil")
@@ -357,22 +372,24 @@ func (r *MySQLOrderRepository) MarkStockReleased(ctx context.Context, orderID in
 	})
 }
 
+// ListRefundingDue 查询到达退款完成时间点的订单。
 func (r *MySQLOrderRepository) ListRefundingDue(ctx context.Context, before time.Time, limit int) ([]*model.Order, error) {
 	return r.listByCondition(ctx, "order_status = ? AND refund_status = ? AND refund_due_at IS NOT NULL AND refund_due_at <= ?", []any{model.OrderStatusClosed, model.RefundStatusRefunding, before}, limit)
 }
 
+// CompleteRefund 将退款中订单推进为退款完成，保留既有关闭原因用于补偿重试审计。
 func (r *MySQLOrderRepository) CompleteRefund(ctx context.Context, orderID int64, now time.Time, event model.OrderEvent) error {
-	sqlText := "UPDATE orders SET refund_status = ?, refunded_at = ?, close_reason = ? WHERE id = ? AND order_status = ? AND refund_status = ?"
+	sqlText := "UPDATE orders SET refund_status = ?, refunded_at = ? WHERE id = ? AND order_status = ? AND refund_status = ?"
 	return r.execWithEvent(ctx, sqlText, []any{
 		model.RefundStatusRefunded,
 		now,
-		model.CloseReasonRefundComplete,
 		orderID,
 		model.OrderStatusClosed,
 		model.RefundStatusRefunding,
 	}, event)
 }
 
+// ListAutoReceiveDue 查询满足自动收货条件的订单。
 func (r *MySQLOrderRepository) ListAutoReceiveDue(ctx context.Context, before time.Time, limit int) ([]*model.Order, error) {
 	return r.listByCondition(ctx, "order_status = ? AND shipping_status = ? AND shipped_at IS NOT NULL AND shipped_at <= ?", []any{model.OrderStatusShipped, model.ShippingStatusShipped, before}, limit)
 }

@@ -1,4 +1,4 @@
-// Package logic 实现用户昵称更新业务流程。
+// logic 包包含相关应用代码。
 package logic
 
 import (

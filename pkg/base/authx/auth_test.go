@@ -1,4 +1,5 @@
 // authx 包测试：验证 user/admin 双域令牌隔离。
+// authx 包包含相关应用代码。
 package authx
 
 import (

@@ -1,4 +1,4 @@
-// Package handler 实现管理员网关 HTTP 入口。
+// handler 包包含相关应用代码。
 package handler
 
 import (
@@ -25,6 +25,7 @@ const defaultRPCTimeout = 3 * time.Second
 func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	h := &AdminHandler{svcCtx: svcCtx}
 	ph := &ProductAdminHandler{svcCtx: svcCtx}
+	oh := &OrderAdminHandler{svcCtx: svcCtx}
 	mux.HandleFunc("GET /healthz", h.Health)
 	mux.Handle(
 		"GET /api/v1/admin/ping",
@@ -61,6 +62,22 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	mux.Handle(
 		"GET /api/v1/admin/products",
 		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainProductManagement, http.HandlerFunc(ph.ListProducts))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/orders/{order_id}/review",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainOrderManagement, http.HandlerFunc(oh.ReviewOrder))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/orders/{order_id}/ship",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainOrderManagement, http.HandlerFunc(oh.ShipOrder))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/orders/{order_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainOrderManagement, http.HandlerFunc(oh.GetOrder))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/orders",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainOrderManagement, http.HandlerFunc(oh.ListOrders))),
 	)
 }
 

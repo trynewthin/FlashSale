@@ -1,3 +1,4 @@
+// config 包包含相关应用代码。
 package config
 
 import (

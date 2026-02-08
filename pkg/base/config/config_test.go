@@ -1,4 +1,5 @@
 // config 包测试：验证配置加载与环境变量覆盖。
+// config 包包含相关应用代码。
 package config
 
 import (

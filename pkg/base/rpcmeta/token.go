@@ -1,4 +1,4 @@
-// Package rpcmeta 提供网关到 RPC 的认证元数据透传工具。
+// rpcmeta 包包含相关应用代码。
 package rpcmeta
 
 import (

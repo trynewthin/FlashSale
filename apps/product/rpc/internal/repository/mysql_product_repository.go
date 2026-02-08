@@ -1,9 +1,10 @@
-// Package repository 提供基于 MySQL 的商品仓储实现。
+// repository 包包含相关应用代码。
 package repository
 
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,9 +18,20 @@ const (
 	insertProductSQL = "INSERT INTO products (id, sku_code, name, main_image, description, price_cent, stock, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 	updateProductSQL = "UPDATE products SET name = ?, main_image = ?, description = ?, price_cent = ?, stock = ?, status = ? WHERE id = ? AND deleted_at IS NULL"
 	softDeleteSQL    = "UPDATE products SET deleted_at = ?, status = 0 WHERE id = ? AND deleted_at IS NULL"
+	reserveStockSQL  = "UPDATE products SET stock = stock - ? WHERE id = ? AND status = 1 AND deleted_at IS NULL AND stock >= ?"
+	releaseStockSQL  = "UPDATE products SET stock = stock + ? WHERE id = ?"
+
+	insertIdempotencySQL       = "INSERT INTO idempotency_records (idempotency_key, scene, status, expired_at) VALUES (?, ?, 0, ?)"
+	queryIdempotencySQL        = "SELECT status, response_payload FROM idempotency_records WHERE idempotency_key = ? AND scene = ? LIMIT 1 FOR UPDATE"
+	updateIdempotencyDoneSQL   = "UPDATE idempotency_records SET status = 1, response_payload = ?, expired_at = ? WHERE idempotency_key = ? AND scene = ?"
+	deleteIdempotencyRecordSQL = "DELETE FROM idempotency_records WHERE idempotency_key = ? AND scene = ?"
 
 	findByIDAdminSQL  = "SELECT id, sku_code, name, main_image, description, price_cent, stock, status, deleted_at, created_at, updated_at FROM products WHERE id = ? AND deleted_at IS NULL LIMIT 1"
 	findByIDPublicSQL = "SELECT id, sku_code, name, main_image, description, price_cent, stock, status, deleted_at, created_at, updated_at FROM products WHERE id = ? AND status = 1 AND deleted_at IS NULL LIMIT 1"
+
+	idempotencySceneReserveStock = "product_stock_reserve"
+	idempotencySceneReleaseStock = "product_stock_release"
+	idempotencyRecordTTL         = 24 * time.Hour
 )
 
 // MySQLProductRepository 是 ProductRepository 的 MySQL 实现。
@@ -122,6 +134,216 @@ func (r *MySQLProductRepository) ListAdmin(ctx context.Context, query ListQuery)
 func (r *MySQLProductRepository) ListPublic(ctx context.Context, query ListQuery) ([]*model.Product, int64, error) {
 	where, args := buildListWhere(query.Keyword, false, true)
 	return r.list(ctx, where, args, query)
+}
+
+// ReserveStock 预扣库存（带幂等保障）。
+func (r *MySQLProductRepository) ReserveStock(ctx context.Context, productID int64, quantity int64, _ string, idempotencyKey string) (_ int64, err error) {
+	if r == nil || r.db == nil {
+		return 0, fmt.Errorf("repository db is nil")
+	}
+	if quantity <= 0 {
+		return 0, fmt.Errorf("quantity must be positive")
+	}
+	if strings.TrimSpace(idempotencyKey) == "" {
+		return 0, fmt.Errorf("idempotency key is empty")
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	inserted, replayRemain, err := lockIdempotencyRecordTx(ctx, tx, idempotencySceneReserveStock, idempotencyKey)
+	if err != nil {
+		return 0, err
+	}
+	if replayRemain != nil {
+		if err := tx.Commit(); err != nil {
+			return 0, err
+		}
+		return *replayRemain, nil
+	}
+
+	remain, err := r.reserveStockTx(ctx, tx, productID, quantity)
+	if err != nil {
+		if inserted {
+			_ = cleanupIdempotencyRecordTx(ctx, tx, idempotencySceneReserveStock, idempotencyKey)
+		}
+		return 0, err
+	}
+	if err := markIdempotencyDoneTx(ctx, tx, idempotencySceneReserveStock, idempotencyKey, remain); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return remain, nil
+}
+
+// ReleaseStock 回补库存（带幂等保障）。
+func (r *MySQLProductRepository) ReleaseStock(ctx context.Context, productID int64, quantity int64, _ string, idempotencyKey string) (_ int64, err error) {
+	if r == nil || r.db == nil {
+		return 0, fmt.Errorf("repository db is nil")
+	}
+	if quantity <= 0 {
+		return 0, fmt.Errorf("quantity must be positive")
+	}
+	if strings.TrimSpace(idempotencyKey) == "" {
+		return 0, fmt.Errorf("idempotency key is empty")
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	inserted, replayRemain, err := lockIdempotencyRecordTx(ctx, tx, idempotencySceneReleaseStock, idempotencyKey)
+	if err != nil {
+		return 0, err
+	}
+	if replayRemain != nil {
+		if err := tx.Commit(); err != nil {
+			return 0, err
+		}
+		return *replayRemain, nil
+	}
+
+	remain, err := r.releaseStockTx(ctx, tx, productID, quantity)
+	if err != nil {
+		if inserted {
+			_ = cleanupIdempotencyRecordTx(ctx, tx, idempotencySceneReleaseStock, idempotencyKey)
+		}
+		return 0, err
+	}
+	if err := markIdempotencyDoneTx(ctx, tx, idempotencySceneReleaseStock, idempotencyKey, remain); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return remain, nil
+}
+
+func (r *MySQLProductRepository) reserveStockTx(ctx context.Context, tx *sql.Tx, productID int64, quantity int64) (int64, error) {
+	ret, err := tx.ExecContext(ctx, reserveStockSQL, quantity, productID, quantity)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := ret.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if rows == 0 {
+		stock, status, deleted, findErr := loadProductStateTx(ctx, tx, productID)
+		if findErr != nil {
+			return 0, findErr
+		}
+		if deleted || status != model.StatusOnShelf {
+			return 0, ErrProductNotFound
+		}
+		if stock < quantity {
+			return 0, ErrStockNotEnough
+		}
+		return 0, ErrProductNotFound
+	}
+	var remain int64
+	if err := tx.QueryRowContext(ctx, "SELECT stock FROM products WHERE id = ? LIMIT 1", productID).Scan(&remain); err != nil {
+		return 0, err
+	}
+	return remain, nil
+}
+
+func (r *MySQLProductRepository) releaseStockTx(ctx context.Context, tx *sql.Tx, productID int64, quantity int64) (int64, error) {
+	ret, err := tx.ExecContext(ctx, releaseStockSQL, quantity, productID)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := ret.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if rows == 0 {
+		return 0, ErrProductNotFound
+	}
+	var remain int64
+	if err := tx.QueryRowContext(ctx, "SELECT stock FROM products WHERE id = ? LIMIT 1", productID).Scan(&remain); err != nil {
+		return 0, err
+	}
+	return remain, nil
+}
+
+func lockIdempotencyRecordTx(ctx context.Context, tx *sql.Tx, scene, key string) (inserted bool, replayRemain *int64, err error) {
+	expiredAt := time.Now().Add(idempotencyRecordTTL)
+	_, err = tx.ExecContext(ctx, insertIdempotencySQL, key, scene, expiredAt)
+	if err == nil {
+		return true, nil, nil
+	}
+	if !IsDuplicateEntry(err) {
+		return false, nil, err
+	}
+	status, remain, readErr := readIdempotencyReplayTx(ctx, tx, scene, key)
+	if readErr != nil {
+		return false, nil, readErr
+	}
+	if status == 1 && remain != nil {
+		return false, remain, nil
+	}
+	return false, nil, ErrIdempotencyInProgress
+}
+
+func readIdempotencyReplayTx(ctx context.Context, tx *sql.Tx, scene, key string) (int64, *int64, error) {
+	var (
+		status  int64
+		payload sql.NullString
+	)
+	if err := tx.QueryRowContext(ctx, queryIdempotencySQL, key, scene).Scan(&status, &payload); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil, fmt.Errorf("idempotency record not found")
+		}
+		return 0, nil, err
+	}
+	if !payload.Valid || strings.TrimSpace(payload.String) == "" {
+		return status, nil, nil
+	}
+	var decoded struct {
+		RemainStock int64 `json:"remain_stock"`
+	}
+	if err := json.Unmarshal([]byte(payload.String), &decoded); err != nil {
+		return 0, nil, err
+	}
+	return status, &decoded.RemainStock, nil
+}
+
+func markIdempotencyDoneTx(ctx context.Context, tx *sql.Tx, scene, key string, remain int64) error {
+	payload, err := json.Marshal(map[string]any{"remain_stock": remain})
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, updateIdempotencyDoneSQL, string(payload), time.Now().Add(idempotencyRecordTTL), key, scene)
+	return err
+}
+
+func cleanupIdempotencyRecordTx(ctx context.Context, tx *sql.Tx, scene, key string) error {
+	_, err := tx.ExecContext(ctx, deleteIdempotencyRecordSQL, key, scene)
+	return err
+}
+
+func loadProductStateTx(ctx context.Context, tx *sql.Tx, productID int64) (stock int64, status int8, deleted bool, err error) {
+	var deletedAt sql.NullTime
+	err = tx.QueryRowContext(ctx, "SELECT stock, status, deleted_at FROM products WHERE id = ? LIMIT 1", productID).Scan(&stock, &status, &deletedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, 0, false, ErrProductNotFound
+		}
+		return 0, 0, false, err
+	}
+	return stock, status, deletedAt.Valid, nil
 }
 
 // IsDuplicateEntry 判断错误是否为 MySQL 唯一键冲突。

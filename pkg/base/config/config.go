@@ -1,4 +1,4 @@
-// Package config 提供应用统一配置加载、默认值与环境变量覆盖。
+// config 包包含相关应用代码。
 package config
 
 import (

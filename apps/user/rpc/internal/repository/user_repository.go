@@ -1,4 +1,4 @@
-// Package repository 声明用户模块的数据访问抽象。
+// repository 包包含相关应用代码。
 package repository
 
 import (

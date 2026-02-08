@@ -1,4 +1,4 @@
-// Package middleware 提供管理员网关鉴权与权限中间件。
+// middleware 包包含相关应用代码。
 package middleware
 
 import (

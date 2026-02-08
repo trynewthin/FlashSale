@@ -1,4 +1,4 @@
-// Package logic 实现用户删除业务流程。
+// logic 包包含相关应用代码。
 package logic
 
 import (

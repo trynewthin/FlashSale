@@ -1,4 +1,4 @@
-// Package repository 的集成测试，验证 MySQL 商品仓储读写行为。
+// repository 包包含相关应用代码。
 package repository
 
 import (
@@ -33,6 +33,9 @@ func TestMySQLProductRepositoryIntegration(t *testing.T) {
 
 	if !tableExists(t, db, "products") {
 		t.Skip("products table not found, run migrations first")
+	}
+	if !tableExists(t, db, "idempotency_records") {
+		t.Skip("idempotency_records table not found, run migrations first")
 	}
 
 	repo := NewMySQLProductRepository(db)
@@ -106,8 +109,66 @@ func TestMySQLProductRepositoryIntegration(t *testing.T) {
 	if err := repo.SoftDelete(context.Background(), pid, time.Now()); err != nil {
 		t.Fatalf("soft delete failed: %v", err)
 	}
+	remainAfterRelease, err := repo.ReleaseStock(context.Background(), pid, 1, fmt.Sprintf("ORD%d", pid), fmt.Sprintf("ORD%d:release", pid))
+	if err != nil {
+		t.Fatalf("release stock after soft delete failed: %v", err)
+	}
+	if remainAfterRelease != 1 {
+		t.Fatalf("release stock after soft delete mismatch: got=%d want=1", remainAfterRelease)
+	}
 	if _, err := repo.FindByIDAdmin(context.Background(), pid); !errors.Is(err, ErrProductNotFound) {
 		t.Fatalf("expected ErrProductNotFound after delete, got: %v", err)
+	}
+
+	// idempotent replay for reserve/release should not apply stock change twice.
+	pid2 := pid + 100
+	p2 := &model.Product{
+		ID:          pid2,
+		SkuCode:     fmt.Sprintf("SPU%d", pid2),
+		Name:        "幂等测试商品",
+		MainImage:   "https://example.com/idem.png",
+		Description: "idem",
+		PriceCent:   199,
+		Stock:       5,
+		Status:      model.StatusOnShelf,
+	}
+	if err := repo.Create(context.Background(), p2); err != nil {
+		t.Fatalf("create product2 failed: %v", err)
+	}
+	defer func() {
+		_, _ = db.Exec("DELETE FROM idempotency_records WHERE idempotency_key IN (?, ?, ?, ?)",
+			fmt.Sprintf("ORD%d:reserve", pid2),
+			fmt.Sprintf("ORD%d:release", pid2),
+			fmt.Sprintf("ORD%d:reserve:rollback", pid2),
+			fmt.Sprintf("ORD%d:release:rollback", pid2),
+		)
+		_, _ = db.Exec("DELETE FROM products WHERE id = ?", pid2)
+	}()
+
+	reserveKey := fmt.Sprintf("ORD%d:reserve", pid2)
+	remain1, err := repo.ReserveStock(context.Background(), pid2, 2, fmt.Sprintf("ORD%d", pid2), reserveKey)
+	if err != nil {
+		t.Fatalf("reserve stock failed: %v", err)
+	}
+	remain2, err := repo.ReserveStock(context.Background(), pid2, 2, fmt.Sprintf("ORD%d", pid2), reserveKey)
+	if err != nil {
+		t.Fatalf("reserve replay failed: %v", err)
+	}
+	if remain1 != 3 || remain2 != 3 {
+		t.Fatalf("reserve replay mismatch: first=%d second=%d", remain1, remain2)
+	}
+
+	releaseKey := fmt.Sprintf("ORD%d:release", pid2)
+	release1, err := repo.ReleaseStock(context.Background(), pid2, 2, fmt.Sprintf("ORD%d", pid2), releaseKey)
+	if err != nil {
+		t.Fatalf("release stock failed: %v", err)
+	}
+	release2, err := repo.ReleaseStock(context.Background(), pid2, 2, fmt.Sprintf("ORD%d", pid2), releaseKey)
+	if err != nil {
+		t.Fatalf("release replay failed: %v", err)
+	}
+	if release1 != 5 || release2 != 5 {
+		t.Fatalf("release replay mismatch: first=%d second=%d", release1, release2)
 	}
 }
 

@@ -1,4 +1,5 @@
 // 商品 RPC 服务启动入口。
+// rpc 命令提供可执行入口。
 package main
 
 import (

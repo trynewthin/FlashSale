@@ -13,6 +13,8 @@ service ProductRpc {
 
   rpc GetProductPublic (GetProductPublicReq) returns (GetProductPublicResp);
   rpc ListProductsPublic (ListProductsPublicReq) returns (ListProductsPublicResp);
+  rpc ReserveStockForOrder (ReserveStockForOrderReq) returns (ReserveStockForOrderResp);
+  rpc ReleaseStockForOrder (ReleaseStockForOrderReq) returns (ReleaseStockForOrderResp);
 }
 
 message CreateProductReq {
@@ -114,4 +116,28 @@ message PublicProduct {
   string description = 5;
   int64 price_cent = 6;
   bool in_stock = 7;
+}
+
+message ReserveStockForOrderReq {
+  int64 product_id = 1;
+  int64 quantity = 2;
+  string biz_order_no = 3;
+  string idempotency_key = 4;
+}
+
+message ReserveStockForOrderResp {
+  int64 product_id = 1;
+  int64 remain_stock = 2;
+}
+
+message ReleaseStockForOrderReq {
+  int64 product_id = 1;
+  int64 quantity = 2;
+  string biz_order_no = 3;
+  string idempotency_key = 4;
+}
+
+message ReleaseStockForOrderResp {
+  int64 product_id = 1;
+  int64 remain_stock = 2;
 }

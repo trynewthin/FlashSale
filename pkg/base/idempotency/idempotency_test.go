@@ -1,4 +1,5 @@
 // idempotency 包测试：验证并发场景下幂等保护生效。
+// idempotency 包包含相关应用代码。
 package idempotency
 
 import (

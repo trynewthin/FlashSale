@@ -1,4 +1,4 @@
-// Package authz 提供管理员网关权限判定抽象。
+// authz 包包含相关应用代码。
 package authz
 
 import (

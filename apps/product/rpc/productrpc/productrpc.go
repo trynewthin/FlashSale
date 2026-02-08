@@ -1,4 +1,4 @@
-// Package productrpc 提供商品 RPC 客户端封装。
+// productrpc 包包含相关应用代码。
 package productrpc
 
 import (
@@ -10,20 +10,24 @@ import (
 )
 
 type (
-	CreateProductReq       = pb.CreateProductReq
-	CreateProductResp      = pb.CreateProductResp
-	UpdateProductReq       = pb.UpdateProductReq
-	UpdateProductResp      = pb.UpdateProductResp
-	DeleteProductReq       = pb.DeleteProductReq
-	DeleteProductResp      = pb.DeleteProductResp
-	GetProductAdminReq     = pb.GetProductAdminReq
-	GetProductAdminResp    = pb.GetProductAdminResp
-	ListProductsAdminReq   = pb.ListProductsAdminReq
-	ListProductsAdminResp  = pb.ListProductsAdminResp
-	GetProductPublicReq    = pb.GetProductPublicReq
-	GetProductPublicResp   = pb.GetProductPublicResp
-	ListProductsPublicReq  = pb.ListProductsPublicReq
-	ListProductsPublicResp = pb.ListProductsPublicResp
+	CreateProductReq         = pb.CreateProductReq
+	CreateProductResp        = pb.CreateProductResp
+	UpdateProductReq         = pb.UpdateProductReq
+	UpdateProductResp        = pb.UpdateProductResp
+	DeleteProductReq         = pb.DeleteProductReq
+	DeleteProductResp        = pb.DeleteProductResp
+	GetProductAdminReq       = pb.GetProductAdminReq
+	GetProductAdminResp      = pb.GetProductAdminResp
+	ListProductsAdminReq     = pb.ListProductsAdminReq
+	ListProductsAdminResp    = pb.ListProductsAdminResp
+	GetProductPublicReq      = pb.GetProductPublicReq
+	GetProductPublicResp     = pb.GetProductPublicResp
+	ListProductsPublicReq    = pb.ListProductsPublicReq
+	ListProductsPublicResp   = pb.ListProductsPublicResp
+	ReserveStockForOrderReq  = pb.ReserveStockForOrderReq
+	ReserveStockForOrderResp = pb.ReserveStockForOrderResp
+	ReleaseStockForOrderReq  = pb.ReleaseStockForOrderReq
+	ReleaseStockForOrderResp = pb.ReleaseStockForOrderResp
 
 	// ProductRpc 定义商品 RPC 客户端接口。
 	ProductRpc interface {
@@ -34,6 +38,8 @@ type (
 		ListProductsAdmin(ctx context.Context, in *ListProductsAdminReq, opts ...grpc.CallOption) (*ListProductsAdminResp, error)
 		GetProductPublic(ctx context.Context, in *GetProductPublicReq, opts ...grpc.CallOption) (*GetProductPublicResp, error)
 		ListProductsPublic(ctx context.Context, in *ListProductsPublicReq, opts ...grpc.CallOption) (*ListProductsPublicResp, error)
+		ReserveStockForOrder(ctx context.Context, in *ReserveStockForOrderReq, opts ...grpc.CallOption) (*ReserveStockForOrderResp, error)
+		ReleaseStockForOrder(ctx context.Context, in *ReleaseStockForOrderReq, opts ...grpc.CallOption) (*ReleaseStockForOrderResp, error)
 	}
 
 	defaultProductRpc struct {
@@ -79,4 +85,14 @@ func (m *defaultProductRpc) GetProductPublic(ctx context.Context, in *GetProduct
 func (m *defaultProductRpc) ListProductsPublic(ctx context.Context, in *ListProductsPublicReq, opts ...grpc.CallOption) (*ListProductsPublicResp, error) {
 	client := pb.NewProductRpcClient(m.cli.Conn())
 	return client.ListProductsPublic(ctx, in, opts...)
+}
+
+func (m *defaultProductRpc) ReserveStockForOrder(ctx context.Context, in *ReserveStockForOrderReq, opts ...grpc.CallOption) (*ReserveStockForOrderResp, error) {
+	client := pb.NewProductRpcClient(m.cli.Conn())
+	return client.ReserveStockForOrder(ctx, in, opts...)
+}
+
+func (m *defaultProductRpc) ReleaseStockForOrder(ctx context.Context, in *ReleaseStockForOrderReq, opts ...grpc.CallOption) (*ReleaseStockForOrderResp, error) {
+	client := pb.NewProductRpcClient(m.cli.Conn())
+	return client.ReleaseStockForOrder(ctx, in, opts...)
 }

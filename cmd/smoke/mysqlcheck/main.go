@@ -1,4 +1,5 @@
 // mysqlcheck 用于批量校验 MySQL 分库连通性。
+// mysqlcheck 命令提供可执行入口。
 package main
 
 import (

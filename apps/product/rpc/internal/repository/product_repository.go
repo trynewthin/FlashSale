@@ -1,4 +1,4 @@
-// Package repository 声明商品模块的数据访问抽象。
+// repository 包包含相关应用代码。
 package repository
 
 import (
@@ -12,6 +12,10 @@ import (
 var (
 	// ErrProductNotFound 表示目标商品不存在或已被软删除。
 	ErrProductNotFound = errors.New("product not found")
+	// ErrStockNotEnough 表示库存不足。
+	ErrStockNotEnough = errors.New("product stock not enough")
+	// ErrIdempotencyInProgress 表示同一幂等键请求正在处理中。
+	ErrIdempotencyInProgress = errors.New("idempotency in progress")
 )
 
 // ListQuery 表示列表查询条件。
@@ -31,4 +35,6 @@ type ProductRepository interface {
 	FindByIDPublic(ctx context.Context, productID int64) (*model.Product, error)
 	ListAdmin(ctx context.Context, query ListQuery) ([]*model.Product, int64, error)
 	ListPublic(ctx context.Context, query ListQuery) ([]*model.Product, int64, error)
+	ReserveStock(ctx context.Context, productID int64, quantity int64, bizOrderNo, idempotencyKey string) (int64, error)
+	ReleaseStock(ctx context.Context, productID int64, quantity int64, bizOrderNo, idempotencyKey string) (int64, error)
 }

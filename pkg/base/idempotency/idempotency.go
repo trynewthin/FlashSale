@@ -1,4 +1,4 @@
-// Package idempotency 提供基于 Redis 的通用幂等执行保护。
+// idempotency 包包含相关应用代码。
 package idempotency
 
 import (

@@ -1,3 +1,4 @@
+// handler 包包含相关应用代码。
 package handler
 
 import (
@@ -176,4 +177,12 @@ func (f *fakeAdminProductRPC) GetProductPublic(context.Context, *productrpc.GetP
 
 func (f *fakeAdminProductRPC) ListProductsPublic(context.Context, *productrpc.ListProductsPublicReq, ...grpc.CallOption) (*productrpc.ListProductsPublicResp, error) {
 	return nil, nil
+}
+
+func (f *fakeAdminProductRPC) ReserveStockForOrder(context.Context, *productrpc.ReserveStockForOrderReq, ...grpc.CallOption) (*productrpc.ReserveStockForOrderResp, error) {
+	return &productpb.ReserveStockForOrderResp{}, nil
+}
+
+func (f *fakeAdminProductRPC) ReleaseStockForOrder(context.Context, *productrpc.ReleaseStockForOrderReq, ...grpc.CallOption) (*productrpc.ReleaseStockForOrderResp, error) {
+	return &productpb.ReleaseStockForOrderResp{}, nil
 }

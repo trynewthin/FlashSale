@@ -1,4 +1,4 @@
-// Package server 负责把商品 RPC 请求分发到对应业务逻辑。
+// server 包包含相关应用代码。
 package server
 
 import (
@@ -93,6 +93,30 @@ func (s *ProductRpcServer) GetProductPublic(ctx context.Context, in *pb.GetProdu
 func (s *ProductRpcServer) ListProductsPublic(ctx context.Context, in *pb.ListProductsPublicReq) (*pb.ListProductsPublicResp, error) {
 	l := logic.NewListProductsPublicLogic(ctx, s.svcCtx)
 	resp, err := l.ListProductsPublic(in)
+	if err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	return resp, nil
+}
+
+func (s *ProductRpcServer) ReserveStockForOrder(ctx context.Context, in *pb.ReserveStockForOrderReq) (*pb.ReserveStockForOrderResp, error) {
+	if err := authorizeAdminProductDomain(ctx); err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	l := logic.NewReserveStockForOrderLogic(ctx, s.svcCtx)
+	resp, err := l.ReserveStockForOrder(in)
+	if err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	return resp, nil
+}
+
+func (s *ProductRpcServer) ReleaseStockForOrder(ctx context.Context, in *pb.ReleaseStockForOrderReq) (*pb.ReleaseStockForOrderResp, error) {
+	if err := authorizeAdminProductDomain(ctx); err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	l := logic.NewReleaseStockForOrderLogic(ctx, s.svcCtx)
+	resp, err := l.ReleaseStockForOrder(in)
 	if err != nil {
 		return nil, grpcerr.ToStatus(err)
 	}

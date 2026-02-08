@@ -1,3 +1,4 @@
+// handler 包包含相关应用代码。
 package handler
 
 import (
@@ -34,6 +35,12 @@ func (f *fakeProductRPC) GetProductPublic(context.Context, *productrpc.GetProduc
 }
 func (f *fakeProductRPC) ListProductsPublic(context.Context, *productrpc.ListProductsPublicReq, ...grpc.CallOption) (*productrpc.ListProductsPublicResp, error) {
 	return &productpb.ListProductsPublicResp{List: []*productpb.PublicProduct{{ProductId: 1001, Name: "可乐", PriceCent: 399, InStock: true}}, Total: 1, Page: 1, PageSize: 20}, nil
+}
+func (f *fakeProductRPC) ReserveStockForOrder(context.Context, *productrpc.ReserveStockForOrderReq, ...grpc.CallOption) (*productrpc.ReserveStockForOrderResp, error) {
+	return &productpb.ReserveStockForOrderResp{}, nil
+}
+func (f *fakeProductRPC) ReleaseStockForOrder(context.Context, *productrpc.ReleaseStockForOrderReq, ...grpc.CallOption) (*productrpc.ReleaseStockForOrderResp, error) {
+	return &productpb.ReleaseStockForOrderResp{}, nil
 }
 
 func TestPublicProductRoutesAnonymousAccess(t *testing.T) {

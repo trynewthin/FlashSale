@@ -1,4 +1,4 @@
-// Package middleware 提供网关中间件通用输出工具。
+// middleware 包包含相关应用代码。
 package middleware
 
 import (

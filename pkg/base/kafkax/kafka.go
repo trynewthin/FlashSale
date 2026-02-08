@@ -1,4 +1,4 @@
-// Package kafkax 封装 Kafka 生产与消费接口，统一消息模型。
+// kafkax 包包含相关应用代码。
 package kafkax
 
 import (

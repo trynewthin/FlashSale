@@ -1,4 +1,4 @@
-// Package tracing 负责初始化 OpenTelemetry Trace Provider。
+// tracing 包包含相关应用代码。
 package tracing
 
 import (

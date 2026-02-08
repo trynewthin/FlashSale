@@ -1,4 +1,4 @@
-// Package config 定义用户网关配置结构。
+// config 包包含相关应用代码。
 package config
 
 import (
@@ -15,6 +15,7 @@ type Config struct {
 	BaseConfigPath string `json:",default=configs/local/dev.yaml"`
 	UserRPC        zrpc.RpcClientConf
 	ProductRPC     zrpc.RpcClientConf
+	OrderRPC       zrpc.RpcClientConf
 }
 
 const userGatewayListenOnEnv = "FLASHSALE_USER_GATEWAY_LISTEN_ON"

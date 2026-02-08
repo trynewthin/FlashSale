@@ -1,4 +1,4 @@
-// Package logic 的单元测试，覆盖手机号/密码校验规则。
+// logic 包包含相关应用代码。
 package logic
 
 import "testing"

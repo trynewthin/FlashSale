@@ -1,4 +1,4 @@
-// Package server 负责把 RPC 请求分发到对应业务逻辑。
+// server 包包含相关应用代码。
 package server
 
 import (

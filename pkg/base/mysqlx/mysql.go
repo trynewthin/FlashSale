@@ -1,4 +1,4 @@
-// Package mysqlx 提供 MySQL 连接初始化、DSN 构造与连接池默认策略。
+// mysqlx 包包含相关应用代码。
 package mysqlx
 
 import (

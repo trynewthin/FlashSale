@@ -1,6 +1,6 @@
 # 本地开发快速开始
 
-更新时间：2026-02-07
+更新时间：2026-02-08
 
 ## 1. 前置条件
 
@@ -49,6 +49,18 @@ Copy-Item configs/local/dev.env.example configs/local/dev.env
 
 ```powershell
 go run ./apps/user/rpc -f apps/user/rpc/etc/user.yaml
+```
+
+启动商品 RPC：
+
+```powershell
+go run ./apps/product/rpc -f apps/product/rpc/etc/product.yaml
+```
+
+启动订单 RPC：
+
+```powershell
+go run ./apps/order/rpc -f apps/order/rpc/etc/order.yaml
 ```
 
 启动用户网关：

@@ -14,6 +14,7 @@ import (
 	"flashsale/apps/product/rpc/productrpc"
 	baseauth "flashsale/pkg/base/authx"
 	baseconfig "flashsale/pkg/base/config"
+	"flashsale/pkg/base/kafkax"
 	baselog "flashsale/pkg/base/logx"
 	"flashsale/pkg/base/mysqlx"
 	basetracing "flashsale/pkg/base/tracing"
@@ -35,6 +36,7 @@ type ServiceContext struct {
 	DB            *sql.DB
 	OrderRepo     repository.OrderRepository
 	ProductRPCCli productrpc.ProductRpc
+	Producer      kafkax.Producer
 	IDNode        *snowflake.Node
 
 	traceShutdown func(context.Context) error
@@ -47,6 +49,7 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 		traceShutdown func(context.Context) error
 		db            *sql.DB
 		productCli    zrpc.Client
+		producer      kafkax.Producer
 	)
 	defer func() {
 		if err == nil {
@@ -62,6 +65,9 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 		}
 		if logger != nil {
 			_ = logger.Sync()
+		}
+		if closer, ok := producer.(interface{ Close() error }); ok {
+			_ = closer.Close()
 		}
 		_ = productCli
 	}()
@@ -122,6 +128,10 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("init product rpc client: %w", err)
 	}
+	producer, err = kafkax.NewProducer(appCfg.Kafka)
+	if err != nil {
+		return nil, fmt.Errorf("init kafka producer: %w", err)
+	}
 
 	nodeID := c.SnowflakeNode
 	if nodeID <= 0 {
@@ -139,6 +149,7 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 		DB:            db,
 		OrderRepo:     repository.NewMySQLOrderRepository(db),
 		ProductRPCCli: productrpc.NewProductRpc(productCli),
+		Producer:      producer,
 		IDNode:        node,
 		traceShutdown: traceShutdown,
 	}
@@ -167,6 +178,11 @@ func (s *ServiceContext) Close() error {
 	if s.DB != nil {
 		if err := s.DB.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("close mysql: %w", err))
+		}
+	}
+	if closer, ok := s.Producer.(interface{ Close() error }); ok {
+		if err := closer.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close kafka producer: %w", err))
 		}
 	}
 	if s.Logger != nil {

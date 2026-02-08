@@ -10,24 +10,28 @@ import (
 )
 
 type (
-	CreateProductReq         = pb.CreateProductReq
-	CreateProductResp        = pb.CreateProductResp
-	UpdateProductReq         = pb.UpdateProductReq
-	UpdateProductResp        = pb.UpdateProductResp
-	DeleteProductReq         = pb.DeleteProductReq
-	DeleteProductResp        = pb.DeleteProductResp
-	GetProductAdminReq       = pb.GetProductAdminReq
-	GetProductAdminResp      = pb.GetProductAdminResp
-	ListProductsAdminReq     = pb.ListProductsAdminReq
-	ListProductsAdminResp    = pb.ListProductsAdminResp
-	GetProductPublicReq      = pb.GetProductPublicReq
-	GetProductPublicResp     = pb.GetProductPublicResp
-	ListProductsPublicReq    = pb.ListProductsPublicReq
-	ListProductsPublicResp   = pb.ListProductsPublicResp
-	ReserveStockForOrderReq  = pb.ReserveStockForOrderReq
-	ReserveStockForOrderResp = pb.ReserveStockForOrderResp
-	ReleaseStockForOrderReq  = pb.ReleaseStockForOrderReq
-	ReleaseStockForOrderResp = pb.ReleaseStockForOrderResp
+	CreateProductReq            = pb.CreateProductReq
+	CreateProductResp           = pb.CreateProductResp
+	UpdateProductReq            = pb.UpdateProductReq
+	UpdateProductResp           = pb.UpdateProductResp
+	DeleteProductReq            = pb.DeleteProductReq
+	DeleteProductResp           = pb.DeleteProductResp
+	GetProductAdminReq          = pb.GetProductAdminReq
+	GetProductAdminResp         = pb.GetProductAdminResp
+	ListProductsAdminReq        = pb.ListProductsAdminReq
+	ListProductsAdminResp       = pb.ListProductsAdminResp
+	GetProductPublicReq         = pb.GetProductPublicReq
+	GetProductPublicResp        = pb.GetProductPublicResp
+	ListProductsPublicReq       = pb.ListProductsPublicReq
+	ListProductsPublicResp      = pb.ListProductsPublicResp
+	ReserveStockForOrderReq     = pb.ReserveStockForOrderReq
+	ReserveStockForOrderResp    = pb.ReserveStockForOrderResp
+	ReleaseStockForOrderReq     = pb.ReleaseStockForOrderReq
+	ReleaseStockForOrderResp    = pb.ReleaseStockForOrderResp
+	ReserveStockForActivityReq  = pb.ReserveStockForActivityReq
+	ReserveStockForActivityResp = pb.ReserveStockForActivityResp
+	ReleaseStockForActivityReq  = pb.ReleaseStockForActivityReq
+	ReleaseStockForActivityResp = pb.ReleaseStockForActivityResp
 
 	// ProductRpc 定义商品 RPC 客户端接口。
 	ProductRpc interface {
@@ -40,6 +44,8 @@ type (
 		ListProductsPublic(ctx context.Context, in *ListProductsPublicReq, opts ...grpc.CallOption) (*ListProductsPublicResp, error)
 		ReserveStockForOrder(ctx context.Context, in *ReserveStockForOrderReq, opts ...grpc.CallOption) (*ReserveStockForOrderResp, error)
 		ReleaseStockForOrder(ctx context.Context, in *ReleaseStockForOrderReq, opts ...grpc.CallOption) (*ReleaseStockForOrderResp, error)
+		ReserveStockForActivity(ctx context.Context, in *ReserveStockForActivityReq, opts ...grpc.CallOption) (*ReserveStockForActivityResp, error)
+		ReleaseStockForActivity(ctx context.Context, in *ReleaseStockForActivityReq, opts ...grpc.CallOption) (*ReleaseStockForActivityResp, error)
 	}
 
 	defaultProductRpc struct {
@@ -104,4 +110,16 @@ func (m *defaultProductRpc) ReserveStockForOrder(ctx context.Context, in *Reserv
 func (m *defaultProductRpc) ReleaseStockForOrder(ctx context.Context, in *ReleaseStockForOrderReq, opts ...grpc.CallOption) (*ReleaseStockForOrderResp, error) {
 	client := pb.NewProductRpcClient(m.cli.Conn())
 	return client.ReleaseStockForOrder(ctx, in, opts...)
+}
+
+// ReserveStockForActivity 调用商品服务活动库存预占接口。
+func (m *defaultProductRpc) ReserveStockForActivity(ctx context.Context, in *ReserveStockForActivityReq, opts ...grpc.CallOption) (*ReserveStockForActivityResp, error) {
+	client := pb.NewProductRpcClient(m.cli.Conn())
+	return client.ReserveStockForActivity(ctx, in, opts...)
+}
+
+// ReleaseStockForActivity 调用商品服务活动库存释放接口。
+func (m *defaultProductRpc) ReleaseStockForActivity(ctx context.Context, in *ReleaseStockForActivityReq, opts ...grpc.CallOption) (*ReleaseStockForActivityResp, error) {
+	client := pb.NewProductRpcClient(m.cli.Conn())
+	return client.ReleaseStockForActivity(ctx, in, opts...)
 }

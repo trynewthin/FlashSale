@@ -1,0 +1,296 @@
+syntax = "proto3";
+
+package seckill;
+
+option go_package = "flashsale/apps/seckill/rpc/pb;pb";
+
+service SeckillRpc {
+  // 管理侧接口
+  rpc CreateActivity (CreateActivityReq) returns (CreateActivityResp);
+  rpc UpdateActivity (UpdateActivityReq) returns (UpdateActivityResp);
+  rpc DeleteActivity (DeleteActivityReq) returns (DeleteActivityResp);
+  rpc GetActivityAdmin (GetActivityAdminReq) returns (GetActivityAdminResp);
+  rpc ListActivitiesAdmin (ListActivitiesAdminReq) returns (ListActivitiesAdminResp);
+  rpc UpsertActivityItem (UpsertActivityItemReq) returns (UpsertActivityItemResp);
+  rpc RemoveActivityItem (RemoveActivityItemReq) returns (RemoveActivityItemResp);
+  rpc PublishActivity (PublishActivityReq) returns (PublishActivityResp);
+  rpc OfflineActivity (OfflineActivityReq) returns (OfflineActivityResp);
+  rpc GetActivityTraffic (GetActivityTrafficReq) returns (GetActivityTrafficResp);
+  rpc ListActivityOrders (ListActivityOrdersReq) returns (ListActivityOrdersResp);
+
+  // 用户侧接口
+  rpc ListActivitiesPublic (ListActivitiesPublicReq) returns (ListActivitiesPublicResp);
+  rpc GetActivityPublic (GetActivityPublicReq) returns (GetActivityPublicResp);
+  rpc Purchase (PurchaseReq) returns (PurchaseResp);
+  rpc TrackEvent (TrackEventReq) returns (TrackEventResp);
+}
+
+message CreateActivityReq {
+  string title = 1;
+  string description = 2;
+  string style_config_json = 3;
+  int64 start_at_unix = 4;
+  int64 end_at_unix = 5;
+  int64 admin_id = 6;
+}
+
+message CreateActivityResp {
+  ActivityAdmin activity = 1;
+}
+
+message UpdateActivityReq {
+  int64 activity_id = 1;
+  string title = 2;
+  string description = 3;
+  string style_config_json = 4;
+  int64 start_at_unix = 5;
+  int64 end_at_unix = 6;
+  int64 admin_id = 7;
+}
+
+message UpdateActivityResp {
+  ActivityAdmin activity = 1;
+}
+
+message DeleteActivityReq {
+  int64 activity_id = 1;
+  int64 admin_id = 2;
+}
+
+message DeleteActivityResp {
+  int64 activity_id = 1;
+}
+
+message GetActivityAdminReq {
+  int64 activity_id = 1;
+}
+
+message GetActivityAdminResp {
+  ActivityAdmin activity = 1;
+}
+
+message ListActivitiesAdminReq {
+  int64 page = 1;
+  int64 page_size = 2;
+  string keyword = 3;
+  int32 status = 4;
+  bool include_deleted = 5;
+}
+
+message ListActivitiesAdminResp {
+  repeated ActivityAdmin list = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message UpsertActivityItemReq {
+  int64 activity_id = 1;
+  int64 item_id = 2;
+  int64 product_id = 3;
+  int64 seckill_price_cent = 4;
+  int64 reserved_stock_total = 5;
+  int32 user_limit_mode = 6;
+  int64 user_limit_window_sec = 7;
+  int64 user_limit_qty = 8;
+  int64 max_qty_per_order = 9;
+  int32 status = 10;
+}
+
+message UpsertActivityItemResp {
+  ActivityItemAdmin item = 1;
+}
+
+message RemoveActivityItemReq {
+  int64 activity_id = 1;
+  int64 item_id = 2;
+  int64 admin_id = 3;
+}
+
+message RemoveActivityItemResp {
+  int64 activity_id = 1;
+  int64 item_id = 2;
+}
+
+message PublishActivityReq {
+  int64 activity_id = 1;
+  int64 admin_id = 2;
+}
+
+message PublishActivityResp {
+  ActivityAdmin activity = 1;
+}
+
+message OfflineActivityReq {
+  int64 activity_id = 1;
+  int64 admin_id = 2;
+}
+
+message OfflineActivityResp {
+  ActivityAdmin activity = 1;
+}
+
+message GetActivityTrafficReq {
+  int64 activity_id = 1;
+  int64 activity_item_id = 2;
+  int64 from_minute_unix = 3;
+  int64 to_minute_unix = 4;
+}
+
+message GetActivityTrafficResp {
+  repeated TrafficBucket rows = 1;
+}
+
+message ListActivityOrdersReq {
+  int64 activity_id = 1;
+  int64 page = 2;
+  int64 page_size = 3;
+  int32 order_status = 4;
+  int32 payment_status = 5;
+  int64 user_id = 6;
+}
+
+message ListActivityOrdersResp {
+  repeated ActivityOrderView list = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message ListActivitiesPublicReq {
+  int64 page = 1;
+  int64 page_size = 2;
+}
+
+message ListActivitiesPublicResp {
+  repeated ActivityPublic list = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message GetActivityPublicReq {
+  int64 activity_id = 1;
+}
+
+message GetActivityPublicResp {
+  ActivityPublic activity = 1;
+}
+
+message PurchaseReq {
+  int64 user_id = 1;
+  int64 activity_id = 2;
+  int64 activity_item_id = 3;
+  int64 quantity = 4;
+  string idempotency_key = 5;
+}
+
+message PurchaseResp {
+  int64 activity_id = 1;
+  int64 activity_item_id = 2;
+  int64 order_id = 3;
+  string order_no = 4;
+}
+
+message TrackEventReq {
+  int64 activity_id = 1;
+  int64 activity_item_id = 2;
+  string event_type = 3;
+  int64 user_id = 4;
+  string client_id = 5;
+  string idempotency_key = 6;
+  int64 occurred_at_unix = 7;
+}
+
+message TrackEventResp {
+  bool accepted = 1;
+}
+
+message ActivityAdmin {
+  int64 activity_id = 1;
+  string title = 2;
+  string description = 3;
+  string style_config_json = 4;
+  int64 start_at_unix = 5;
+  int64 end_at_unix = 6;
+  int32 status = 7;
+  int64 created_by = 8;
+  int64 updated_by = 9;
+  int64 created_at_unix = 10;
+  int64 updated_at_unix = 11;
+  repeated ActivityItemAdmin items = 12;
+}
+
+message ActivityItemAdmin {
+  int64 item_id = 1;
+  int64 activity_id = 2;
+  int64 product_id = 3;
+  string sku_code = 4;
+  string snapshot_name = 5;
+  string snapshot_main_image = 6;
+  int64 origin_price_cent = 7;
+  int64 seckill_price_cent = 8;
+  int64 reserved_stock_total = 9;
+  int64 available_stock = 10;
+  int64 sold_stock = 11;
+  int32 user_limit_mode = 12;
+  int64 user_limit_window_sec = 13;
+  int64 user_limit_qty = 14;
+  int64 max_qty_per_order = 15;
+  int32 status = 16;
+  int64 created_at_unix = 17;
+  int64 updated_at_unix = 18;
+}
+
+message ActivityPublic {
+  int64 activity_id = 1;
+  string title = 2;
+  string description = 3;
+  string style_config_json = 4;
+  int64 start_at_unix = 5;
+  int64 end_at_unix = 6;
+  int32 status = 7;
+  repeated ActivityItemPublic items = 8;
+}
+
+message ActivityItemPublic {
+  int64 item_id = 1;
+  int64 product_id = 2;
+  string sku_code = 3;
+  string snapshot_name = 4;
+  string snapshot_main_image = 5;
+  int64 origin_price_cent = 6;
+  int64 seckill_price_cent = 7;
+  bool in_stock = 8;
+  int64 max_qty_per_order = 9;
+}
+
+message TrafficBucket {
+  int64 bucket_minute_unix = 1;
+  int64 activity_id = 2;
+  int64 activity_item_id = 3;
+  int64 pv = 4;
+  int64 uv = 5;
+  int64 click = 6;
+  int64 purchase_attempt = 7;
+  int64 purchase_success = 8;
+  int64 purchase_fail = 9;
+  int64 pay_success = 10;
+  int64 order_closed = 11;
+}
+
+message ActivityOrderView {
+  int64 link_id = 1;
+  int64 order_id = 2;
+  string order_no = 3;
+  int64 user_id = 4;
+  int64 activity_id = 5;
+  int64 activity_item_id = 6;
+  int64 quantity = 7;
+  int32 order_status = 8;
+  int32 payment_status = 9;
+  string close_reason = 10;
+  int64 last_synced_at_unix = 11;
+  int64 created_at_unix = 12;
+  int64 updated_at_unix = 13;
+}

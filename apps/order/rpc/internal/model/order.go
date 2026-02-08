@@ -63,17 +63,19 @@ const (
 
 // Order 定义订单聚合。
 type Order struct {
-	ID              int64
-	OrderNo         string
-	UserID          int64
-	OrderSource     int8
-	ProductID       int64
-	SkuCode         string
-	ProductName     string
-	MainImage       string
-	UnitPriceCent   int64
-	Quantity        int64
-	TotalAmountCent int64
+	ID                    int64
+	OrderNo               string
+	UserID                int64
+	OrderSource           int8
+	ProductID             int64
+	SeckillActivityID     int64
+	SeckillActivityItemID int64
+	SkuCode               string
+	ProductName           string
+	MainImage             string
+	UnitPriceCent         int64
+	Quantity              int64
+	TotalAmountCent       int64
 
 	OrderStatus    int8
 	PaymentStatus  int8

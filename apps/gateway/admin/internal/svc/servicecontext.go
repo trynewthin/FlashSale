@@ -9,6 +9,7 @@ import (
 	"flashsale/apps/gateway/admin/internal/config"
 	"flashsale/apps/order/rpc/orderrpc"
 	"flashsale/apps/product/rpc/productrpc"
+	"flashsale/apps/seckill/rpc/seckillrpc"
 	"flashsale/apps/user/rpc/userrpc"
 	baseauth "flashsale/pkg/base/authx"
 	baseconfig "flashsale/pkg/base/config"
@@ -26,6 +27,7 @@ type ServiceContext struct {
 	UserRPCCli    userrpc.UserRpc
 	ProductRPCCli productrpc.ProductRpc
 	OrderRPCCli   orderrpc.OrderRpc
+	SeckillRPCCli seckillrpc.SeckillRpc
 }
 
 // NewServiceContext 初始化管理员网关依赖。
@@ -73,6 +75,10 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init order rpc client: %w", err)
 	}
+	seckillRPCClient, err := zrpc.NewClient(c.SeckillRPC)
+	if err != nil {
+		return nil, fmt.Errorf("init seckill rpc client: %w", err)
+	}
 
 	return &ServiceContext{
 		Config:        c,
@@ -82,6 +88,7 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		UserRPCCli:    userrpc.NewUserRpc(rpcClient),
 		ProductRPCCli: productrpc.NewProductRpc(productRPCClient),
 		OrderRPCCli:   orderrpc.NewOrderRpc(orderRPCClient),
+		SeckillRPCCli: seckillrpc.NewSeckillRpc(seckillRPCClient),
 	}, nil
 }
 

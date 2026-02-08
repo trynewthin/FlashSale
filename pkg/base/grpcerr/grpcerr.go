@@ -59,15 +59,15 @@ func FromStatus(err error) *errorx.AppError {
 
 func codeToGRPC(code errorx.Code) codes.Code {
 	switch code {
-	case errorx.CodeSysBadRequest, errorx.CodeAuthInvalidPhone, errorx.CodeAuthWeakPassword, errorx.CodeProductInvalidStatus, errorx.CodeOrderInvalidState, errorx.CodeOrderOutOfStock, errorx.CodeOrderInvalidReceiverInfo:
+	case errorx.CodeSysBadRequest, errorx.CodeAuthInvalidPhone, errorx.CodeAuthWeakPassword, errorx.CodeProductInvalidStatus, errorx.CodeOrderInvalidState, errorx.CodeOrderOutOfStock, errorx.CodeOrderInvalidReceiverInfo, errorx.CodeSeckillInvalidConfig:
 		return codes.InvalidArgument
 	case errorx.CodeAuthUnauthorized, errorx.CodeAuthInvalidCredentials:
 		return codes.Unauthenticated
 	case errorx.CodeAuthForbidden:
 		return codes.PermissionDenied
-	case errorx.CodeUserNotFound, errorx.CodeProductNotFound, errorx.CodeOrderNotFound:
+	case errorx.CodeUserNotFound, errorx.CodeProductNotFound, errorx.CodeOrderNotFound, errorx.CodeSeckillActivityNotFound, errorx.CodeSeckillItemNotFound:
 		return codes.NotFound
-	case errorx.CodeAuthPhoneAlreadyRegistered, errorx.CodeProductSKUAlreadyExists, errorx.CodeOrderAlreadyClosed, errorx.CodeOrderAlreadyPaid, errorx.CodeOrderPayTimeout, errorx.CodeOrderReviewTimeout, errorx.CodeOrderReviewRejected:
+	case errorx.CodeAuthPhoneAlreadyRegistered, errorx.CodeProductSKUAlreadyExists, errorx.CodeOrderAlreadyClosed, errorx.CodeOrderAlreadyPaid, errorx.CodeOrderPayTimeout, errorx.CodeOrderReviewTimeout, errorx.CodeOrderReviewRejected, errorx.CodeSeckillActivityNotPublished, errorx.CodeSeckillActivityNotStarted, errorx.CodeSeckillActivityEnded, errorx.CodeSeckillOutOfStock, errorx.CodeSeckillLimitExceeded, errorx.CodeSeckillPurchaseConflict:
 		return codes.AlreadyExists
 	default:
 		return codes.Internal
@@ -111,6 +111,15 @@ func parseCode(raw string) (errorx.Code, bool) {
 		errorx.CodeOrderAlreadyClosed,
 		errorx.CodeOrderAlreadyPaid,
 		errorx.CodeOrderInvalidReceiverInfo,
+		errorx.CodeSeckillActivityNotFound,
+		errorx.CodeSeckillActivityNotPublished,
+		errorx.CodeSeckillActivityNotStarted,
+		errorx.CodeSeckillActivityEnded,
+		errorx.CodeSeckillItemNotFound,
+		errorx.CodeSeckillOutOfStock,
+		errorx.CodeSeckillLimitExceeded,
+		errorx.CodeSeckillPurchaseConflict,
+		errorx.CodeSeckillInvalidConfig,
 		errorx.CodeAuthUnauthorized,
 		errorx.CodeAuthForbidden,
 		errorx.CodeAuthInvalidPhone,

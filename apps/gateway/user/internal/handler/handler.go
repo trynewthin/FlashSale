@@ -25,6 +25,7 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	h := &UserHandler{svcCtx: svcCtx}
 	ph := &ProductPublicHandler{svcCtx: svcCtx}
 	oh := &OrderUserHandler{svcCtx: svcCtx}
+	sh := &SeckillPublicHandler{svcCtx: svcCtx}
 	mux.HandleFunc("GET /healthz", h.Health)
 	mux.Handle("POST /api/v1/user/register", middleware.RegisterRateLimit(http.HandlerFunc(h.Register)))
 	mux.Handle("POST /api/v1/user/login", middleware.LoginRateLimit(http.HandlerFunc(h.Login)))
@@ -39,6 +40,10 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	mux.Handle("POST /api/v1/orders/{order_id}/confirm-receipt", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.ConfirmReceipt)))
 	mux.Handle("GET /api/v1/orders/{order_id}", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.GetOrder)))
 	mux.Handle("GET /api/v1/orders", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.ListOrders)))
+	mux.HandleFunc("GET /api/v1/seckill/activities", sh.ListActivities)
+	mux.HandleFunc("GET /api/v1/seckill/activities/{activity_id}", sh.GetActivity)
+	mux.Handle("POST /api/v1/seckill/activities/{activity_id}/purchase", middleware.AuthRequired(svcCtx, http.HandlerFunc(sh.Purchase)))
+	mux.HandleFunc("POST /api/v1/seckill/activities/{activity_id}/track", sh.TrackEvent)
 }
 
 // UserHandler 处理用户网关请求。

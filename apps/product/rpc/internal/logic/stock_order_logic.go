@@ -91,3 +91,85 @@ func (l *ReleaseStockForOrderLogic) ReleaseStockForOrder(in *pb.ReleaseStockForO
 		RemainStock: remain,
 	}, nil
 }
+
+// ReserveStockForActivityLogic 封装活动库存预占逻辑。
+type ReserveStockForActivityLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewReserveStockForActivityLogic(ctx context.Context, svcCtx *svc.ServiceContext) *ReserveStockForActivityLogic {
+	return &ReserveStockForActivityLogic{ctx: ctx, svcCtx: svcCtx, Logger: logx.WithContext(ctx)}
+}
+
+// ReserveStockForActivity 执行活动库存预占。
+func (l *ReserveStockForActivityLogic) ReserveStockForActivity(in *pb.ReserveStockForActivityReq) (*pb.ReserveStockForActivityResp, error) {
+	if in == nil {
+		return nil, errorx.New(errorx.CodeSysBadRequest, "请求不能为空")
+	}
+	if in.ProductId <= 0 || in.Quantity <= 0 || in.ActivityId <= 0 || in.ActivityItemId <= 0 {
+		return nil, errorx.New(errorx.CodeSysBadRequest, "请求参数非法")
+	}
+	if strings.TrimSpace(in.IdempotencyKey) == "" {
+		return nil, errorx.New(errorx.CodeSysBadRequest, "idempotency_key 不能为空")
+	}
+	bizOrderNo := "ACT:" + strings.TrimSpace(in.IdempotencyKey)
+	remain, err := l.svcCtx.ProductRepo.ReserveStock(l.ctx, in.ProductId, in.Quantity, bizOrderNo, in.IdempotencyKey)
+	if err != nil {
+		switch err {
+		case repository.ErrProductNotFound:
+			return nil, errorx.New(errorx.CodeProductNotFound, "商品不存在")
+		case repository.ErrStockNotEnough:
+			return nil, errorx.New(errorx.CodeSeckillOutOfStock, "库存不足")
+		case repository.ErrIdempotencyInProgress:
+			return nil, errorx.New(errorx.CodeSysInternal, "库存预占处理中，请稍后重试")
+		default:
+			return nil, errorx.Wrap(errorx.CodeDBError, "库存预占失败", err)
+		}
+	}
+	return &pb.ReserveStockForActivityResp{
+		ProductId:   in.ProductId,
+		RemainStock: remain,
+	}, nil
+}
+
+// ReleaseStockForActivityLogic 封装活动库存释放逻辑。
+type ReleaseStockForActivityLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewReleaseStockForActivityLogic(ctx context.Context, svcCtx *svc.ServiceContext) *ReleaseStockForActivityLogic {
+	return &ReleaseStockForActivityLogic{ctx: ctx, svcCtx: svcCtx, Logger: logx.WithContext(ctx)}
+}
+
+// ReleaseStockForActivity 执行活动库存释放。
+func (l *ReleaseStockForActivityLogic) ReleaseStockForActivity(in *pb.ReleaseStockForActivityReq) (*pb.ReleaseStockForActivityResp, error) {
+	if in == nil {
+		return nil, errorx.New(errorx.CodeSysBadRequest, "请求不能为空")
+	}
+	if in.ProductId <= 0 || in.Quantity <= 0 || in.ActivityId <= 0 || in.ActivityItemId <= 0 {
+		return nil, errorx.New(errorx.CodeSysBadRequest, "请求参数非法")
+	}
+	if strings.TrimSpace(in.IdempotencyKey) == "" {
+		return nil, errorx.New(errorx.CodeSysBadRequest, "idempotency_key 不能为空")
+	}
+	bizOrderNo := "ACT:" + strings.TrimSpace(in.IdempotencyKey)
+	remain, err := l.svcCtx.ProductRepo.ReleaseStock(l.ctx, in.ProductId, in.Quantity, bizOrderNo, in.IdempotencyKey)
+	if err != nil {
+		switch err {
+		case repository.ErrProductNotFound:
+			return nil, errorx.New(errorx.CodeProductNotFound, "商品不存在")
+		case repository.ErrIdempotencyInProgress:
+			return nil, errorx.New(errorx.CodeSysInternal, "库存释放处理中，请稍后重试")
+		default:
+			return nil, errorx.Wrap(errorx.CodeDBError, "库存释放失败", err)
+		}
+	}
+	return &pb.ReleaseStockForActivityResp{
+		ProductId:   in.ProductId,
+		RemainStock: remain,
+	}, nil
+}

@@ -19,16 +19,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	OrderRpc_CreateOrder_FullMethodName           = "/order.OrderRpc/CreateOrder"
-	OrderRpc_ConfirmPaymentAndInfo_FullMethodName = "/order.OrderRpc/ConfirmPaymentAndInfo"
-	OrderRpc_CancelOrder_FullMethodName           = "/order.OrderRpc/CancelOrder"
-	OrderRpc_ConfirmReceipt_FullMethodName        = "/order.OrderRpc/ConfirmReceipt"
-	OrderRpc_GetOrderUser_FullMethodName          = "/order.OrderRpc/GetOrderUser"
-	OrderRpc_ListOrdersUser_FullMethodName        = "/order.OrderRpc/ListOrdersUser"
-	OrderRpc_ReviewOrderAdmin_FullMethodName      = "/order.OrderRpc/ReviewOrderAdmin"
-	OrderRpc_ShipOrderAdmin_FullMethodName        = "/order.OrderRpc/ShipOrderAdmin"
-	OrderRpc_GetOrderAdmin_FullMethodName         = "/order.OrderRpc/GetOrderAdmin"
-	OrderRpc_ListOrdersAdmin_FullMethodName       = "/order.OrderRpc/ListOrdersAdmin"
+	OrderRpc_CreateOrder_FullMethodName            = "/order.OrderRpc/CreateOrder"
+	OrderRpc_CreateOrderFromSeckill_FullMethodName = "/order.OrderRpc/CreateOrderFromSeckill"
+	OrderRpc_ConfirmPaymentAndInfo_FullMethodName  = "/order.OrderRpc/ConfirmPaymentAndInfo"
+	OrderRpc_CancelOrder_FullMethodName            = "/order.OrderRpc/CancelOrder"
+	OrderRpc_ConfirmReceipt_FullMethodName         = "/order.OrderRpc/ConfirmReceipt"
+	OrderRpc_GetOrderUser_FullMethodName           = "/order.OrderRpc/GetOrderUser"
+	OrderRpc_ListOrdersUser_FullMethodName         = "/order.OrderRpc/ListOrdersUser"
+	OrderRpc_ReviewOrderAdmin_FullMethodName       = "/order.OrderRpc/ReviewOrderAdmin"
+	OrderRpc_ShipOrderAdmin_FullMethodName         = "/order.OrderRpc/ShipOrderAdmin"
+	OrderRpc_GetOrderAdmin_FullMethodName          = "/order.OrderRpc/GetOrderAdmin"
+	OrderRpc_ListOrdersAdmin_FullMethodName        = "/order.OrderRpc/ListOrdersAdmin"
 )
 
 // OrderRpcClient is the client API for OrderRpc service.
@@ -37,6 +38,7 @@ const (
 type OrderRpcClient interface {
 	// 用户侧接口
 	CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*CreateOrderResp, error)
+	CreateOrderFromSeckill(ctx context.Context, in *CreateOrderFromSeckillReq, opts ...grpc.CallOption) (*CreateOrderFromSeckillResp, error)
 	ConfirmPaymentAndInfo(ctx context.Context, in *ConfirmPaymentAndInfoReq, opts ...grpc.CallOption) (*ConfirmPaymentAndInfoResp, error)
 	CancelOrder(ctx context.Context, in *CancelOrderReq, opts ...grpc.CallOption) (*CancelOrderResp, error)
 	ConfirmReceipt(ctx context.Context, in *ConfirmReceiptReq, opts ...grpc.CallOption) (*ConfirmReceiptResp, error)
@@ -61,6 +63,16 @@ func (c *orderRpcClient) CreateOrder(ctx context.Context, in *CreateOrderReq, op
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateOrderResp)
 	err := c.cc.Invoke(ctx, OrderRpc_CreateOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderRpcClient) CreateOrderFromSeckill(ctx context.Context, in *CreateOrderFromSeckillReq, opts ...grpc.CallOption) (*CreateOrderFromSeckillResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateOrderFromSeckillResp)
+	err := c.cc.Invoke(ctx, OrderRpc_CreateOrderFromSeckill_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +175,7 @@ func (c *orderRpcClient) ListOrdersAdmin(ctx context.Context, in *ListOrdersAdmi
 type OrderRpcServer interface {
 	// 用户侧接口
 	CreateOrder(context.Context, *CreateOrderReq) (*CreateOrderResp, error)
+	CreateOrderFromSeckill(context.Context, *CreateOrderFromSeckillReq) (*CreateOrderFromSeckillResp, error)
 	ConfirmPaymentAndInfo(context.Context, *ConfirmPaymentAndInfoReq) (*ConfirmPaymentAndInfoResp, error)
 	CancelOrder(context.Context, *CancelOrderReq) (*CancelOrderResp, error)
 	ConfirmReceipt(context.Context, *ConfirmReceiptReq) (*ConfirmReceiptResp, error)
@@ -185,6 +198,9 @@ type UnimplementedOrderRpcServer struct{}
 
 func (UnimplementedOrderRpcServer) CreateOrder(context.Context, *CreateOrderReq) (*CreateOrderResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateOrder not implemented")
+}
+func (UnimplementedOrderRpcServer) CreateOrderFromSeckill(context.Context, *CreateOrderFromSeckillReq) (*CreateOrderFromSeckillResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateOrderFromSeckill not implemented")
 }
 func (UnimplementedOrderRpcServer) ConfirmPaymentAndInfo(context.Context, *ConfirmPaymentAndInfoReq) (*ConfirmPaymentAndInfoResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method ConfirmPaymentAndInfo not implemented")
@@ -248,6 +264,24 @@ func _OrderRpc_CreateOrder_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(OrderRpcServer).CreateOrder(ctx, req.(*CreateOrderReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrderRpc_CreateOrderFromSeckill_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateOrderFromSeckillReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderRpcServer).CreateOrderFromSeckill(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderRpc_CreateOrderFromSeckill_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderRpcServer).CreateOrderFromSeckill(ctx, req.(*CreateOrderFromSeckillReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -424,6 +458,10 @@ var OrderRpc_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateOrder",
 			Handler:    _OrderRpc_CreateOrder_Handler,
+		},
+		{
+			MethodName: "CreateOrderFromSeckill",
+			Handler:    _OrderRpc_CreateOrderFromSeckill_Handler,
 		},
 		{
 			MethodName: "ConfirmPaymentAndInfo",

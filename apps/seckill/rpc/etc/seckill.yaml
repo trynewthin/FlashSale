@@ -1,0 +1,8 @@
+Name: seckill-rpc
+ListenOn: 0.0.0.0:8086
+BaseConfigPath: configs/local/dev.yaml
+SnowflakeNode: 6
+ProductRPC:
+  Target: 127.0.0.1:8084
+OrderRPC:
+  Target: 127.0.0.1:8085

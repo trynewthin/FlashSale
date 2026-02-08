@@ -35,6 +35,9 @@ func TestMySQLOrderRepositoryIntegration(t *testing.T) {
 	if !orderColumnExists(t, db, "orders", "stock_released") {
 		t.Skip("orders.stock_released column not found, run latest migrations first")
 	}
+	if !orderColumnExists(t, db, "orders", "seckill_activity_id") {
+		t.Skip("orders.seckill_activity_id column not found, run latest migrations first")
+	}
 
 	repo := NewMySQLOrderRepository(db)
 	now := time.Now().UnixNano()

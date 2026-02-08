@@ -7,6 +7,7 @@ option go_package = "flashsale/apps/order/rpc/pb;pb";
 service OrderRpc {
   // 用户侧接口
   rpc CreateOrder (CreateOrderReq) returns (CreateOrderResp);
+  rpc CreateOrderFromSeckill (CreateOrderFromSeckillReq) returns (CreateOrderFromSeckillResp);
   rpc ConfirmPaymentAndInfo (ConfirmPaymentAndInfoReq) returns (ConfirmPaymentAndInfoResp);
   rpc CancelOrder (CancelOrderReq) returns (CancelOrderResp);
   rpc ConfirmReceipt (ConfirmReceiptReq) returns (ConfirmReceiptResp);
@@ -27,6 +28,23 @@ message CreateOrderReq {
 }
 
 message CreateOrderResp {
+  OrderView order = 1;
+}
+
+message CreateOrderFromSeckillReq {
+  int64 user_id = 1;
+  int64 activity_id = 2;
+  int64 activity_item_id = 3;
+  int64 product_id = 4;
+  int64 quantity = 5;
+  int64 seckill_price_cent = 6;
+  string snapshot_name = 7;
+  string snapshot_main_image = 8;
+  string sku_code = 9;
+  string idempotency_key = 10;
+}
+
+message CreateOrderFromSeckillResp {
   OrderView order = 1;
 }
 
@@ -170,4 +188,6 @@ message OrderView {
   string close_reason = 35;
   int64 created_at_unix = 36;
   int64 updated_at_unix = 37;
+  int64 seckill_activity_id = 38;
+  int64 seckill_activity_item_id = 39;
 }

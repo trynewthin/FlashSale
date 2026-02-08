@@ -66,9 +66,12 @@ type KafkaConfig struct {
 
 // KafkaTopicConfig 是业务 Topic 配置。
 type KafkaTopicConfig struct {
-	OrderCreate     string `mapstructure:"orderCreate"`
-	OrderCreateDLQ  string `mapstructure:"orderCreateDLQ"`
-	StockCompensate string `mapstructure:"stockCompensate"`
+	OrderCreate       string `mapstructure:"orderCreate"`
+	OrderCreateDLQ    string `mapstructure:"orderCreateDLQ"`
+	StockCompensate   string `mapstructure:"stockCompensate"`
+	SeckillTrafficRaw string `mapstructure:"seckillTrafficRaw"`
+	SeckillTrafficDLQ string `mapstructure:"seckillTrafficDLQ"`
+	SeckillOrderState string `mapstructure:"seckillOrderState"`
 }
 
 // JWTConfig 是双域 JWT 配置。
@@ -167,6 +170,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("kafka.topics.orderCreate", "order.create")
 	v.SetDefault("kafka.topics.orderCreateDLQ", "order.create.dlq")
 	v.SetDefault("kafka.topics.stockCompensate", "stock.compensate")
+	v.SetDefault("kafka.topics.seckillTrafficRaw", "seckill.traffic.raw")
+	v.SetDefault("kafka.topics.seckillTrafficDLQ", "seckill.traffic.dlq")
+	v.SetDefault("kafka.topics.seckillOrderState", "seckill.order.state")
 
 	v.SetDefault("jwt.user.secret", "user-secret-change-me")
 	v.SetDefault("jwt.user.issuer", "flashsale-user")

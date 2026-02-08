@@ -1261,6 +1261,262 @@ func (x *ReleaseStockForOrderResp) GetRemainStock() int64 {
 	return 0
 }
 
+type ReserveStockForActivityReq struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ProductId      int64                  `protobuf:"varint,1,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`
+	Quantity       int64                  `protobuf:"varint,2,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	ActivityId     int64                  `protobuf:"varint,3,opt,name=activity_id,json=activityId,proto3" json:"activity_id,omitempty"`
+	ActivityItemId int64                  `protobuf:"varint,4,opt,name=activity_item_id,json=activityItemId,proto3" json:"activity_item_id,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,5,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ReserveStockForActivityReq) Reset() {
+	*x = ReserveStockForActivityReq{}
+	mi := &file_apps_product_rpc_product_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReserveStockForActivityReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReserveStockForActivityReq) ProtoMessage() {}
+
+func (x *ReserveStockForActivityReq) ProtoReflect() protoreflect.Message {
+	mi := &file_apps_product_rpc_product_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReserveStockForActivityReq.ProtoReflect.Descriptor instead.
+func (*ReserveStockForActivityReq) Descriptor() ([]byte, []int) {
+	return file_apps_product_rpc_product_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ReserveStockForActivityReq) GetProductId() int64 {
+	if x != nil {
+		return x.ProductId
+	}
+	return 0
+}
+
+func (x *ReserveStockForActivityReq) GetQuantity() int64 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+func (x *ReserveStockForActivityReq) GetActivityId() int64 {
+	if x != nil {
+		return x.ActivityId
+	}
+	return 0
+}
+
+func (x *ReserveStockForActivityReq) GetActivityItemId() int64 {
+	if x != nil {
+		return x.ActivityItemId
+	}
+	return 0
+}
+
+func (x *ReserveStockForActivityReq) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type ReserveStockForActivityResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProductId     int64                  `protobuf:"varint,1,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`
+	RemainStock   int64                  `protobuf:"varint,2,opt,name=remain_stock,json=remainStock,proto3" json:"remain_stock,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReserveStockForActivityResp) Reset() {
+	*x = ReserveStockForActivityResp{}
+	mi := &file_apps_product_rpc_product_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReserveStockForActivityResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReserveStockForActivityResp) ProtoMessage() {}
+
+func (x *ReserveStockForActivityResp) ProtoReflect() protoreflect.Message {
+	mi := &file_apps_product_rpc_product_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReserveStockForActivityResp.ProtoReflect.Descriptor instead.
+func (*ReserveStockForActivityResp) Descriptor() ([]byte, []int) {
+	return file_apps_product_rpc_product_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *ReserveStockForActivityResp) GetProductId() int64 {
+	if x != nil {
+		return x.ProductId
+	}
+	return 0
+}
+
+func (x *ReserveStockForActivityResp) GetRemainStock() int64 {
+	if x != nil {
+		return x.RemainStock
+	}
+	return 0
+}
+
+type ReleaseStockForActivityReq struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ProductId      int64                  `protobuf:"varint,1,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`
+	Quantity       int64                  `protobuf:"varint,2,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	ActivityId     int64                  `protobuf:"varint,3,opt,name=activity_id,json=activityId,proto3" json:"activity_id,omitempty"`
+	ActivityItemId int64                  `protobuf:"varint,4,opt,name=activity_item_id,json=activityItemId,proto3" json:"activity_item_id,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,5,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ReleaseStockForActivityReq) Reset() {
+	*x = ReleaseStockForActivityReq{}
+	mi := &file_apps_product_rpc_product_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReleaseStockForActivityReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReleaseStockForActivityReq) ProtoMessage() {}
+
+func (x *ReleaseStockForActivityReq) ProtoReflect() protoreflect.Message {
+	mi := &file_apps_product_rpc_product_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReleaseStockForActivityReq.ProtoReflect.Descriptor instead.
+func (*ReleaseStockForActivityReq) Descriptor() ([]byte, []int) {
+	return file_apps_product_rpc_product_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ReleaseStockForActivityReq) GetProductId() int64 {
+	if x != nil {
+		return x.ProductId
+	}
+	return 0
+}
+
+func (x *ReleaseStockForActivityReq) GetQuantity() int64 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+func (x *ReleaseStockForActivityReq) GetActivityId() int64 {
+	if x != nil {
+		return x.ActivityId
+	}
+	return 0
+}
+
+func (x *ReleaseStockForActivityReq) GetActivityItemId() int64 {
+	if x != nil {
+		return x.ActivityItemId
+	}
+	return 0
+}
+
+func (x *ReleaseStockForActivityReq) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type ReleaseStockForActivityResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProductId     int64                  `protobuf:"varint,1,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`
+	RemainStock   int64                  `protobuf:"varint,2,opt,name=remain_stock,json=remainStock,proto3" json:"remain_stock,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReleaseStockForActivityResp) Reset() {
+	*x = ReleaseStockForActivityResp{}
+	mi := &file_apps_product_rpc_product_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReleaseStockForActivityResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReleaseStockForActivityResp) ProtoMessage() {}
+
+func (x *ReleaseStockForActivityResp) ProtoReflect() protoreflect.Message {
+	mi := &file_apps_product_rpc_product_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReleaseStockForActivityResp.ProtoReflect.Descriptor instead.
+func (*ReleaseStockForActivityResp) Descriptor() ([]byte, []int) {
+	return file_apps_product_rpc_product_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ReleaseStockForActivityResp) GetProductId() int64 {
+	if x != nil {
+		return x.ProductId
+	}
+	return 0
+}
+
+func (x *ReleaseStockForActivityResp) GetRemainStock() int64 {
+	if x != nil {
+		return x.RemainStock
+	}
+	return 0
+}
+
 var File_apps_product_rpc_product_proto protoreflect.FileDescriptor
 
 const file_apps_product_rpc_product_proto_rawDesc = "" +
@@ -1372,7 +1628,31 @@ const file_apps_product_rpc_product_proto_rawDesc = "" +
 	"\x18ReleaseStockForOrderResp\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\x03R\tproductId\x12!\n" +
-	"\fremain_stock\x18\x02 \x01(\x03R\vremainStock2\xe8\x05\n" +
+	"\fremain_stock\x18\x02 \x01(\x03R\vremainStock\"\xcb\x01\n" +
+	"\x1aReserveStockForActivityReq\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x01 \x01(\x03R\tproductId\x12\x1a\n" +
+	"\bquantity\x18\x02 \x01(\x03R\bquantity\x12\x1f\n" +
+	"\vactivity_id\x18\x03 \x01(\x03R\n" +
+	"activityId\x12(\n" +
+	"\x10activity_item_id\x18\x04 \x01(\x03R\x0eactivityItemId\x12'\n" +
+	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"_\n" +
+	"\x1bReserveStockForActivityResp\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x01 \x01(\x03R\tproductId\x12!\n" +
+	"\fremain_stock\x18\x02 \x01(\x03R\vremainStock\"\xcb\x01\n" +
+	"\x1aReleaseStockForActivityReq\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x01 \x01(\x03R\tproductId\x12\x1a\n" +
+	"\bquantity\x18\x02 \x01(\x03R\bquantity\x12\x1f\n" +
+	"\vactivity_id\x18\x03 \x01(\x03R\n" +
+	"activityId\x12(\n" +
+	"\x10activity_item_id\x18\x04 \x01(\x03R\x0eactivityItemId\x12'\n" +
+	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"_\n" +
+	"\x1bReleaseStockForActivityResp\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x01 \x01(\x03R\tproductId\x12!\n" +
+	"\fremain_stock\x18\x02 \x01(\x03R\vremainStock2\xb4\a\n" +
 	"\n" +
 	"ProductRpc\x12F\n" +
 	"\rCreateProduct\x12\x19.product.CreateProductReq\x1a\x1a.product.CreateProductResp\x12F\n" +
@@ -1383,7 +1663,9 @@ const file_apps_product_rpc_product_proto_rawDesc = "" +
 	"\x10GetProductPublic\x12\x1c.product.GetProductPublicReq\x1a\x1d.product.GetProductPublicResp\x12U\n" +
 	"\x12ListProductsPublic\x12\x1e.product.ListProductsPublicReq\x1a\x1f.product.ListProductsPublicResp\x12[\n" +
 	"\x14ReserveStockForOrder\x12 .product.ReserveStockForOrderReq\x1a!.product.ReserveStockForOrderResp\x12[\n" +
-	"\x14ReleaseStockForOrder\x12 .product.ReleaseStockForOrderReq\x1a!.product.ReleaseStockForOrderRespB\"Z flashsale/apps/product/rpc/pb;pbb\x06proto3"
+	"\x14ReleaseStockForOrder\x12 .product.ReleaseStockForOrderReq\x1a!.product.ReleaseStockForOrderResp\x12d\n" +
+	"\x17ReserveStockForActivity\x12#.product.ReserveStockForActivityReq\x1a$.product.ReserveStockForActivityResp\x12d\n" +
+	"\x17ReleaseStockForActivity\x12#.product.ReleaseStockForActivityReq\x1a$.product.ReleaseStockForActivityRespB\"Z flashsale/apps/product/rpc/pb;pbb\x06proto3"
 
 var (
 	file_apps_product_rpc_product_proto_rawDescOnce sync.Once
@@ -1397,28 +1679,32 @@ func file_apps_product_rpc_product_proto_rawDescGZIP() []byte {
 	return file_apps_product_rpc_product_proto_rawDescData
 }
 
-var file_apps_product_rpc_product_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_apps_product_rpc_product_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_apps_product_rpc_product_proto_goTypes = []any{
-	(*CreateProductReq)(nil),         // 0: product.CreateProductReq
-	(*CreateProductResp)(nil),        // 1: product.CreateProductResp
-	(*UpdateProductReq)(nil),         // 2: product.UpdateProductReq
-	(*UpdateProductResp)(nil),        // 3: product.UpdateProductResp
-	(*DeleteProductReq)(nil),         // 4: product.DeleteProductReq
-	(*DeleteProductResp)(nil),        // 5: product.DeleteProductResp
-	(*GetProductAdminReq)(nil),       // 6: product.GetProductAdminReq
-	(*GetProductAdminResp)(nil),      // 7: product.GetProductAdminResp
-	(*ListProductsAdminReq)(nil),     // 8: product.ListProductsAdminReq
-	(*ListProductsAdminResp)(nil),    // 9: product.ListProductsAdminResp
-	(*GetProductPublicReq)(nil),      // 10: product.GetProductPublicReq
-	(*GetProductPublicResp)(nil),     // 11: product.GetProductPublicResp
-	(*ListProductsPublicReq)(nil),    // 12: product.ListProductsPublicReq
-	(*ListProductsPublicResp)(nil),   // 13: product.ListProductsPublicResp
-	(*AdminProduct)(nil),             // 14: product.AdminProduct
-	(*PublicProduct)(nil),            // 15: product.PublicProduct
-	(*ReserveStockForOrderReq)(nil),  // 16: product.ReserveStockForOrderReq
-	(*ReserveStockForOrderResp)(nil), // 17: product.ReserveStockForOrderResp
-	(*ReleaseStockForOrderReq)(nil),  // 18: product.ReleaseStockForOrderReq
-	(*ReleaseStockForOrderResp)(nil), // 19: product.ReleaseStockForOrderResp
+	(*CreateProductReq)(nil),            // 0: product.CreateProductReq
+	(*CreateProductResp)(nil),           // 1: product.CreateProductResp
+	(*UpdateProductReq)(nil),            // 2: product.UpdateProductReq
+	(*UpdateProductResp)(nil),           // 3: product.UpdateProductResp
+	(*DeleteProductReq)(nil),            // 4: product.DeleteProductReq
+	(*DeleteProductResp)(nil),           // 5: product.DeleteProductResp
+	(*GetProductAdminReq)(nil),          // 6: product.GetProductAdminReq
+	(*GetProductAdminResp)(nil),         // 7: product.GetProductAdminResp
+	(*ListProductsAdminReq)(nil),        // 8: product.ListProductsAdminReq
+	(*ListProductsAdminResp)(nil),       // 9: product.ListProductsAdminResp
+	(*GetProductPublicReq)(nil),         // 10: product.GetProductPublicReq
+	(*GetProductPublicResp)(nil),        // 11: product.GetProductPublicResp
+	(*ListProductsPublicReq)(nil),       // 12: product.ListProductsPublicReq
+	(*ListProductsPublicResp)(nil),      // 13: product.ListProductsPublicResp
+	(*AdminProduct)(nil),                // 14: product.AdminProduct
+	(*PublicProduct)(nil),               // 15: product.PublicProduct
+	(*ReserveStockForOrderReq)(nil),     // 16: product.ReserveStockForOrderReq
+	(*ReserveStockForOrderResp)(nil),    // 17: product.ReserveStockForOrderResp
+	(*ReleaseStockForOrderReq)(nil),     // 18: product.ReleaseStockForOrderReq
+	(*ReleaseStockForOrderResp)(nil),    // 19: product.ReleaseStockForOrderResp
+	(*ReserveStockForActivityReq)(nil),  // 20: product.ReserveStockForActivityReq
+	(*ReserveStockForActivityResp)(nil), // 21: product.ReserveStockForActivityResp
+	(*ReleaseStockForActivityReq)(nil),  // 22: product.ReleaseStockForActivityReq
+	(*ReleaseStockForActivityResp)(nil), // 23: product.ReleaseStockForActivityResp
 }
 var file_apps_product_rpc_product_proto_depIdxs = []int32{
 	14, // 0: product.CreateProductResp.product:type_name -> product.AdminProduct
@@ -1436,17 +1722,21 @@ var file_apps_product_rpc_product_proto_depIdxs = []int32{
 	12, // 12: product.ProductRpc.ListProductsPublic:input_type -> product.ListProductsPublicReq
 	16, // 13: product.ProductRpc.ReserveStockForOrder:input_type -> product.ReserveStockForOrderReq
 	18, // 14: product.ProductRpc.ReleaseStockForOrder:input_type -> product.ReleaseStockForOrderReq
-	1,  // 15: product.ProductRpc.CreateProduct:output_type -> product.CreateProductResp
-	3,  // 16: product.ProductRpc.UpdateProduct:output_type -> product.UpdateProductResp
-	5,  // 17: product.ProductRpc.DeleteProduct:output_type -> product.DeleteProductResp
-	7,  // 18: product.ProductRpc.GetProductAdmin:output_type -> product.GetProductAdminResp
-	9,  // 19: product.ProductRpc.ListProductsAdmin:output_type -> product.ListProductsAdminResp
-	11, // 20: product.ProductRpc.GetProductPublic:output_type -> product.GetProductPublicResp
-	13, // 21: product.ProductRpc.ListProductsPublic:output_type -> product.ListProductsPublicResp
-	17, // 22: product.ProductRpc.ReserveStockForOrder:output_type -> product.ReserveStockForOrderResp
-	19, // 23: product.ProductRpc.ReleaseStockForOrder:output_type -> product.ReleaseStockForOrderResp
-	15, // [15:24] is the sub-list for method output_type
-	6,  // [6:15] is the sub-list for method input_type
+	20, // 15: product.ProductRpc.ReserveStockForActivity:input_type -> product.ReserveStockForActivityReq
+	22, // 16: product.ProductRpc.ReleaseStockForActivity:input_type -> product.ReleaseStockForActivityReq
+	1,  // 17: product.ProductRpc.CreateProduct:output_type -> product.CreateProductResp
+	3,  // 18: product.ProductRpc.UpdateProduct:output_type -> product.UpdateProductResp
+	5,  // 19: product.ProductRpc.DeleteProduct:output_type -> product.DeleteProductResp
+	7,  // 20: product.ProductRpc.GetProductAdmin:output_type -> product.GetProductAdminResp
+	9,  // 21: product.ProductRpc.ListProductsAdmin:output_type -> product.ListProductsAdminResp
+	11, // 22: product.ProductRpc.GetProductPublic:output_type -> product.GetProductPublicResp
+	13, // 23: product.ProductRpc.ListProductsPublic:output_type -> product.ListProductsPublicResp
+	17, // 24: product.ProductRpc.ReserveStockForOrder:output_type -> product.ReserveStockForOrderResp
+	19, // 25: product.ProductRpc.ReleaseStockForOrder:output_type -> product.ReleaseStockForOrderResp
+	21, // 26: product.ProductRpc.ReserveStockForActivity:output_type -> product.ReserveStockForActivityResp
+	23, // 27: product.ProductRpc.ReleaseStockForActivity:output_type -> product.ReleaseStockForActivityResp
+	17, // [17:28] is the sub-list for method output_type
+	6,  // [6:17] is the sub-list for method input_type
 	6,  // [6:6] is the sub-list for extension type_name
 	6,  // [6:6] is the sub-list for extension extendee
 	0,  // [0:6] is the sub-list for field type_name
@@ -1463,7 +1753,7 @@ func file_apps_product_rpc_product_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_apps_product_rpc_product_proto_rawDesc), len(file_apps_product_rpc_product_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

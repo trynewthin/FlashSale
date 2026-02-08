@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	insertOrderSQL = "INSERT INTO orders (id, order_no, user_id, order_source, product_id, sku_code, product_name, main_image, unit_price_cent, quantity, total_amount_cent, order_status, payment_status, review_status, shipping_status, refund_status, review_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	insertOrderSQL = "INSERT INTO orders (id, order_no, user_id, order_source, product_id, seckill_activity_id, seckill_activity_item_id, sku_code, product_name, main_image, unit_price_cent, quantity, total_amount_cent, order_status, payment_status, review_status, shipping_status, refund_status, review_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	insertEventSQL = "INSERT INTO order_events (order_id, event_type, operator_type, operator_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)"
 
-	orderSelectColumns = "id, order_no, user_id, order_source, product_id, sku_code, product_name, main_image, unit_price_cent, quantity, total_amount_cent, order_status, payment_status, review_status, shipping_status, refund_status, review_mode, paid_at, pay_channel, pay_reference, receiver_name, receiver_phone, receiver_address, buyer_remark, review_due_at, reviewed_at, reviewed_by, review_reason, shipped_at, shipped_by, tracking_no, refund_due_at, refunded_at, stock_released, closed_at, close_reason, created_at, updated_at"
+	orderSelectColumns = "id, order_no, user_id, order_source, product_id, seckill_activity_id, seckill_activity_item_id, sku_code, product_name, main_image, unit_price_cent, quantity, total_amount_cent, order_status, payment_status, review_status, shipping_status, refund_status, review_mode, paid_at, pay_channel, pay_reference, receiver_name, receiver_phone, receiver_address, buyer_remark, review_due_at, reviewed_at, reviewed_by, review_reason, shipped_at, shipped_by, tracking_no, refund_due_at, refunded_at, stock_released, closed_at, close_reason, created_at, updated_at"
 	findByIDSQL        = "SELECT " + orderSelectColumns + " FROM orders WHERE id = ? LIMIT 1"
 )
 
@@ -45,6 +45,8 @@ func (r *MySQLOrderRepository) Create(ctx context.Context, order *model.Order, e
 			order.UserID,
 			order.OrderSource,
 			order.ProductID,
+			sqlNullableInt64(order.SeckillActivityID),
+			sqlNullableInt64(order.SeckillActivityItemID),
 			order.SkuCode,
 			order.ProductName,
 			order.MainImage,
@@ -502,22 +504,31 @@ func (r *MySQLOrderRepository) listByCondition(ctx context.Context, condition st
 	return items, nil
 }
 
+func sqlNullableInt64(v int64) any {
+	if v <= 0 {
+		return nil
+	}
+	return v
+}
+
 type scanner interface {
 	Scan(dest ...any) error
 }
 
 func scanOrder(s scanner) (*model.Order, error) {
 	var (
-		m           model.Order
-		paidAt      sql.NullTime
-		reviewDueAt sql.NullTime
-		reviewedAt  sql.NullTime
-		shippedAt   sql.NullTime
-		refundDueAt sql.NullTime
-		refundedAt  sql.NullTime
-		closedAt    sql.NullTime
-		reviewedBy  sql.NullInt64
-		shippedBy   sql.NullInt64
+		m                     model.Order
+		seckillActivityID     sql.NullInt64
+		seckillActivityItemID sql.NullInt64
+		paidAt                sql.NullTime
+		reviewDueAt           sql.NullTime
+		reviewedAt            sql.NullTime
+		shippedAt             sql.NullTime
+		refundDueAt           sql.NullTime
+		refundedAt            sql.NullTime
+		closedAt              sql.NullTime
+		reviewedBy            sql.NullInt64
+		shippedBy             sql.NullInt64
 	)
 	if err := s.Scan(
 		&m.ID,
@@ -525,6 +536,8 @@ func scanOrder(s scanner) (*model.Order, error) {
 		&m.UserID,
 		&m.OrderSource,
 		&m.ProductID,
+		&seckillActivityID,
+		&seckillActivityItemID,
 		&m.SkuCode,
 		&m.ProductName,
 		&m.MainImage,
@@ -563,6 +576,12 @@ func scanOrder(s scanner) (*model.Order, error) {
 	}
 	if paidAt.Valid {
 		m.PaidAt = &paidAt.Time
+	}
+	if seckillActivityID.Valid {
+		m.SeckillActivityID = seckillActivityID.Int64
+	}
+	if seckillActivityItemID.Valid {
+		m.SeckillActivityItemID = seckillActivityItemID.Int64
 	}
 	if reviewDueAt.Valid {
 		m.ReviewDueAt = &reviewDueAt.Time

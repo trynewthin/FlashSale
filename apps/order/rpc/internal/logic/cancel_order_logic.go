@@ -11,6 +11,7 @@ import (
 	"flashsale/apps/order/rpc/internal/svc"
 	"flashsale/apps/order/rpc/pb"
 	"flashsale/pkg/base/errorx"
+	"flashsale/pkg/base/eventx"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -80,10 +81,13 @@ func (l *CancelOrderLogic) CancelOrder(in *pb.CancelOrderReq) (*pb.CancelOrderRe
 	}
 
 	releaseAt := time.Now()
-	remain, err := releaseStockForOrder(l.ctx, l.svcCtx, order.OrderNo, order.ProductID, order.Quantity, "release:cancel")
-	if err != nil {
-		logStockReleaseErr(l.Logger, "release stock after cancel failed", err)
-		return nil, err
+	remain := int64(0)
+	if order.OrderSource != model.OrderSourceSeckill {
+		remain, err = releaseStockForOrder(l.ctx, l.svcCtx, order.OrderNo, order.ProductID, order.Quantity, "release:cancel")
+		if err != nil {
+			logStockReleaseErr(l.Logger, "release stock after cancel failed", err)
+			return nil, err
+		}
 	}
 	if err := markOrderStockReleased(l.ctx, l.svcCtx, order.ID, remain, "user_cancel", releaseAt); err != nil {
 		logStockReleaseErr(l.Logger, "mark stock released after cancel failed", err)
@@ -94,6 +98,7 @@ func (l *CancelOrderLogic) CancelOrder(in *pb.CancelOrderReq) (*pb.CancelOrderRe
 	if err != nil {
 		return nil, errorx.Wrap(errorx.CodeDBError, "查询订单失败", err)
 	}
+	emitSeckillOrderStateEvent(l.ctx, l.svcCtx, updated, eventx.SeckillOrderStateEventTypeClosed)
 	return &pb.CancelOrderResp{Order: toOrderView(updated)}, nil
 }
 

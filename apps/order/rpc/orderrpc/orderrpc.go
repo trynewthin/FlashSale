@@ -10,30 +10,33 @@ import (
 )
 
 type (
-	CreateOrderReq            = pb.CreateOrderReq
-	CreateOrderResp           = pb.CreateOrderResp
-	ConfirmPaymentAndInfoReq  = pb.ConfirmPaymentAndInfoReq
-	ConfirmPaymentAndInfoResp = pb.ConfirmPaymentAndInfoResp
-	CancelOrderReq            = pb.CancelOrderReq
-	CancelOrderResp           = pb.CancelOrderResp
-	ConfirmReceiptReq         = pb.ConfirmReceiptReq
-	ConfirmReceiptResp        = pb.ConfirmReceiptResp
-	GetOrderUserReq           = pb.GetOrderUserReq
-	GetOrderUserResp          = pb.GetOrderUserResp
-	ListOrdersUserReq         = pb.ListOrdersUserReq
-	ListOrdersUserResp        = pb.ListOrdersUserResp
-	ReviewOrderAdminReq       = pb.ReviewOrderAdminReq
-	ReviewOrderAdminResp      = pb.ReviewOrderAdminResp
-	ShipOrderAdminReq         = pb.ShipOrderAdminReq
-	ShipOrderAdminResp        = pb.ShipOrderAdminResp
-	GetOrderAdminReq          = pb.GetOrderAdminReq
-	GetOrderAdminResp         = pb.GetOrderAdminResp
-	ListOrdersAdminReq        = pb.ListOrdersAdminReq
-	ListOrdersAdminResp       = pb.ListOrdersAdminResp
+	CreateOrderReq             = pb.CreateOrderReq
+	CreateOrderResp            = pb.CreateOrderResp
+	CreateOrderFromSeckillReq  = pb.CreateOrderFromSeckillReq
+	CreateOrderFromSeckillResp = pb.CreateOrderFromSeckillResp
+	ConfirmPaymentAndInfoReq   = pb.ConfirmPaymentAndInfoReq
+	ConfirmPaymentAndInfoResp  = pb.ConfirmPaymentAndInfoResp
+	CancelOrderReq             = pb.CancelOrderReq
+	CancelOrderResp            = pb.CancelOrderResp
+	ConfirmReceiptReq          = pb.ConfirmReceiptReq
+	ConfirmReceiptResp         = pb.ConfirmReceiptResp
+	GetOrderUserReq            = pb.GetOrderUserReq
+	GetOrderUserResp           = pb.GetOrderUserResp
+	ListOrdersUserReq          = pb.ListOrdersUserReq
+	ListOrdersUserResp         = pb.ListOrdersUserResp
+	ReviewOrderAdminReq        = pb.ReviewOrderAdminReq
+	ReviewOrderAdminResp       = pb.ReviewOrderAdminResp
+	ShipOrderAdminReq          = pb.ShipOrderAdminReq
+	ShipOrderAdminResp         = pb.ShipOrderAdminResp
+	GetOrderAdminReq           = pb.GetOrderAdminReq
+	GetOrderAdminResp          = pb.GetOrderAdminResp
+	ListOrdersAdminReq         = pb.ListOrdersAdminReq
+	ListOrdersAdminResp        = pb.ListOrdersAdminResp
 
 	// OrderRpc 定义订单 RPC 客户端接口。
 	OrderRpc interface {
 		CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*CreateOrderResp, error)
+		CreateOrderFromSeckill(ctx context.Context, in *CreateOrderFromSeckillReq, opts ...grpc.CallOption) (*CreateOrderFromSeckillResp, error)
 		ConfirmPaymentAndInfo(ctx context.Context, in *ConfirmPaymentAndInfoReq, opts ...grpc.CallOption) (*ConfirmPaymentAndInfoResp, error)
 		CancelOrder(ctx context.Context, in *CancelOrderReq, opts ...grpc.CallOption) (*CancelOrderResp, error)
 		ConfirmReceipt(ctx context.Context, in *ConfirmReceiptReq, opts ...grpc.CallOption) (*ConfirmReceiptResp, error)
@@ -58,6 +61,11 @@ func NewOrderRpc(cli zrpc.Client) OrderRpc {
 // CreateOrder 调用订单服务创建订单接口。
 func (m *defaultOrderRpc) CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*CreateOrderResp, error) {
 	return pb.NewOrderRpcClient(m.cli.Conn()).CreateOrder(ctx, in, opts...)
+}
+
+// CreateOrderFromSeckill 调用订单服务秒杀专用建单接口。
+func (m *defaultOrderRpc) CreateOrderFromSeckill(ctx context.Context, in *CreateOrderFromSeckillReq, opts ...grpc.CallOption) (*CreateOrderFromSeckillResp, error) {
+	return pb.NewOrderRpcClient(m.cli.Conn()).CreateOrderFromSeckill(ctx, in, opts...)
 }
 
 // ConfirmPaymentAndInfo 调用订单服务支付确认接口。

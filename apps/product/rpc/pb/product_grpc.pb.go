@@ -19,15 +19,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProductRpc_CreateProduct_FullMethodName        = "/product.ProductRpc/CreateProduct"
-	ProductRpc_UpdateProduct_FullMethodName        = "/product.ProductRpc/UpdateProduct"
-	ProductRpc_DeleteProduct_FullMethodName        = "/product.ProductRpc/DeleteProduct"
-	ProductRpc_GetProductAdmin_FullMethodName      = "/product.ProductRpc/GetProductAdmin"
-	ProductRpc_ListProductsAdmin_FullMethodName    = "/product.ProductRpc/ListProductsAdmin"
-	ProductRpc_GetProductPublic_FullMethodName     = "/product.ProductRpc/GetProductPublic"
-	ProductRpc_ListProductsPublic_FullMethodName   = "/product.ProductRpc/ListProductsPublic"
-	ProductRpc_ReserveStockForOrder_FullMethodName = "/product.ProductRpc/ReserveStockForOrder"
-	ProductRpc_ReleaseStockForOrder_FullMethodName = "/product.ProductRpc/ReleaseStockForOrder"
+	ProductRpc_CreateProduct_FullMethodName           = "/product.ProductRpc/CreateProduct"
+	ProductRpc_UpdateProduct_FullMethodName           = "/product.ProductRpc/UpdateProduct"
+	ProductRpc_DeleteProduct_FullMethodName           = "/product.ProductRpc/DeleteProduct"
+	ProductRpc_GetProductAdmin_FullMethodName         = "/product.ProductRpc/GetProductAdmin"
+	ProductRpc_ListProductsAdmin_FullMethodName       = "/product.ProductRpc/ListProductsAdmin"
+	ProductRpc_GetProductPublic_FullMethodName        = "/product.ProductRpc/GetProductPublic"
+	ProductRpc_ListProductsPublic_FullMethodName      = "/product.ProductRpc/ListProductsPublic"
+	ProductRpc_ReserveStockForOrder_FullMethodName    = "/product.ProductRpc/ReserveStockForOrder"
+	ProductRpc_ReleaseStockForOrder_FullMethodName    = "/product.ProductRpc/ReleaseStockForOrder"
+	ProductRpc_ReserveStockForActivity_FullMethodName = "/product.ProductRpc/ReserveStockForActivity"
+	ProductRpc_ReleaseStockForActivity_FullMethodName = "/product.ProductRpc/ReleaseStockForActivity"
 )
 
 // ProductRpcClient is the client API for ProductRpc service.
@@ -43,6 +45,8 @@ type ProductRpcClient interface {
 	ListProductsPublic(ctx context.Context, in *ListProductsPublicReq, opts ...grpc.CallOption) (*ListProductsPublicResp, error)
 	ReserveStockForOrder(ctx context.Context, in *ReserveStockForOrderReq, opts ...grpc.CallOption) (*ReserveStockForOrderResp, error)
 	ReleaseStockForOrder(ctx context.Context, in *ReleaseStockForOrderReq, opts ...grpc.CallOption) (*ReleaseStockForOrderResp, error)
+	ReserveStockForActivity(ctx context.Context, in *ReserveStockForActivityReq, opts ...grpc.CallOption) (*ReserveStockForActivityResp, error)
+	ReleaseStockForActivity(ctx context.Context, in *ReleaseStockForActivityReq, opts ...grpc.CallOption) (*ReleaseStockForActivityResp, error)
 }
 
 type productRpcClient struct {
@@ -143,6 +147,26 @@ func (c *productRpcClient) ReleaseStockForOrder(ctx context.Context, in *Release
 	return out, nil
 }
 
+func (c *productRpcClient) ReserveStockForActivity(ctx context.Context, in *ReserveStockForActivityReq, opts ...grpc.CallOption) (*ReserveStockForActivityResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReserveStockForActivityResp)
+	err := c.cc.Invoke(ctx, ProductRpc_ReserveStockForActivity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productRpcClient) ReleaseStockForActivity(ctx context.Context, in *ReleaseStockForActivityReq, opts ...grpc.CallOption) (*ReleaseStockForActivityResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReleaseStockForActivityResp)
+	err := c.cc.Invoke(ctx, ProductRpc_ReleaseStockForActivity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProductRpcServer is the server API for ProductRpc service.
 // All implementations must embed UnimplementedProductRpcServer
 // for forward compatibility.
@@ -156,6 +180,8 @@ type ProductRpcServer interface {
 	ListProductsPublic(context.Context, *ListProductsPublicReq) (*ListProductsPublicResp, error)
 	ReserveStockForOrder(context.Context, *ReserveStockForOrderReq) (*ReserveStockForOrderResp, error)
 	ReleaseStockForOrder(context.Context, *ReleaseStockForOrderReq) (*ReleaseStockForOrderResp, error)
+	ReserveStockForActivity(context.Context, *ReserveStockForActivityReq) (*ReserveStockForActivityResp, error)
+	ReleaseStockForActivity(context.Context, *ReleaseStockForActivityReq) (*ReleaseStockForActivityResp, error)
 	mustEmbedUnimplementedProductRpcServer()
 }
 
@@ -192,6 +218,12 @@ func (UnimplementedProductRpcServer) ReserveStockForOrder(context.Context, *Rese
 }
 func (UnimplementedProductRpcServer) ReleaseStockForOrder(context.Context, *ReleaseStockForOrderReq) (*ReleaseStockForOrderResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReleaseStockForOrder not implemented")
+}
+func (UnimplementedProductRpcServer) ReserveStockForActivity(context.Context, *ReserveStockForActivityReq) (*ReserveStockForActivityResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReserveStockForActivity not implemented")
+}
+func (UnimplementedProductRpcServer) ReleaseStockForActivity(context.Context, *ReleaseStockForActivityReq) (*ReleaseStockForActivityResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReleaseStockForActivity not implemented")
 }
 func (UnimplementedProductRpcServer) mustEmbedUnimplementedProductRpcServer() {}
 func (UnimplementedProductRpcServer) testEmbeddedByValue()                    {}
@@ -376,6 +408,42 @@ func _ProductRpc_ReleaseStockForOrder_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductRpc_ReserveStockForActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReserveStockForActivityReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductRpcServer).ReserveStockForActivity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductRpc_ReserveStockForActivity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductRpcServer).ReserveStockForActivity(ctx, req.(*ReserveStockForActivityReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductRpc_ReleaseStockForActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleaseStockForActivityReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductRpcServer).ReleaseStockForActivity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductRpc_ReleaseStockForActivity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductRpcServer).ReleaseStockForActivity(ctx, req.(*ReleaseStockForActivityReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProductRpc_ServiceDesc is the grpc.ServiceDesc for ProductRpc service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -418,6 +486,14 @@ var ProductRpc_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReleaseStockForOrder",
 			Handler:    _ProductRpc_ReleaseStockForOrder_Handler,
+		},
+		{
+			MethodName: "ReserveStockForActivity",
+			Handler:    _ProductRpc_ReserveStockForActivity_Handler,
+		},
+		{
+			MethodName: "ReleaseStockForActivity",
+			Handler:    _ProductRpc_ReleaseStockForActivity_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

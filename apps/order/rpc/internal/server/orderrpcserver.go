@@ -34,6 +34,19 @@ func (s *OrderRpcServer) CreateOrder(ctx context.Context, in *pb.CreateOrderReq)
 	return resp, nil
 }
 
+// CreateOrderFromSeckill 处理秒杀专用建单请求。
+func (s *OrderRpcServer) CreateOrderFromSeckill(ctx context.Context, in *pb.CreateOrderFromSeckillReq) (*pb.CreateOrderFromSeckillResp, error) {
+	if err := authorizeUser(ctx, in.GetUserId()); err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	l := logic.NewCreateOrderFromSeckillLogic(ctx, s.svcCtx)
+	resp, err := l.CreateOrderFromSeckill(in)
+	if err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	return resp, nil
+}
+
 // ConfirmPaymentAndInfo 处理用户支付与收货信息确认请求。
 func (s *OrderRpcServer) ConfirmPaymentAndInfo(ctx context.Context, in *pb.ConfirmPaymentAndInfoReq) (*pb.ConfirmPaymentAndInfoResp, error) {
 	if err := authorizeUser(ctx, in.GetUserId()); err != nil {

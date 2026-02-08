@@ -53,6 +53,24 @@ const (
 	CodeOrderAlreadyPaid Code = "ORDER_ALREADY_PAID"
 	// CodeOrderInvalidReceiverInfo 表示收货信息非法。
 	CodeOrderInvalidReceiverInfo Code = "ORDER_INVALID_RECEIVER_INFO"
+	// CodeSeckillActivityNotFound 表示秒杀活动不存在。
+	CodeSeckillActivityNotFound Code = "SECKILL_ACTIVITY_NOT_FOUND"
+	// CodeSeckillActivityNotPublished 表示秒杀活动未发布。
+	CodeSeckillActivityNotPublished Code = "SECKILL_ACTIVITY_NOT_PUBLISHED"
+	// CodeSeckillActivityNotStarted 表示秒杀活动未开始。
+	CodeSeckillActivityNotStarted Code = "SECKILL_ACTIVITY_NOT_STARTED"
+	// CodeSeckillActivityEnded 表示秒杀活动已结束。
+	CodeSeckillActivityEnded Code = "SECKILL_ACTIVITY_ENDED"
+	// CodeSeckillItemNotFound 表示秒杀活动商品不存在。
+	CodeSeckillItemNotFound Code = "SECKILL_ITEM_NOT_FOUND"
+	// CodeSeckillOutOfStock 表示秒杀库存不足。
+	CodeSeckillOutOfStock Code = "SECKILL_OUT_OF_STOCK"
+	// CodeSeckillLimitExceeded 表示秒杀限购超限。
+	CodeSeckillLimitExceeded Code = "SECKILL_LIMIT_EXCEEDED"
+	// CodeSeckillPurchaseConflict 表示秒杀请求冲突。
+	CodeSeckillPurchaseConflict Code = "SECKILL_PURCHASE_CONFLICT"
+	// CodeSeckillInvalidConfig 表示秒杀配置非法。
+	CodeSeckillInvalidConfig Code = "SECKILL_INVALID_CONFIG"
 	// CodeDBError 表示数据库错误。
 	CodeDBError Code = "DB_ERROR"
 	// CodeMQError 表示消息队列错误。
@@ -64,15 +82,15 @@ const (
 // HTTPStatus 返回错误码对应的 HTTP 状态码。
 func (c Code) HTTPStatus() int {
 	switch c {
-	case CodeSysBadRequest, CodeAuthInvalidPhone, CodeAuthWeakPassword, CodeProductInvalidStatus, CodeOrderInvalidState, CodeOrderInvalidReceiverInfo, CodeOrderOutOfStock:
+	case CodeSysBadRequest, CodeAuthInvalidPhone, CodeAuthWeakPassword, CodeProductInvalidStatus, CodeOrderInvalidState, CodeOrderInvalidReceiverInfo, CodeOrderOutOfStock, CodeSeckillInvalidConfig:
 		return http.StatusBadRequest
 	case CodeAuthUnauthorized, CodeAuthInvalidCredentials:
 		return http.StatusUnauthorized
 	case CodeAuthForbidden:
 		return http.StatusForbidden
-	case CodeUserNotFound, CodeProductNotFound, CodeOrderNotFound:
+	case CodeUserNotFound, CodeProductNotFound, CodeOrderNotFound, CodeSeckillActivityNotFound, CodeSeckillItemNotFound:
 		return http.StatusNotFound
-	case CodeAuthPhoneAlreadyRegistered, CodeProductSKUAlreadyExists, CodeOrderAlreadyClosed, CodeOrderAlreadyPaid, CodeOrderPayTimeout, CodeOrderReviewTimeout, CodeOrderReviewRejected:
+	case CodeAuthPhoneAlreadyRegistered, CodeProductSKUAlreadyExists, CodeOrderAlreadyClosed, CodeOrderAlreadyPaid, CodeOrderPayTimeout, CodeOrderReviewTimeout, CodeOrderReviewRejected, CodeSeckillActivityNotPublished, CodeSeckillActivityNotStarted, CodeSeckillActivityEnded, CodeSeckillOutOfStock, CodeSeckillLimitExceeded, CodeSeckillPurchaseConflict:
 		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError

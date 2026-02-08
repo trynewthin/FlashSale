@@ -1,4 +1,4 @@
-// Package grpcerr 提供 AppError 与 gRPC status 的双向转换。
+// grpcerr 包包含相关应用代码。
 package grpcerr
 
 import (
@@ -59,15 +59,15 @@ func FromStatus(err error) *errorx.AppError {
 
 func codeToGRPC(code errorx.Code) codes.Code {
 	switch code {
-	case errorx.CodeSysBadRequest, errorx.CodeAuthInvalidPhone, errorx.CodeAuthWeakPassword, errorx.CodeProductInvalidStatus:
+	case errorx.CodeSysBadRequest, errorx.CodeAuthInvalidPhone, errorx.CodeAuthWeakPassword, errorx.CodeProductInvalidStatus, errorx.CodeOrderInvalidState, errorx.CodeOrderOutOfStock, errorx.CodeOrderInvalidReceiverInfo:
 		return codes.InvalidArgument
 	case errorx.CodeAuthUnauthorized, errorx.CodeAuthInvalidCredentials:
 		return codes.Unauthenticated
 	case errorx.CodeAuthForbidden:
 		return codes.PermissionDenied
-	case errorx.CodeUserNotFound, errorx.CodeProductNotFound:
+	case errorx.CodeUserNotFound, errorx.CodeProductNotFound, errorx.CodeOrderNotFound:
 		return codes.NotFound
-	case errorx.CodeAuthPhoneAlreadyRegistered, errorx.CodeProductSKUAlreadyExists:
+	case errorx.CodeAuthPhoneAlreadyRegistered, errorx.CodeProductSKUAlreadyExists, errorx.CodeOrderAlreadyClosed, errorx.CodeOrderAlreadyPaid, errorx.CodeOrderPayTimeout, errorx.CodeOrderReviewTimeout, errorx.CodeOrderReviewRejected:
 		return codes.AlreadyExists
 	default:
 		return codes.Internal
@@ -83,8 +83,10 @@ func grpcToCode(code codes.Code) errorx.Code {
 	case codes.PermissionDenied:
 		return errorx.CodeAuthForbidden
 	case codes.NotFound:
+		// Fallback only: 具体资源错误码应优先从 ErrorInfo.Reason 解析。
 		return errorx.CodeUserNotFound
 	case codes.AlreadyExists:
+		// Fallback only: 具体业务冲突码应优先从 ErrorInfo.Reason 解析。
 		return errorx.CodeAuthPhoneAlreadyRegistered
 	default:
 		return errorx.CodeSysInternal
@@ -100,6 +102,15 @@ func parseCode(raw string) (errorx.Code, bool) {
 		errorx.CodeProductNotFound,
 		errorx.CodeProductSKUAlreadyExists,
 		errorx.CodeProductInvalidStatus,
+		errorx.CodeOrderNotFound,
+		errorx.CodeOrderInvalidState,
+		errorx.CodeOrderOutOfStock,
+		errorx.CodeOrderPayTimeout,
+		errorx.CodeOrderReviewTimeout,
+		errorx.CodeOrderReviewRejected,
+		errorx.CodeOrderAlreadyClosed,
+		errorx.CodeOrderAlreadyPaid,
+		errorx.CodeOrderInvalidReceiverInfo,
 		errorx.CodeAuthUnauthorized,
 		errorx.CodeAuthForbidden,
 		errorx.CodeAuthInvalidPhone,

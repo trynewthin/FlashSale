@@ -1,4 +1,4 @@
-// Package logx 封装 zap 日志初始化与链路字段注入。
+// logx 包包含相关应用代码。
 package logx
 
 import (

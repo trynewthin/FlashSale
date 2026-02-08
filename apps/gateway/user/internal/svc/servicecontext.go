@@ -1,4 +1,4 @@
-// Package svc 负责组装用户网关运行时依赖。
+// svc 包包含相关应用代码。
 package svc
 
 import (
@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"flashsale/apps/gateway/user/internal/config"
+	"flashsale/apps/order/rpc/orderrpc"
 	"flashsale/apps/product/rpc/productrpc"
 	"flashsale/apps/user/rpc/userrpc"
 	baseauth "flashsale/pkg/base/authx"
@@ -23,6 +24,7 @@ type ServiceContext struct {
 	Logger        *zap.Logger
 	UserRPCCli    userrpc.UserRpc
 	ProductRPCCli productrpc.ProductRpc
+	OrderRPCCli   orderrpc.OrderRpc
 }
 
 // NewServiceContext 初始化用户网关依赖。
@@ -66,6 +68,10 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init product rpc client: %w", err)
 	}
+	orderRPCClient, err := zrpc.NewClient(c.OrderRPC)
+	if err != nil {
+		return nil, fmt.Errorf("init order rpc client: %w", err)
+	}
 
 	return &ServiceContext{
 		Config:        c,
@@ -73,6 +79,7 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		Logger:        logger,
 		UserRPCCli:    userrpc.NewUserRpc(rpcClient),
 		ProductRPCCli: productrpc.NewProductRpc(productRPCClient),
+		OrderRPCCli:   orderrpc.NewOrderRpc(orderRPCClient),
 	}, nil
 }
 

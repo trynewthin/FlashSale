@@ -1,4 +1,4 @@
-// Package repository 的集成测试，验证 MySQL 用户仓储读写行为。
+// repository 包包含相关应用代码。
 package repository
 
 import (

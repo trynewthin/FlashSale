@@ -1,4 +1,5 @@
 // 用户网关启动入口。
+// user 命令提供可执行入口。
 package main
 
 import (

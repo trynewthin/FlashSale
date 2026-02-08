@@ -1,4 +1,4 @@
-// Package middleware 提供 HTTP 链路追踪、恢复和请求日志中间件。
+// middleware 包包含相关应用代码。
 package middleware
 
 import (

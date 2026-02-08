@@ -1,4 +1,4 @@
-// Package config 定义商品 RPC 服务配置结构。
+// config 包包含相关应用代码。
 package config
 
 import (

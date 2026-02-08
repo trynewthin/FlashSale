@@ -1,4 +1,4 @@
-// Package svc 负责组装用户 RPC 运行时依赖。
+// svc 包包含相关应用代码。
 package svc
 
 import (

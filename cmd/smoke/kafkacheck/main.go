@@ -1,4 +1,5 @@
 // kafkacheck 用于校验 Kafka 生产与消费链路。
+// kafkacheck 命令提供可执行入口。
 package main
 
 import (

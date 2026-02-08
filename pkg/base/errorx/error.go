@@ -1,4 +1,4 @@
-// Package errorx 定义服务统一错误模型与错误码。
+// errorx 包包含相关应用代码。
 package errorx
 
 import (
@@ -35,6 +35,24 @@ const (
 	CodeProductSKUAlreadyExists Code = "PRODUCT_SKU_ALREADY_EXISTS"
 	// CodeProductInvalidStatus 表示商品状态非法。
 	CodeProductInvalidStatus Code = "PRODUCT_INVALID_STATUS"
+	// CodeOrderNotFound 表示订单不存在。
+	CodeOrderNotFound Code = "ORDER_NOT_FOUND"
+	// CodeOrderInvalidState 表示订单状态非法。
+	CodeOrderInvalidState Code = "ORDER_INVALID_STATE"
+	// CodeOrderOutOfStock 表示下单库存不足。
+	CodeOrderOutOfStock Code = "ORDER_OUT_OF_STOCK"
+	// CodeOrderPayTimeout 表示订单支付超时。
+	CodeOrderPayTimeout Code = "ORDER_PAY_TIMEOUT"
+	// CodeOrderReviewTimeout 表示订单审核超时。
+	CodeOrderReviewTimeout Code = "ORDER_REVIEW_TIMEOUT"
+	// CodeOrderReviewRejected 表示订单审核未通过。
+	CodeOrderReviewRejected Code = "ORDER_REVIEW_REJECTED"
+	// CodeOrderAlreadyClosed 表示订单已关闭。
+	CodeOrderAlreadyClosed Code = "ORDER_ALREADY_CLOSED"
+	// CodeOrderAlreadyPaid 表示订单已支付。
+	CodeOrderAlreadyPaid Code = "ORDER_ALREADY_PAID"
+	// CodeOrderInvalidReceiverInfo 表示收货信息非法。
+	CodeOrderInvalidReceiverInfo Code = "ORDER_INVALID_RECEIVER_INFO"
 	// CodeDBError 表示数据库错误。
 	CodeDBError Code = "DB_ERROR"
 	// CodeMQError 表示消息队列错误。
@@ -46,15 +64,15 @@ const (
 // HTTPStatus 返回错误码对应的 HTTP 状态码。
 func (c Code) HTTPStatus() int {
 	switch c {
-	case CodeSysBadRequest, CodeAuthInvalidPhone, CodeAuthWeakPassword, CodeProductInvalidStatus:
+	case CodeSysBadRequest, CodeAuthInvalidPhone, CodeAuthWeakPassword, CodeProductInvalidStatus, CodeOrderInvalidState, CodeOrderInvalidReceiverInfo, CodeOrderOutOfStock:
 		return http.StatusBadRequest
 	case CodeAuthUnauthorized, CodeAuthInvalidCredentials:
 		return http.StatusUnauthorized
 	case CodeAuthForbidden:
 		return http.StatusForbidden
-	case CodeUserNotFound, CodeProductNotFound:
+	case CodeUserNotFound, CodeProductNotFound, CodeOrderNotFound:
 		return http.StatusNotFound
-	case CodeAuthPhoneAlreadyRegistered, CodeProductSKUAlreadyExists:
+	case CodeAuthPhoneAlreadyRegistered, CodeProductSKUAlreadyExists, CodeOrderAlreadyClosed, CodeOrderAlreadyPaid, CodeOrderPayTimeout, CodeOrderReviewTimeout, CodeOrderReviewRejected:
 		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError

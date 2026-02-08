@@ -1,4 +1,4 @@
-// Package model 定义用户模块核心领域模型。
+// model 包包含相关应用代码。
 package model
 
 import "time"

@@ -1,3 +1,4 @@
+// handler 包包含相关应用代码。
 package handler
 
 // productUpsertReq 是管理员商品创建/更新请求体。

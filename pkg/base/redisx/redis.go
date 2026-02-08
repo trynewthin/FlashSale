@@ -1,4 +1,4 @@
-// Package redisx 封装 Redis 客户端初始化与基础分布式锁能力。
+// redisx 包包含相关应用代码。
 package redisx
 
 import (

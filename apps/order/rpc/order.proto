@@ -1,0 +1,173 @@
+syntax = "proto3";
+
+package order;
+
+option go_package = "flashsale/apps/order/rpc/pb;pb";
+
+service OrderRpc {
+  // 用户侧接口
+  rpc CreateOrder (CreateOrderReq) returns (CreateOrderResp);
+  rpc ConfirmPaymentAndInfo (ConfirmPaymentAndInfoReq) returns (ConfirmPaymentAndInfoResp);
+  rpc CancelOrder (CancelOrderReq) returns (CancelOrderResp);
+  rpc ConfirmReceipt (ConfirmReceiptReq) returns (ConfirmReceiptResp);
+  rpc GetOrderUser (GetOrderUserReq) returns (GetOrderUserResp);
+  rpc ListOrdersUser (ListOrdersUserReq) returns (ListOrdersUserResp);
+
+  // 管理侧接口
+  rpc ReviewOrderAdmin (ReviewOrderAdminReq) returns (ReviewOrderAdminResp);
+  rpc ShipOrderAdmin (ShipOrderAdminReq) returns (ShipOrderAdminResp);
+  rpc GetOrderAdmin (GetOrderAdminReq) returns (GetOrderAdminResp);
+  rpc ListOrdersAdmin (ListOrdersAdminReq) returns (ListOrdersAdminResp);
+}
+
+message CreateOrderReq {
+  int64 user_id = 1;
+  int64 product_id = 2;
+  int32 order_source = 3; // 1=normal,2=seckill
+}
+
+message CreateOrderResp {
+  OrderView order = 1;
+}
+
+message ConfirmPaymentAndInfoReq {
+  int64 user_id = 1;
+  int64 order_id = 2;
+  string pay_channel = 3;
+  string pay_reference = 4;
+  string receiver_name = 5;
+  string receiver_phone = 6;
+  string receiver_address = 7;
+  string buyer_remark = 8;
+}
+
+message ConfirmPaymentAndInfoResp {
+  OrderView order = 1;
+}
+
+message CancelOrderReq {
+  int64 user_id = 1;
+  int64 order_id = 2;
+  string reason = 3;
+}
+
+message CancelOrderResp {
+  OrderView order = 1;
+}
+
+message ConfirmReceiptReq {
+  int64 user_id = 1;
+  int64 order_id = 2;
+}
+
+message ConfirmReceiptResp {
+  OrderView order = 1;
+}
+
+message GetOrderUserReq {
+  int64 user_id = 1;
+  int64 order_id = 2;
+}
+
+message GetOrderUserResp {
+  OrderView order = 1;
+}
+
+message ListOrdersUserReq {
+  int64 user_id = 1;
+  int64 page = 2;
+  int64 page_size = 3;
+  int32 order_status = 4;
+}
+
+message ListOrdersUserResp {
+  repeated OrderView list = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message ReviewOrderAdminReq {
+  int64 order_id = 1;
+  int64 admin_id = 2;
+  bool approved = 3;
+  string reason = 4;
+}
+
+message ReviewOrderAdminResp {
+  OrderView order = 1;
+}
+
+message ShipOrderAdminReq {
+  int64 order_id = 1;
+  int64 admin_id = 2;
+  string tracking_no = 3;
+}
+
+message ShipOrderAdminResp {
+  OrderView order = 1;
+}
+
+message GetOrderAdminReq {
+  int64 order_id = 1;
+}
+
+message GetOrderAdminResp {
+  OrderView order = 1;
+}
+
+message ListOrdersAdminReq {
+  int64 page = 1;
+  int64 page_size = 2;
+  int32 order_status = 3;
+  int32 review_status = 4;
+  int64 user_id = 5;
+  string order_no = 6;
+}
+
+message ListOrdersAdminResp {
+  repeated OrderView list = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message OrderView {
+  int64 order_id = 1;
+  string order_no = 2;
+  int64 user_id = 3;
+  int32 order_source = 4;
+  int64 product_id = 5;
+  string sku_code = 6;
+  string product_name = 7;
+  string main_image = 8;
+  int64 unit_price_cent = 9;
+  int64 quantity = 10;
+  int64 total_amount_cent = 11;
+  int32 order_status = 12;
+  int32 payment_status = 13;
+  int32 review_status = 14;
+  int32 shipping_status = 15;
+  int32 refund_status = 16;
+  int32 review_mode = 17;
+  int64 paid_at_unix = 18;
+  string pay_channel = 19;
+  string pay_reference = 20;
+  string receiver_name = 21;
+  string receiver_phone = 22;
+  string receiver_address = 23;
+  string buyer_remark = 24;
+  int64 review_due_at_unix = 25;
+  int64 reviewed_at_unix = 26;
+  int64 reviewed_by = 27;
+  string review_reason = 28;
+  int64 shipped_at_unix = 29;
+  int64 shipped_by = 30;
+  string tracking_no = 31;
+  int64 refund_due_at_unix = 32;
+  int64 refunded_at_unix = 33;
+  int64 closed_at_unix = 34;
+  string close_reason = 35;
+  int64 created_at_unix = 36;
+  int64 updated_at_unix = 37;
+}

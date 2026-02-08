@@ -1,4 +1,4 @@
-// Package logic 实现商品 RPC 的业务流程。
+// logic 包包含相关应用代码。
 package logic
 
 import (

@@ -1,4 +1,4 @@
-// Package metrics 提供 Prometheus 指标注册与 HTTP 暴露能力。
+// metrics 包包含相关应用代码。
 package metrics
 
 import (

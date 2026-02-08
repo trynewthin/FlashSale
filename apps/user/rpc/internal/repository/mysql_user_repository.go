@@ -1,4 +1,4 @@
-// Package repository 提供基于 MySQL 的用户仓储实现。
+// repository 包包含相关应用代码。
 package repository
 
 import (

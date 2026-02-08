@@ -1,4 +1,4 @@
-// Package userrpc 提供用户 RPC 客户端封装。
+// userrpc 包包含相关应用代码。
 package userrpc
 
 import (

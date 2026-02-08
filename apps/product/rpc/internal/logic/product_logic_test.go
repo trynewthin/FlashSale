@@ -1,3 +1,4 @@
+// logic 包包含相关应用代码。
 package logic
 
 import (
@@ -16,12 +17,19 @@ import (
 )
 
 type memoryProductRepo struct {
-	byID  map[int64]*model.Product
-	bySKU map[string]int64
+	byID               map[int64]*model.Product
+	bySKU              map[string]int64
+	reserveReplayStock map[string]int64
+	releaseReplayStock map[string]int64
 }
 
 func newMemoryProductRepo() *memoryProductRepo {
-	return &memoryProductRepo{byID: make(map[int64]*model.Product), bySKU: make(map[string]int64)}
+	return &memoryProductRepo{
+		byID:               make(map[int64]*model.Product),
+		bySKU:              make(map[string]int64),
+		reserveReplayStock: make(map[string]int64),
+		releaseReplayStock: make(map[string]int64),
+	}
 }
 
 func (m *memoryProductRepo) Create(_ context.Context, product *model.Product) error {
@@ -113,6 +121,37 @@ func (m *memoryProductRepo) ListPublic(_ context.Context, query repository.ListQ
 	return paginate(items, query.Page, query.PageSize)
 }
 
+func (m *memoryProductRepo) ReserveStock(_ context.Context, productID int64, quantity int64, _ string, idempotencyKey string) (int64, error) {
+	if remain, ok := m.reserveReplayStock[idempotencyKey]; ok {
+		return remain, nil
+	}
+	old, ok := m.byID[productID]
+	if !ok || old.DeletedAt != nil || old.Status != model.StatusOnShelf {
+		return 0, repository.ErrProductNotFound
+	}
+	if old.Stock < quantity {
+		return 0, repository.ErrStockNotEnough
+	}
+	old.Stock -= quantity
+	old.UpdatedAt = time.Now()
+	m.reserveReplayStock[idempotencyKey] = old.Stock
+	return old.Stock, nil
+}
+
+func (m *memoryProductRepo) ReleaseStock(_ context.Context, productID int64, quantity int64, _ string, idempotencyKey string) (int64, error) {
+	if remain, ok := m.releaseReplayStock[idempotencyKey]; ok {
+		return remain, nil
+	}
+	old, ok := m.byID[productID]
+	if !ok || old.DeletedAt != nil {
+		return 0, repository.ErrProductNotFound
+	}
+	old.Stock += quantity
+	old.UpdatedAt = time.Now()
+	m.releaseReplayStock[idempotencyKey] = old.Stock
+	return old.Stock, nil
+}
+
 func paginate(items []*model.Product, page, pageSize int64) ([]*model.Product, int64, error) {
 	if page <= 0 {
 		page = 1
@@ -193,5 +232,70 @@ func TestProductCreateUpdateDeleteAndPublicVisibility(t *testing.T) {
 	}
 	if code := errorx.FromError(err).Code; code != errorx.CodeProductNotFound {
 		t.Fatalf("unexpected error code: %s", code)
+	}
+}
+
+func TestReserveAndReleaseStockIdempotentReplay(t *testing.T) {
+	repo := newMemoryProductRepo()
+	node, _ := snowflake.NewNode(11)
+	svcCtx := &svc.ServiceContext{ProductRepo: repo, IDNode: node}
+	ctx := context.Background()
+
+	repo.byID[1] = &model.Product{
+		ID:        1,
+		SkuCode:   "SPU1",
+		Name:      "可乐",
+		MainImage: "https://img/a.png",
+		PriceCent: 100,
+		Stock:     10,
+		Status:    model.StatusOnShelf,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	reserve := NewReserveStockForOrderLogic(ctx, svcCtx)
+	resp1, err := reserve.ReserveStockForOrder(&pb.ReserveStockForOrderReq{
+		ProductId:      1,
+		Quantity:       2,
+		BizOrderNo:     "ORD-1",
+		IdempotencyKey: "ORD-1:reserve",
+	})
+	if err != nil {
+		t.Fatalf("first reserve failed: %v", err)
+	}
+	resp2, err := reserve.ReserveStockForOrder(&pb.ReserveStockForOrderReq{
+		ProductId:      1,
+		Quantity:       2,
+		BizOrderNo:     "ORD-1",
+		IdempotencyKey: "ORD-1:reserve",
+	})
+	if err != nil {
+		t.Fatalf("second reserve failed: %v", err)
+	}
+	if resp1.RemainStock != 8 || resp2.RemainStock != 8 {
+		t.Fatalf("reserve replay mismatch: first=%d second=%d", resp1.RemainStock, resp2.RemainStock)
+	}
+
+	release := NewReleaseStockForOrderLogic(ctx, svcCtx)
+	rel1, err := release.ReleaseStockForOrder(&pb.ReleaseStockForOrderReq{
+		ProductId:      1,
+		Quantity:       2,
+		BizOrderNo:     "ORD-1",
+		IdempotencyKey: "ORD-1:release",
+	})
+	if err != nil {
+		t.Fatalf("first release failed: %v", err)
+	}
+	rel2, err := release.ReleaseStockForOrder(&pb.ReleaseStockForOrderReq{
+		ProductId:      1,
+		Quantity:       2,
+		BizOrderNo:     "ORD-1",
+		IdempotencyKey: "ORD-1:release",
+	})
+	if err != nil {
+		t.Fatalf("second release failed: %v", err)
+	}
+	if rel1.RemainStock != 10 || rel2.RemainStock != 10 {
+		t.Fatalf("release replay mismatch: first=%d second=%d", rel1.RemainStock, rel2.RemainStock)
 	}
 }

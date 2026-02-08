@@ -1,4 +1,4 @@
-// Package handler 实现用户网关 HTTP 入口与 RPC 转发。
+// handler 包包含相关应用代码。
 package handler
 
 import (
@@ -24,6 +24,7 @@ const defaultRPCTimeout = 3 * time.Second
 func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	h := &UserHandler{svcCtx: svcCtx}
 	ph := &ProductPublicHandler{svcCtx: svcCtx}
+	oh := &OrderUserHandler{svcCtx: svcCtx}
 	mux.HandleFunc("GET /healthz", h.Health)
 	mux.Handle("POST /api/v1/user/register", middleware.RegisterRateLimit(http.HandlerFunc(h.Register)))
 	mux.Handle("POST /api/v1/user/login", middleware.LoginRateLimit(http.HandlerFunc(h.Login)))
@@ -32,6 +33,12 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	mux.Handle("DELETE /api/v1/user", middleware.AuthRequired(svcCtx, http.HandlerFunc(h.DeleteUser)))
 	mux.HandleFunc("GET /api/v1/products", ph.ListProducts)
 	mux.HandleFunc("GET /api/v1/products/{product_id}", ph.GetProduct)
+	mux.Handle("POST /api/v1/orders", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.CreateOrder)))
+	mux.Handle("POST /api/v1/orders/{order_id}/pay-confirm", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.ConfirmPaymentAndInfo)))
+	mux.Handle("POST /api/v1/orders/{order_id}/cancel", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.CancelOrder)))
+	mux.Handle("POST /api/v1/orders/{order_id}/confirm-receipt", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.ConfirmReceipt)))
+	mux.Handle("GET /api/v1/orders/{order_id}", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.GetOrder)))
+	mux.Handle("GET /api/v1/orders", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.ListOrders)))
 }
 
 // UserHandler 处理用户网关请求。

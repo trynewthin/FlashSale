@@ -1,4 +1,4 @@
-// Package errorx 的测试，覆盖错误码到 HTTP 状态码映射。
+// errorx 包包含相关应用代码。
 package errorx
 
 import (
@@ -25,6 +25,11 @@ func TestCodeHTTPStatus(t *testing.T) {
 		{name: "product not found", code: CodeProductNotFound, want: http.StatusNotFound},
 		{name: "product sku exists", code: CodeProductSKUAlreadyExists, want: http.StatusConflict},
 		{name: "product invalid status", code: CodeProductInvalidStatus, want: http.StatusBadRequest},
+		{name: "order not found", code: CodeOrderNotFound, want: http.StatusNotFound},
+		{name: "order invalid state", code: CodeOrderInvalidState, want: http.StatusBadRequest},
+		{name: "order out of stock", code: CodeOrderOutOfStock, want: http.StatusBadRequest},
+		{name: "order already closed", code: CodeOrderAlreadyClosed, want: http.StatusConflict},
+		{name: "order invalid receiver", code: CodeOrderInvalidReceiverInfo, want: http.StatusBadRequest},
 		{name: "default", code: CodeDBError, want: http.StatusInternalServerError},
 	}
 	for _, tc := range cases {

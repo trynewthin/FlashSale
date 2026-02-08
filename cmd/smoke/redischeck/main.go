@@ -1,4 +1,5 @@
 // redischeck 用于校验 Redis 读写与分布式锁行为。
+// redischeck 命令提供可执行入口。
 package main
 
 import (

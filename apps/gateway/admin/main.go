@@ -1,4 +1,5 @@
 // 管理员网关启动入口。
+// admin 命令提供可执行入口。
 package main
 
 import (

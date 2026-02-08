@@ -1,4 +1,4 @@
-// Package responsex 提供统一响应结构与构造函数。
+// responsex 包包含相关应用代码。
 package responsex
 
 import "flashsale/pkg/base/errorx"

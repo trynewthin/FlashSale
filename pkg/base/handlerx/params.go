@@ -1,4 +1,4 @@
-// Package handlerx 提供 HTTP handler 常用参数解析工具。
+// handlerx 包包含相关应用代码。
 package handlerx
 
 import (

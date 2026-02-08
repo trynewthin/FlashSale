@@ -7,3 +7,6 @@ UserRPC:
 
 ProductRPC:
   Target: 127.0.0.1:8084
+
+OrderRPC:
+  Target: 127.0.0.1:8085

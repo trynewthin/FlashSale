@@ -1,4 +1,4 @@
-// Package authx 提供用户端与管理端双域 JWT 的签发与解析能力。
+// authx 包包含相关应用代码。
 package authx
 
 import (

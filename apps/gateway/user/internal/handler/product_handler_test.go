@@ -42,6 +42,12 @@ func (f *fakeProductRPC) ReserveStockForOrder(context.Context, *productrpc.Reser
 func (f *fakeProductRPC) ReleaseStockForOrder(context.Context, *productrpc.ReleaseStockForOrderReq, ...grpc.CallOption) (*productrpc.ReleaseStockForOrderResp, error) {
 	return &productpb.ReleaseStockForOrderResp{}, nil
 }
+func (f *fakeProductRPC) ReserveStockForActivity(context.Context, *productrpc.ReserveStockForActivityReq, ...grpc.CallOption) (*productrpc.ReserveStockForActivityResp, error) {
+	return &productpb.ReserveStockForActivityResp{}, nil
+}
+func (f *fakeProductRPC) ReleaseStockForActivity(context.Context, *productrpc.ReleaseStockForActivityReq, ...grpc.CallOption) (*productrpc.ReleaseStockForActivityResp, error) {
+	return &productpb.ReleaseStockForActivityResp{}, nil
+}
 
 func TestPublicProductRoutesAnonymousAccess(t *testing.T) {
 	mux := http.NewServeMux()

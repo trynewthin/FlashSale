@@ -131,3 +131,29 @@ func (s *ProductRpcServer) ReleaseStockForOrder(ctx context.Context, in *pb.Rele
 	}
 	return resp, nil
 }
+
+// ReserveStockForActivity 处理活动库存预占请求。
+func (s *ProductRpcServer) ReserveStockForActivity(ctx context.Context, in *pb.ReserveStockForActivityReq) (*pb.ReserveStockForActivityResp, error) {
+	if err := authorizeAdminProductDomain(ctx); err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	l := logic.NewReserveStockForActivityLogic(ctx, s.svcCtx)
+	resp, err := l.ReserveStockForActivity(in)
+	if err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	return resp, nil
+}
+
+// ReleaseStockForActivity 处理活动库存释放请求。
+func (s *ProductRpcServer) ReleaseStockForActivity(ctx context.Context, in *pb.ReleaseStockForActivityReq) (*pb.ReleaseStockForActivityResp, error) {
+	if err := authorizeAdminProductDomain(ctx); err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	l := logic.NewReleaseStockForActivityLogic(ctx, s.svcCtx)
+	resp, err := l.ReleaseStockForActivity(in)
+	if err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	return resp, nil
+}

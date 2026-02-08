@@ -40,6 +40,11 @@ func (m *memoryOrderRepo) Create(_ context.Context, order *model.Order, event mo
 	if order == nil {
 		return repository.ErrOrderStateConflict
 	}
+	for _, existing := range m.byID {
+		if existing != nil && existing.OrderNo == order.OrderNo {
+			return repository.ErrOrderStateConflict
+		}
+	}
 	now := time.Now()
 	cp := *order
 	if cp.CreatedAt.IsZero() {
@@ -522,6 +527,28 @@ func (f *fakeProductRPC) ReleaseStockForOrder(_ context.Context, req *productrpc
 	return &productpb.ReleaseStockForOrderResp{ProductId: req.ProductId, RemainStock: cur}, nil
 }
 
+func (f *fakeProductRPC) ReserveStockForActivity(_ context.Context, req *productrpc.ReserveStockForActivityReq, _ ...grpc.CallOption) (*productrpc.ReserveStockForActivityResp, error) {
+	if req == nil || req.ProductId <= 0 || req.Quantity <= 0 {
+		return nil, errorx.New(errorx.CodeSysBadRequest, "invalid reserve")
+	}
+	cur := f.stockByID[req.ProductId]
+	if cur < req.Quantity {
+		return nil, errorx.New(errorx.CodeOrderOutOfStock, "out of stock")
+	}
+	cur -= req.Quantity
+	f.stockByID[req.ProductId] = cur
+	return &productpb.ReserveStockForActivityResp{ProductId: req.ProductId, RemainStock: cur}, nil
+}
+
+func (f *fakeProductRPC) ReleaseStockForActivity(_ context.Context, req *productrpc.ReleaseStockForActivityReq, _ ...grpc.CallOption) (*productrpc.ReleaseStockForActivityResp, error) {
+	if req == nil || req.ProductId <= 0 || req.Quantity <= 0 {
+		return nil, errorx.New(errorx.CodeSysBadRequest, "invalid release")
+	}
+	cur := f.stockByID[req.ProductId] + req.Quantity
+	f.stockByID[req.ProductId] = cur
+	return &productpb.ReleaseStockForActivityResp{ProductId: req.ProductId, RemainStock: cur}, nil
+}
+
 func initOrderAuthForTest(t *testing.T) {
 	t.Helper()
 	if err := baseauth.Init(baseauth.JWTConfig{
@@ -644,8 +671,8 @@ func TestSeckillManualReviewRejectAndReleaseStock(t *testing.T) {
 	if rResp.Order.RefundStatus != int32(model.RefundStatusRefunding) {
 		t.Fatalf("refund status mismatch: got=%d", rResp.Order.RefundStatus)
 	}
-	if stock := product.stockByID[2001]; stock != 8 {
-		t.Fatalf("release stock mismatch: got=%d want=8", stock)
+	if stock := product.stockByID[2001]; stock != 7 {
+		t.Fatalf("seckill order should not release product stock: got=%d want=7", stock)
 	}
 }
 
@@ -775,6 +802,42 @@ func TestTimeoutJobFlow(t *testing.T) {
 	}
 	if got := product.stockByID[5001]; got != 3 {
 		t.Fatalf("timeout release stock mismatch: got=%d want=3", got)
+	}
+}
+
+func TestCreateOrderFromSeckillIdempotentReplay(t *testing.T) {
+	initOrderAuthForTest(t)
+	repo := newMemoryOrderRepo()
+	svcCtx := newTestOrderSvc(t, repo, nil)
+	ctx := context.Background()
+
+	logic := NewCreateOrderFromSeckillLogic(ctx, svcCtx)
+	req := &pb.CreateOrderFromSeckillReq{
+		UserId:            8001,
+		ActivityId:        901,
+		ActivityItemId:    902,
+		ProductId:         3001,
+		Quantity:          2,
+		SeckillPriceCent:  199,
+		SnapshotName:      "秒杀可乐",
+		SnapshotMainImage: "https://img/seckill-cola.png",
+		SkuCode:           "SPU3001",
+		IdempotencyKey:    "idem-replay-001",
+	}
+
+	first, err := logic.CreateOrderFromSeckill(req)
+	if err != nil {
+		t.Fatalf("first create from seckill failed: %v", err)
+	}
+	second, err := logic.CreateOrderFromSeckill(req)
+	if err != nil {
+		t.Fatalf("second create from seckill failed: %v", err)
+	}
+	if first.GetOrder().GetOrderId() != second.GetOrder().GetOrderId() {
+		t.Fatalf("idempotent order id mismatch: first=%d second=%d", first.GetOrder().GetOrderId(), second.GetOrder().GetOrderId())
+	}
+	if first.GetOrder().GetOrderNo() != second.GetOrder().GetOrderNo() {
+		t.Fatalf("idempotent order no mismatch: first=%s second=%s", first.GetOrder().GetOrderNo(), second.GetOrder().GetOrderNo())
 	}
 }
 

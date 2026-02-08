@@ -11,6 +11,7 @@ import (
 	"flashsale/apps/order/rpc/internal/svc"
 	"flashsale/apps/order/rpc/pb"
 	"flashsale/pkg/base/errorx"
+	"flashsale/pkg/base/eventx"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -80,10 +81,13 @@ func (l *ReviewOrderAdminLogic) ReviewOrderAdmin(in *pb.ReviewOrderAdminReq) (*p
 
 	if !in.Approved {
 		releaseAt := time.Now()
-		remain, err := releaseStockForOrder(l.ctx, l.svcCtx, order.OrderNo, order.ProductID, order.Quantity, "release:review_reject")
-		if err != nil {
-			logStockReleaseErr(l.Logger, "release stock after review reject failed", err)
-			return nil, err
+		remain := int64(0)
+		if order.OrderSource != model.OrderSourceSeckill {
+			remain, err = releaseStockForOrder(l.ctx, l.svcCtx, order.OrderNo, order.ProductID, order.Quantity, "release:review_reject")
+			if err != nil {
+				logStockReleaseErr(l.Logger, "release stock after review reject failed", err)
+				return nil, err
+			}
 		}
 		if err := markOrderStockReleased(l.ctx, l.svcCtx, order.ID, remain, "review_reject", releaseAt); err != nil {
 			logStockReleaseErr(l.Logger, "mark stock released after review reject failed", err)
@@ -94,6 +98,11 @@ func (l *ReviewOrderAdminLogic) ReviewOrderAdmin(in *pb.ReviewOrderAdminReq) (*p
 	updated, err := l.svcCtx.OrderRepo.FindByID(l.ctx, order.ID)
 	if err != nil {
 		return nil, errorx.Wrap(errorx.CodeDBError, "查询订单失败", err)
+	}
+	if in.Approved {
+		emitSeckillOrderStateEvent(l.ctx, l.svcCtx, updated, eventx.SeckillOrderStateEventTypeReviewApproved)
+	} else {
+		emitSeckillOrderStateEvent(l.ctx, l.svcCtx, updated, eventx.SeckillOrderStateEventTypeReviewRejected)
 	}
 	return &pb.ReviewOrderAdminResp{Order: toOrderView(updated)}, nil
 }

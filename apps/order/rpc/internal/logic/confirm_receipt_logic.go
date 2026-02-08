@@ -10,6 +10,7 @@ import (
 	"flashsale/apps/order/rpc/internal/svc"
 	"flashsale/apps/order/rpc/pb"
 	"flashsale/pkg/base/errorx"
+	"flashsale/pkg/base/eventx"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -70,5 +71,7 @@ func (l *ConfirmReceiptLogic) ConfirmReceipt(in *pb.ConfirmReceiptReq) (*pb.Conf
 	if err != nil {
 		return nil, errorx.Wrap(errorx.CodeDBError, "查询订单失败", err)
 	}
+	emitSeckillOrderStateEvent(l.ctx, l.svcCtx, updated, eventx.SeckillOrderStateEventTypeReceived)
+	emitSeckillOrderStateEvent(l.ctx, l.svcCtx, updated, eventx.SeckillOrderStateEventTypeClosed)
 	return &pb.ConfirmReceiptResp{Order: toOrderView(updated)}, nil
 }

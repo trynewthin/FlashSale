@@ -16,6 +16,7 @@ type Config struct {
 	UserRPC        zrpc.RpcClientConf
 	ProductRPC     zrpc.RpcClientConf
 	OrderRPC       zrpc.RpcClientConf
+	SeckillRPC     zrpc.RpcClientConf
 }
 
 const userGatewayListenOnEnv = "FLASHSALE_USER_GATEWAY_LISTEN_ON"

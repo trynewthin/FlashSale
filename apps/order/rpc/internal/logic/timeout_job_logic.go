@@ -8,6 +8,7 @@ import (
 	"flashsale/apps/order/rpc/internal/model"
 	"flashsale/apps/order/rpc/internal/repository"
 	"flashsale/apps/order/rpc/internal/svc"
+	"flashsale/pkg/base/eventx"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -32,6 +33,7 @@ func (l *TimeoutJobLogic) RunOnce() {
 	l.handleAutoReceive(now)
 }
 
+// handlePayTimeout 推进待支付超时订单为关闭态。
 func (l *TimeoutJobLogic) handlePayTimeout(now time.Time) {
 	items, err := l.svcCtx.OrderRepo.ListPayTimeout(l.ctx, now.Add(-payTimeoutDur), backgroundBatchSize)
 	if err != nil {
@@ -54,17 +56,25 @@ func (l *TimeoutJobLogic) handlePayTimeout(now time.Time) {
 			continue
 		}
 		releaseAt := time.Now()
-		remain, err := releaseStockForOrder(l.ctx, l.svcCtx, item.OrderNo, item.ProductID, item.Quantity, "release:pay_timeout")
-		if err != nil {
-			l.Logger.Errorf("release stock for pay timeout failed order_id=%d err=%v", item.ID, err)
-			continue
+		remain := int64(0)
+		if item.OrderSource != model.OrderSourceSeckill {
+			remain, err = releaseStockForOrder(l.ctx, l.svcCtx, item.OrderNo, item.ProductID, item.Quantity, "release:pay_timeout")
+			if err != nil {
+				l.Logger.Errorf("release stock for pay timeout failed order_id=%d err=%v", item.ID, err)
+				continue
+			}
 		}
 		if err := markOrderStockReleased(l.ctx, l.svcCtx, item.ID, remain, "pay_timeout", releaseAt); err != nil {
 			l.Logger.Errorf("mark stock released for pay timeout failed order_id=%d err=%v", item.ID, err)
 		}
+		updated, err := l.svcCtx.OrderRepo.FindByID(l.ctx, item.ID)
+		if err == nil {
+			emitSeckillOrderStateEvent(l.ctx, l.svcCtx, updated, eventx.SeckillOrderStateEventTypeClosed)
+		}
 	}
 }
 
+// handleReviewTimeout 推进审核超时订单为拒绝并退款中。
 func (l *TimeoutJobLogic) handleReviewTimeout(now time.Time) {
 	items, err := l.svcCtx.OrderRepo.ListReviewTimeout(l.ctx, now, backgroundBatchSize)
 	if err != nil {
@@ -87,17 +97,25 @@ func (l *TimeoutJobLogic) handleReviewTimeout(now time.Time) {
 			continue
 		}
 		releaseAt := time.Now()
-		remain, err := releaseStockForOrder(l.ctx, l.svcCtx, item.OrderNo, item.ProductID, item.Quantity, "release:review_timeout")
-		if err != nil {
-			l.Logger.Errorf("release stock for review timeout failed order_id=%d err=%v", item.ID, err)
-			continue
+		remain := int64(0)
+		if item.OrderSource != model.OrderSourceSeckill {
+			remain, err = releaseStockForOrder(l.ctx, l.svcCtx, item.OrderNo, item.ProductID, item.Quantity, "release:review_timeout")
+			if err != nil {
+				l.Logger.Errorf("release stock for review timeout failed order_id=%d err=%v", item.ID, err)
+				continue
+			}
 		}
 		if err := markOrderStockReleased(l.ctx, l.svcCtx, item.ID, remain, "review_timeout", releaseAt); err != nil {
 			l.Logger.Errorf("mark stock released for review timeout failed order_id=%d err=%v", item.ID, err)
 		}
+		updated, err := l.svcCtx.OrderRepo.FindByID(l.ctx, item.ID)
+		if err == nil {
+			emitSeckillOrderStateEvent(l.ctx, l.svcCtx, updated, eventx.SeckillOrderStateEventTypeClosed)
+		}
 	}
 }
 
+// handleStockReleaseRetry 重试库存回补失败的关闭订单。
 func (l *TimeoutJobLogic) handleStockReleaseRetry(now time.Time) {
 	items, err := l.svcCtx.OrderRepo.ListStockReleasePending(l.ctx, backgroundBatchSize)
 	if err != nil {
@@ -105,6 +123,12 @@ func (l *TimeoutJobLogic) handleStockReleaseRetry(now time.Time) {
 		return
 	}
 	for _, item := range items {
+		if item.OrderSource == model.OrderSourceSeckill {
+			if err := markOrderStockReleased(l.ctx, l.svcCtx, item.ID, 0, "retry:seckill", now); err != nil {
+				l.Logger.Errorf("mark seckill stock released on retry failed order_id=%d err=%v", item.ID, err)
+			}
+			continue
+		}
 		suffix, ok := releaseSuffixFromCloseReason(item.CloseReason)
 		if !ok {
 			continue
@@ -120,6 +144,7 @@ func (l *TimeoutJobLogic) handleStockReleaseRetry(now time.Time) {
 	}
 }
 
+// handleRefundCompletion 推进退款中的订单为退款完成。
 func (l *TimeoutJobLogic) handleRefundCompletion(now time.Time) {
 	items, err := l.svcCtx.OrderRepo.ListRefundingDue(l.ctx, now, backgroundBatchSize)
 	if err != nil {
@@ -138,9 +163,14 @@ func (l *TimeoutJobLogic) handleRefundCompletion(now time.Time) {
 		if err := l.svcCtx.OrderRepo.CompleteRefund(l.ctx, item.ID, now, event); err != nil && err != repository.ErrOrderStateConflict {
 			l.Logger.Errorf("complete refund failed order_id=%d err=%v", item.ID, err)
 		}
+		updated, err := l.svcCtx.OrderRepo.FindByID(l.ctx, item.ID)
+		if err == nil {
+			emitSeckillOrderStateEvent(l.ctx, l.svcCtx, updated, eventx.SeckillOrderStateEventTypeRefundCompleted)
+		}
 	}
 }
 
+// handleAutoReceive 推进已发货超时订单为自动收货关闭。
 func (l *TimeoutJobLogic) handleAutoReceive(now time.Time) {
 	items, err := l.svcCtx.OrderRepo.ListAutoReceiveDue(l.ctx, now.Add(-autoReceiveDur), backgroundBatchSize)
 	if err != nil {
@@ -158,6 +188,11 @@ func (l *TimeoutJobLogic) handleAutoReceive(now time.Time) {
 		}
 		if err := l.svcCtx.OrderRepo.AutoReceive(l.ctx, item.ID, now, event); err != nil && err != repository.ErrOrderStateConflict {
 			l.Logger.Errorf("auto receive failed order_id=%d err=%v", item.ID, err)
+		}
+		updated, err := l.svcCtx.OrderRepo.FindByID(l.ctx, item.ID)
+		if err == nil {
+			emitSeckillOrderStateEvent(l.ctx, l.svcCtx, updated, eventx.SeckillOrderStateEventTypeReceived)
+			emitSeckillOrderStateEvent(l.ctx, l.svcCtx, updated, eventx.SeckillOrderStateEventTypeClosed)
 		}
 	}
 }

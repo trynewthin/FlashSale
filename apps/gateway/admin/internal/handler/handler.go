@@ -26,6 +26,7 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	h := &AdminHandler{svcCtx: svcCtx}
 	ph := &ProductAdminHandler{svcCtx: svcCtx}
 	oh := &OrderAdminHandler{svcCtx: svcCtx}
+	sh := &SeckillAdminHandler{svcCtx: svcCtx}
 	mux.HandleFunc("GET /healthz", h.Health)
 	mux.Handle(
 		"GET /api/v1/admin/ping",
@@ -78,6 +79,54 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	mux.Handle(
 		"GET /api/v1/admin/orders",
 		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainOrderManagement, http.HandlerFunc(oh.ListOrders))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/seckill/activities",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.CreateActivity))),
+	)
+	mux.Handle(
+		"PATCH /api/v1/admin/seckill/activities/{activity_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.UpdateActivity))),
+	)
+	mux.Handle(
+		"DELETE /api/v1/admin/seckill/activities/{activity_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.DeleteActivity))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/seckill/activities/{activity_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.GetActivity))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/seckill/activities",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.ListActivities))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/seckill/activities/{activity_id}/items",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.CreateActivityItem))),
+	)
+	mux.Handle(
+		"PUT /api/v1/admin/seckill/activities/{activity_id}/items/{item_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.UpsertActivityItem))),
+	)
+	mux.Handle(
+		"DELETE /api/v1/admin/seckill/activities/{activity_id}/items/{item_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.RemoveActivityItem))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/seckill/activities/{activity_id}/publish",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.PublishActivity))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/seckill/activities/{activity_id}/offline",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.OfflineActivity))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/seckill/activities/{activity_id}/traffic",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.GetTraffic))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/seckill/activities/{activity_id}/orders",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainSeckillManagement, http.HandlerFunc(sh.ListOrders))),
 	)
 }
 

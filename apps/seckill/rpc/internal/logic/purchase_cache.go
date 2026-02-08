@@ -170,7 +170,8 @@ func (l *SeckillLogic) reservePurchaseInCache(ctx context.Context, item *model.A
 	case cacheReserveSuccessCode:
 		return true, nil
 	case cacheReserveDuplicateCode:
-		return true, errorx.New(errorx.CodeSeckillPurchaseConflict, "请求冲突，请勿重复提交")
+		// 幂等键已存在时不直接失败，回退 DB 并触发建单幂等恢复链路。
+		return false, nil
 	case cacheReserveOutOfStockCode:
 		return true, errorx.New(errorx.CodeSeckillOutOfStock, "库存不足")
 	case cacheReserveLimitExceeded:

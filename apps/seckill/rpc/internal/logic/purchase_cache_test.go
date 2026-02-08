@@ -8,7 +8,6 @@ import (
 
 	"flashsale/apps/seckill/rpc/internal/model"
 	"flashsale/apps/seckill/rpc/internal/svc"
-	"flashsale/pkg/base/errorx"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -60,14 +59,13 @@ func TestReservePurchaseInCacheAndRollback(t *testing.T) {
 		t.Fatalf("bought mismatch: got=%d want=2", bought)
 	}
 
-	// 相同幂等键重复请求应返回冲突。
+	// 相同幂等键重复请求应回退 DB 恢复链路，不在缓存层直接拦截。
 	handled, err = l.reservePurchaseInCache(ctx, item, 9001, 1, "idem-a", time.Now())
-	if !handled {
-		t.Fatalf("duplicate request should still be handled by cache")
+	if handled {
+		t.Fatalf("duplicate request should fallback to DB path")
 	}
-	appErr := errorx.FromError(err)
-	if appErr == nil || appErr.Code != errorx.CodeSeckillPurchaseConflict {
-		t.Fatalf("duplicate request should return conflict, got=%v", err)
+	if err != nil {
+		t.Fatalf("duplicate request should not return cache error, got=%v", err)
 	}
 
 	// 回滚后库存与累计购买件数都应恢复。

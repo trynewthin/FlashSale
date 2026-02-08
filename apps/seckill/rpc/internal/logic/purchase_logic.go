@@ -8,6 +8,7 @@ import (
 
 	orderpb "flashsale/apps/order/rpc/pb"
 	"flashsale/apps/seckill/rpc/internal/model"
+	"flashsale/apps/seckill/rpc/internal/repository"
 	"flashsale/apps/seckill/rpc/pb"
 	"flashsale/pkg/base/errorx"
 	"flashsale/pkg/base/grpcerr"
@@ -57,54 +58,41 @@ func (l *SeckillLogic) Purchase(in *pb.PurchaseReq) (*pb.PurchaseResp, error) {
 	}
 
 	reservation, err := l.svcCtx.SeckillRepo.ReservePurchase(l.ctx, in.ActivityId, in.ActivityItemId, in.UserId, in.Quantity, idempotencyKey, now)
+	reserveConflict := err == repository.ErrIdempotencyConflict
 	if err != nil {
-		if cacheReserved {
-			l.rollbackReserveInCache(l.ctx, item, in.UserId, in.Quantity, idempotencyKey)
+		// 幂等冲突说明历史请求已完成预扣，本次继续尝试幂等建单恢复，不直接失败。
+		if reserveConflict {
+			reservation = nil
+		} else {
+			if cacheReserved {
+				l.rollbackReserveInCache(l.ctx, item, in.UserId, in.Quantity, idempotencyKey)
+			}
+			_ = l.recordTraffic(&model.TrafficEvent{
+				ActivityID:     in.ActivityId,
+				ActivityItemID: in.ActivityItemId,
+				EventType:      model.TrafficEventPurchaseFail,
+				UserID:         in.UserId,
+				IdempotencyKey: idempotencyKey + ":reserve_fail",
+				OccurredAt:     time.Now(),
+			})
+			return nil, mapRepoErr(err)
 		}
-		_ = l.recordTraffic(&model.TrafficEvent{
-			ActivityID:     in.ActivityId,
-			ActivityItemID: in.ActivityItemId,
-			EventType:      model.TrafficEventPurchaseFail,
-			UserID:         in.UserId,
-			IdempotencyKey: idempotencyKey + ":reserve_fail",
-			OccurredAt:     time.Now(),
-		})
-		return nil, mapRepoErr(err)
 	}
 	token, ok := rpcmeta.AccessTokenFromIncomingContext(l.ctx)
 	if !ok {
-		_ = l.svcCtx.SeckillRepo.CompensateReleasePurchase(l.ctx, in.ActivityId, in.ActivityItemId, in.Quantity, idempotencyKey+":no_token")
-		if cacheReserved {
+		if !reserveConflict {
+			_ = l.svcCtx.SeckillRepo.CompensateReleasePurchase(l.ctx, in.ActivityId, in.ActivityItemId, in.Quantity, idempotencyKey+":no_token")
+		}
+		if cacheReserved && !reserveConflict {
 			l.rollbackReserveInCache(l.ctx, item, in.UserId, in.Quantity, idempotencyKey)
 		}
 		return nil, errorx.New(errorx.CodeAuthUnauthorized, "认证令牌缺失")
 	}
-	orderResp, err := l.svcCtx.OrderRPCCli.CreateOrderFromSeckill(rpcmeta.WithAccessToken(l.ctx, token), &orderpb.CreateOrderFromSeckillReq{
-		UserId:            in.UserId,
-		ActivityId:        in.ActivityId,
-		ActivityItemId:    in.ActivityItemId,
-		ProductId:         reservation.ProductID,
-		Quantity:          in.Quantity,
-		SeckillPriceCent:  reservation.SeckillPriceCent,
-		SnapshotName:      reservation.SnapshotName,
-		SnapshotMainImage: reservation.SnapshotMainImage,
-		SkuCode:           reservation.SKUCode,
-		IdempotencyKey:    idempotencyKey,
-	})
+	orderReq := buildSeckillCreateOrderReq(in, item, reservation, idempotencyKey)
+	orderResp, err := l.svcCtx.OrderRPCCli.CreateOrderFromSeckill(rpcmeta.WithAccessToken(l.ctx, token), orderReq)
 	if err != nil {
 		// 先做一次同幂等键重放，吸收“首调超时但订单已创建”的场景。
-		replayResp, replayErr := l.svcCtx.OrderRPCCli.CreateOrderFromSeckill(rpcmeta.WithAccessToken(l.ctx, token), &orderpb.CreateOrderFromSeckillReq{
-			UserId:            in.UserId,
-			ActivityId:        in.ActivityId,
-			ActivityItemId:    in.ActivityItemId,
-			ProductId:         reservation.ProductID,
-			Quantity:          in.Quantity,
-			SeckillPriceCent:  reservation.SeckillPriceCent,
-			SnapshotName:      reservation.SnapshotName,
-			SnapshotMainImage: reservation.SnapshotMainImage,
-			SkuCode:           reservation.SKUCode,
-			IdempotencyKey:    idempotencyKey,
-		})
+		replayResp, replayErr := l.svcCtx.OrderRPCCli.CreateOrderFromSeckill(rpcmeta.WithAccessToken(l.ctx, token), orderReq)
 		if replayErr == nil && replayResp != nil && replayResp.Order != nil {
 			orderResp = replayResp
 		} else {
@@ -112,9 +100,12 @@ func (l *SeckillLogic) Purchase(in *pb.PurchaseReq) (*pb.PurchaseResp, error) {
 			secondErr := grpcerr.FromStatus(replayErr)
 			// 仅对可明确判定“未成功建单”的错误做即时补偿；未知传输错误交由前端重试幂等键收敛。
 			if shouldImmediateCompensateOnOrderCreateError(firstErr) && shouldImmediateCompensateOnOrderCreateError(secondErr) {
-				_ = l.svcCtx.SeckillRepo.CompensateReleasePurchase(l.ctx, in.ActivityId, in.ActivityItemId, in.Quantity, idempotencyKey+":order_fail")
-				if cacheReserved {
-					l.rollbackReserveInCache(l.ctx, item, in.UserId, in.Quantity, idempotencyKey)
+				// 仅在本次请求完成了预扣时执行即时补偿；幂等冲突分支由后续重试继续收敛。
+				if !reserveConflict {
+					_ = l.svcCtx.SeckillRepo.CompensateReleasePurchase(l.ctx, in.ActivityId, in.ActivityItemId, in.Quantity, idempotencyKey+":order_fail")
+					if cacheReserved {
+						l.rollbackReserveInCache(l.ctx, item, in.UserId, in.Quantity, idempotencyKey)
+					}
 				}
 				_ = l.recordTraffic(&model.TrafficEvent{
 					ActivityID:     in.ActivityId,
@@ -124,13 +115,15 @@ func (l *SeckillLogic) Purchase(in *pb.PurchaseReq) (*pb.PurchaseResp, error) {
 					IdempotencyKey: idempotencyKey + ":order_fail",
 					OccurredAt:     time.Now(),
 				})
-				if secondErr != nil {
-					return nil, secondErr
+				if !reserveConflict {
+					if secondErr != nil {
+						return nil, secondErr
+					}
+					if firstErr != nil {
+						return nil, firstErr
+					}
+					return nil, errorx.Wrap(errorx.CodeSysInternal, "秒杀建单失败", err)
 				}
-				if firstErr != nil {
-					return nil, firstErr
-				}
-				return nil, errorx.Wrap(errorx.CodeSysInternal, "秒杀建单失败", err)
 			}
 			_ = l.recordTraffic(&model.TrafficEvent{
 				ActivityID:     in.ActivityId,
@@ -144,11 +137,14 @@ func (l *SeckillLogic) Purchase(in *pb.PurchaseReq) (*pb.PurchaseResp, error) {
 		}
 	}
 	if orderResp == nil || orderResp.Order == nil {
-		_ = l.svcCtx.SeckillRepo.CompensateReleasePurchase(l.ctx, in.ActivityId, in.ActivityItemId, in.Quantity, idempotencyKey+":order_empty")
-		if cacheReserved {
-			l.rollbackReserveInCache(l.ctx, item, in.UserId, in.Quantity, idempotencyKey)
+		if !reserveConflict {
+			_ = l.svcCtx.SeckillRepo.CompensateReleasePurchase(l.ctx, in.ActivityId, in.ActivityItemId, in.Quantity, idempotencyKey+":order_empty")
+			if cacheReserved {
+				l.rollbackReserveInCache(l.ctx, item, in.UserId, in.Quantity, idempotencyKey)
+			}
+			return nil, errorx.New(errorx.CodeSysInternal, "秒杀建单返回为空")
 		}
-		return nil, errorx.New(errorx.CodeSysInternal, "秒杀建单返回为空")
+		return nil, errorx.New(errorx.CodeSeckillPurchaseConflict, "订单处理中，请稍后重试")
 	}
 
 	link := &model.OrderLink{
@@ -183,6 +179,33 @@ func (l *SeckillLogic) Purchase(in *pb.PurchaseReq) (*pb.PurchaseResp, error) {
 		OrderId:        orderResp.Order.OrderId,
 		OrderNo:        orderResp.Order.OrderNo,
 	}, nil
+}
+
+// buildSeckillCreateOrderReq 统一构造秒杀建单请求，兼容预扣成功与幂等冲突恢复路径。
+func buildSeckillCreateOrderReq(in *pb.PurchaseReq, item *model.ActivityItem, reservation *model.PurchaseReservation, idempotencyKey string) *orderpb.CreateOrderFromSeckillReq {
+	req := &orderpb.CreateOrderFromSeckillReq{
+		UserId:         in.UserId,
+		ActivityId:     in.ActivityId,
+		ActivityItemId: in.ActivityItemId,
+		Quantity:       in.Quantity,
+		IdempotencyKey: idempotencyKey,
+	}
+	if reservation != nil {
+		req.ProductId = reservation.ProductID
+		req.SeckillPriceCent = reservation.SeckillPriceCent
+		req.SnapshotName = reservation.SnapshotName
+		req.SnapshotMainImage = reservation.SnapshotMainImage
+		req.SkuCode = reservation.SKUCode
+		return req
+	}
+	if item != nil {
+		req.ProductId = item.ProductID
+		req.SeckillPriceCent = item.SeckillPriceCent
+		req.SnapshotName = item.SnapshotName
+		req.SnapshotMainImage = item.SnapshotMainImage
+		req.SkuCode = item.SKUCode
+	}
+	return req
 }
 
 // shouldImmediateCompensateOnOrderCreateError 判断建单失败是否可立即执行库存补偿。

@@ -1,0 +1,239 @@
+// logic 包包含相关应用代码。
+package logic
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	orderpb "flashsale/apps/order/rpc/pb"
+	"flashsale/apps/seckill/rpc/internal/model"
+	"flashsale/apps/seckill/rpc/internal/repository"
+	"flashsale/apps/seckill/rpc/internal/svc"
+	"flashsale/apps/seckill/rpc/pb"
+	"flashsale/pkg/base/errorx"
+	"github.com/bwmarrin/snowflake"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+)
+
+// purchaseRepoMock 用于覆盖购买链路中的仓储行为。
+type purchaseRepoMock struct {
+	*seckillRepoMock
+
+	reserveErr           error
+	reservation          *model.PurchaseReservation
+	reserveCalls         int
+	compensateCalls      int
+	createOrderLinkCalls int
+}
+
+func (m *purchaseRepoMock) ReservePurchase(context.Context, int64, int64, int64, int64, string, time.Time) (*model.PurchaseReservation, error) {
+	m.reserveCalls++
+	if m.reserveErr != nil {
+		return nil, m.reserveErr
+	}
+	if m.reservation == nil {
+		return nil, errors.New("reservation is nil")
+	}
+	cp := *m.reservation
+	return &cp, nil
+}
+
+func (m *purchaseRepoMock) CompensateReleasePurchase(context.Context, int64, int64, int64, string) error {
+	m.compensateCalls++
+	return nil
+}
+
+func (m *purchaseRepoMock) CreateOrderLink(context.Context, *model.OrderLink) error {
+	m.createOrderLinkCalls++
+	return nil
+}
+
+// orderRPCMock 用于模拟秒杀建单 RPC。
+type orderRPCMock struct {
+	createFromSeckillFn    func(context.Context, *orderpb.CreateOrderFromSeckillReq) (*orderpb.CreateOrderFromSeckillResp, error)
+	createFromSeckillCalls int
+	lastCreateReq          *orderpb.CreateOrderFromSeckillReq
+}
+
+func (m *orderRPCMock) CreateOrder(context.Context, *orderpb.CreateOrderReq, ...grpc.CallOption) (*orderpb.CreateOrderResp, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *orderRPCMock) CreateOrderFromSeckill(ctx context.Context, in *orderpb.CreateOrderFromSeckillReq, _ ...grpc.CallOption) (*orderpb.CreateOrderFromSeckillResp, error) {
+	m.createFromSeckillCalls++
+	if in != nil {
+		m.lastCreateReq = &orderpb.CreateOrderFromSeckillReq{
+			UserId:            in.UserId,
+			ActivityId:        in.ActivityId,
+			ActivityItemId:    in.ActivityItemId,
+			ProductId:         in.ProductId,
+			Quantity:          in.Quantity,
+			SeckillPriceCent:  in.SeckillPriceCent,
+			SnapshotName:      in.SnapshotName,
+			SnapshotMainImage: in.SnapshotMainImage,
+			SkuCode:           in.SkuCode,
+			IdempotencyKey:    in.IdempotencyKey,
+		}
+	}
+	if m.createFromSeckillFn == nil {
+		return nil, errors.New("createFromSeckillFn is nil")
+	}
+	return m.createFromSeckillFn(ctx, in)
+}
+
+func (m *orderRPCMock) ConfirmPaymentAndInfo(context.Context, *orderpb.ConfirmPaymentAndInfoReq, ...grpc.CallOption) (*orderpb.ConfirmPaymentAndInfoResp, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *orderRPCMock) CancelOrder(context.Context, *orderpb.CancelOrderReq, ...grpc.CallOption) (*orderpb.CancelOrderResp, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *orderRPCMock) ConfirmReceipt(context.Context, *orderpb.ConfirmReceiptReq, ...grpc.CallOption) (*orderpb.ConfirmReceiptResp, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *orderRPCMock) GetOrderUser(context.Context, *orderpb.GetOrderUserReq, ...grpc.CallOption) (*orderpb.GetOrderUserResp, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *orderRPCMock) ListOrdersUser(context.Context, *orderpb.ListOrdersUserReq, ...grpc.CallOption) (*orderpb.ListOrdersUserResp, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *orderRPCMock) ReviewOrderAdmin(context.Context, *orderpb.ReviewOrderAdminReq, ...grpc.CallOption) (*orderpb.ReviewOrderAdminResp, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *orderRPCMock) ShipOrderAdmin(context.Context, *orderpb.ShipOrderAdminReq, ...grpc.CallOption) (*orderpb.ShipOrderAdminResp, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *orderRPCMock) GetOrderAdmin(context.Context, *orderpb.GetOrderAdminReq, ...grpc.CallOption) (*orderpb.GetOrderAdminResp, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *orderRPCMock) ListOrdersAdmin(context.Context, *orderpb.ListOrdersAdminReq, ...grpc.CallOption) (*orderpb.ListOrdersAdminResp, error) {
+	return nil, errors.New("not implemented")
+}
+
+func TestPurchase_IdempotencyConflictRecoversByOrderReplay(t *testing.T) {
+	item := &model.ActivityItem{
+		ID:                21,
+		ActivityID:        301,
+		ProductID:         9101,
+		SKUCode:           "SPU9101",
+		SnapshotName:      "test-product",
+		SnapshotMainImage: "https://img.test/p.png",
+		SeckillPriceCent:  990,
+	}
+	repoMock := &purchaseRepoMock{
+		seckillRepoMock: &seckillRepoMock{item: item},
+		reserveErr:      repository.ErrIdempotencyConflict,
+	}
+	orderMock := &orderRPCMock{
+		createFromSeckillFn: func(_ context.Context, _ *orderpb.CreateOrderFromSeckillReq) (*orderpb.CreateOrderFromSeckillResp, error) {
+			return &orderpb.CreateOrderFromSeckillResp{
+				Order: &orderpb.OrderView{
+					OrderId:       70001,
+					OrderNo:       "SCKORDER70001",
+					OrderStatus:   10,
+					PaymentStatus: 0,
+				},
+			}, nil
+		},
+	}
+	node, err := snowflake.NewNode(1)
+	if err != nil {
+		t.Fatalf("new snowflake node failed: %v", err)
+	}
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-access-token", "token-1"))
+	logic := NewSeckillLogic(ctx, &svc.ServiceContext{
+		SeckillRepo: repoMock,
+		OrderRPCCli: orderMock,
+		IDNode:      node,
+	})
+
+	resp, err := logic.Purchase(&pb.PurchaseReq{
+		UserId:         9001,
+		ActivityId:     301,
+		ActivityItemId: 21,
+		Quantity:       1,
+		IdempotencyKey: "idem-301-21-9001",
+	})
+	if err != nil {
+		t.Fatalf("purchase should recover successfully, got err=%v", err)
+	}
+	if resp == nil || resp.OrderId != 70001 {
+		t.Fatalf("purchase response mismatch: %+v", resp)
+	}
+	if repoMock.compensateCalls != 0 {
+		t.Fatalf("idempotency conflict path should not compensate immediately, got=%d", repoMock.compensateCalls)
+	}
+	if repoMock.createOrderLinkCalls != 1 {
+		t.Fatalf("order link should be created once, got=%d", repoMock.createOrderLinkCalls)
+	}
+	if orderMock.createFromSeckillCalls != 1 {
+		t.Fatalf("order rpc call count mismatch: got=%d want=1", orderMock.createFromSeckillCalls)
+	}
+	if orderMock.lastCreateReq == nil || orderMock.lastCreateReq.ProductId != item.ProductID || orderMock.lastCreateReq.SeckillPriceCent != item.SeckillPriceCent {
+		t.Fatalf("order request should fallback to item snapshot, got=%+v", orderMock.lastCreateReq)
+	}
+}
+
+func TestPurchase_IdempotencyConflictPendingWithoutImmediateCompensate(t *testing.T) {
+	item := &model.ActivityItem{
+		ID:                22,
+		ActivityID:        302,
+		ProductID:         9102,
+		SKUCode:           "SPU9102",
+		SnapshotName:      "test-product-2",
+		SnapshotMainImage: "https://img.test/p2.png",
+		SeckillPriceCent:  1990,
+	}
+	repoMock := &purchaseRepoMock{
+		seckillRepoMock: &seckillRepoMock{item: item},
+		reserveErr:      repository.ErrIdempotencyConflict,
+	}
+	orderMock := &orderRPCMock{
+		createFromSeckillFn: func(_ context.Context, _ *orderpb.CreateOrderFromSeckillReq) (*orderpb.CreateOrderFromSeckillResp, error) {
+			return nil, status.Error(codes.Unavailable, "rpc unavailable")
+		},
+	}
+	node, err := snowflake.NewNode(2)
+	if err != nil {
+		t.Fatalf("new snowflake node failed: %v", err)
+	}
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-access-token", "token-2"))
+	logic := NewSeckillLogic(ctx, &svc.ServiceContext{
+		SeckillRepo: repoMock,
+		OrderRPCCli: orderMock,
+		IDNode:      node,
+	})
+
+	_, err = logic.Purchase(&pb.PurchaseReq{
+		UserId:         9002,
+		ActivityId:     302,
+		ActivityItemId: 22,
+		Quantity:       1,
+		IdempotencyKey: "idem-302-22-9002",
+	})
+	appErr := errorx.FromError(err)
+	if appErr == nil || appErr.Code != errorx.CodeSeckillPurchaseConflict {
+		t.Fatalf("expected purchase pending conflict, got err=%v", err)
+	}
+	if repoMock.compensateCalls != 0 {
+		t.Fatalf("idempotency conflict pending path should not compensate, got=%d", repoMock.compensateCalls)
+	}
+	if repoMock.createOrderLinkCalls != 0 {
+		t.Fatalf("pending path should not create order link, got=%d", repoMock.createOrderLinkCalls)
+	}
+	if orderMock.createFromSeckillCalls != 2 {
+		t.Fatalf("should attempt replay once, got=%d", orderMock.createFromSeckillCalls)
+	}
+}

@@ -1,6 +1,6 @@
 # 数据库迁移说明
 
-更新时间：2026-02-07
+更新时间：2026-02-08
 
 ## 1. 数据库初始化
 
@@ -57,3 +57,13 @@
 
 - `deploy/migrations/user/000002__user_accounts.up.sql`
 - `deploy/migrations/user/000002__user_accounts.down.sql`
+
+商品模块额外迁移：
+
+- `deploy/migrations/product/000002__products.up.sql`
+- `deploy/migrations/product/000002__products.down.sql`
+
+订单模块额外迁移：
+
+- `deploy/migrations/order/000002__orders.up.sql`
+- `deploy/migrations/order/000002__orders.down.sql`

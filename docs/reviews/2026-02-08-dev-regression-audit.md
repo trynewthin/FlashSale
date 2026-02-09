@@ -98,6 +98,10 @@
   1. 更新系统总览的“已落地模块”与拓扑说明。
   2. 在网关运行态文档补齐 admin/user 秒杀路由。
   3. 新增 `docs/architecture/seckill-rpc-runtime.md`，覆盖数据模型、库存策略、订单回流、幂等与补偿策略。
+- 修复结果（2026-02-09）：
+  1. `docs/architecture/system-overview.md` 已更新为秒杀已落地状态。
+  2. `docs/architecture/gateway-runtime.md` 已补齐 user/admin 秒杀路由段落。
+  3. 已新增 `docs/architecture/seckill-rpc-runtime.md` 并纳入文档索引。
 
 ## 5. 复现与检查命令
 ```bash

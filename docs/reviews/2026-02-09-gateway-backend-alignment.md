@@ -88,15 +88,15 @@
 当前接口现状：
 
 - 审核接口已存在（`ReviewOrderAdmin`）。
-- 但审核与发货共用同一权限域 `order_management`。
+- 已支持独立审核域 `order_review_management`。
 
 后端对齐结论：
 
-- 功能可用，但“审核岗位独立权限域”未落地。
+- 功能可用，且已支持“审核岗位独立权限域”。
 
 建议：
 
-- 若要岗位隔离，新增 `order_review_management`（或 `order_fulfillment_management`）并拆分路由与 RPC 授权判断。
+- 若要进一步细化履约岗位，可新增 `order_fulfillment_management` 并把发货从 `order_management` 继续拆分。
 
 ### 3.6 秒杀活动管理员（`seckill_management`）
 
@@ -159,20 +159,29 @@
 
 ## 5. 发现的问题与建议
 
-### 5.1 中优先级：审核岗位未独立权限域（功能有，隔离不足）
+### 5.1 已修复：审核岗位独立权限域（2026-02-09）
 
-- 现状：审核与发货同属 `order_management`。
-- 影响：无法精细控制“仅可审核不可发货”的岗位边界。
-- 建议：新增 `order_review_management` 并拆分路由权限。
+- 修复点：
+  - 新增域：`order_review_management`。
+  - 网关路由：
+    - 审核接口支持 `order_management` 或 `order_review_management`。
+    - 发货接口保持 `order_management`。
+  - `order rpc` 服务端：
+    - 审核/查询接口支持 `order_management` 或 `order_review_management`。
+    - 发货接口仅 `order_management`。
+- 效果：可实现“只审不发”角色配置，同时保持历史 `order_management` 角色兼容。
 
-### 5.2 低优先级：匿名埋点接口存在 `user_id` 伪造空间
+### 5.2 已修复：匿名埋点 `user_id` 伪造风险（2026-02-09）
 
-- 接口：`POST /api/v1/seckill/activities/{activity_id}/track` 支持匿名调用。
-- 风险：若前端直接上报 `user_id`，可被伪造。
-- 建议：匿名流量只认 `client_id`；登录态再由服务端从 token 填充 `user_id`。
+- 修复点：
+  - 网关埋点接口不接收请求体 `user_id`，仅按服务端规则填充。
+  - 若请求携带合法用户 token，则由服务端解析并写入 `user_id`。
+  - 若无 token 或 token 非法，则按匿名事件处理（`user_id=0`，依赖 `client_id`）。
+  - `seckill rpc` 在 `TrackEvent` 中对 `user_id>0` 进行 token 二次校验，防止伪造。
+- 效果：前端无法伪造任意 `user_id` 埋点数据。
 
 ## 6. 最终结论
 
 1. 网关用户/管理员接口与后端 RPC 实现整体对齐，无调用断链。  
-2. 角色需求中，除“审核管理员独立权限域”外，已实现能力与接口覆盖度较高。  
-3. 当前系统已具备继续做前端联调与角色权限细化的基础。
+2. 审核管理员已支持独立权限域，角色隔离可落地。  
+3. 当前系统已具备继续做前端联调与更细粒度权限拆分（如履约域）的基础。

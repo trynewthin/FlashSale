@@ -24,10 +24,76 @@ const defaultRPCTimeout = 3 * time.Second
 // RegisterRoutes 注册管理员网关路由。
 func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	h := &AdminHandler{svcCtx: svcCtx}
+	amh := &AdminModuleHandler{svcCtx: svcCtx}
 	ph := &ProductAdminHandler{svcCtx: svcCtx}
 	oh := &OrderAdminHandler{svcCtx: svcCtx}
 	sh := &SeckillAdminHandler{svcCtx: svcCtx}
 	mux.HandleFunc("GET /healthz", h.Health)
+	mux.HandleFunc("POST /api/v1/admin/auth/login", amh.Login)
+	mux.HandleFunc("POST /api/v1/admin/auth/refresh", amh.Refresh)
+	mux.Handle("POST /api/v1/admin/auth/logout", middleware.AuthRequired(svcCtx, http.HandlerFunc(amh.Logout)))
+	mux.Handle("GET /api/v1/admin/me", middleware.AuthRequired(svcCtx, http.HandlerFunc(amh.GetMyProfile)))
+	mux.Handle("POST /api/v1/admin/me/password", middleware.AuthRequired(svcCtx, http.HandlerFunc(amh.ChangeMyPassword)))
+	mux.Handle(
+		"POST /api/v1/admin/admins",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.CreateAdmin))),
+	)
+	mux.Handle(
+		"PATCH /api/v1/admin/admins/{admin_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.UpdateAdmin))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/admins/{admin_id}/status",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.SetAdminStatus))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/admins/{admin_id}/reset-password",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.ResetAdminPassword))),
+	)
+	mux.Handle(
+		"DELETE /api/v1/admin/admins/{admin_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.DeleteAdmin))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/admins/{admin_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.GetAdmin))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/admins",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.ListAdmins))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/admins/{admin_id}/roles",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.BindAdminRoles))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/roles",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.CreateRole))),
+	)
+	mux.Handle(
+		"PATCH /api/v1/admin/roles/{role_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.UpdateRole))),
+	)
+	mux.Handle(
+		"DELETE /api/v1/admin/roles/{role_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.DeleteRole))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/roles/{role_id}",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.GetRole))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/roles",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.ListRoles))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/roles/{role_id}/domains",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.SetRoleDomains))),
+	)
+	mux.Handle(
+		"GET /api/v1/admin/audit-logs",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainAdminManagement, http.HandlerFunc(amh.ListAuditLogs))),
+	)
 	mux.Handle(
 		"GET /api/v1/admin/ping",
 		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainOperations, http.HandlerFunc(h.Ping))),

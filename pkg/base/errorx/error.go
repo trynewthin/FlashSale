@@ -71,6 +71,22 @@ const (
 	CodeSeckillPurchaseConflict Code = "SECKILL_PURCHASE_CONFLICT"
 	// CodeSeckillInvalidConfig 表示秒杀配置非法。
 	CodeSeckillInvalidConfig Code = "SECKILL_INVALID_CONFIG"
+	// CodeAdminNotFound 表示管理员不存在。
+	CodeAdminNotFound Code = "ADMIN_NOT_FOUND"
+	// CodeAdminUsernameAlreadyExists 表示管理员用户名已存在。
+	CodeAdminUsernameAlreadyExists Code = "ADMIN_USERNAME_ALREADY_EXISTS"
+	// CodeAdminAccountDisabled 表示管理员账号已禁用。
+	CodeAdminAccountDisabled Code = "ADMIN_ACCOUNT_DISABLED"
+	// CodeAdminAccountLocked 表示管理员账号已锁定。
+	CodeAdminAccountLocked Code = "ADMIN_ACCOUNT_LOCKED"
+	// CodeAdminRoleNotFound 表示管理员角色不存在。
+	CodeAdminRoleNotFound Code = "ADMIN_ROLE_NOT_FOUND"
+	// CodeAdminRoleCodeAlreadyExists 表示角色编码已存在。
+	CodeAdminRoleCodeAlreadyExists Code = "ADMIN_ROLE_CODE_ALREADY_EXISTS"
+	// CodeAdminInvalidScope 表示管理员数据权限范围非法。
+	CodeAdminInvalidScope Code = "ADMIN_INVALID_SCOPE"
+	// CodeAdminRefreshTokenInvalid 表示管理员刷新令牌非法。
+	CodeAdminRefreshTokenInvalid Code = "ADMIN_REFRESH_TOKEN_INVALID"
 	// CodeDBError 表示数据库错误。
 	CodeDBError Code = "DB_ERROR"
 	// CodeMQError 表示消息队列错误。
@@ -82,15 +98,15 @@ const (
 // HTTPStatus 返回错误码对应的 HTTP 状态码。
 func (c Code) HTTPStatus() int {
 	switch c {
-	case CodeSysBadRequest, CodeAuthInvalidPhone, CodeAuthWeakPassword, CodeProductInvalidStatus, CodeOrderInvalidState, CodeOrderInvalidReceiverInfo, CodeOrderOutOfStock, CodeSeckillInvalidConfig:
+	case CodeSysBadRequest, CodeAuthInvalidPhone, CodeAuthWeakPassword, CodeProductInvalidStatus, CodeOrderInvalidState, CodeOrderInvalidReceiverInfo, CodeOrderOutOfStock, CodeSeckillInvalidConfig, CodeAdminInvalidScope:
 		return http.StatusBadRequest
-	case CodeAuthUnauthorized, CodeAuthInvalidCredentials:
+	case CodeAuthUnauthorized, CodeAuthInvalidCredentials, CodeAdminRefreshTokenInvalid:
 		return http.StatusUnauthorized
-	case CodeAuthForbidden:
+	case CodeAuthForbidden, CodeAdminAccountDisabled, CodeAdminAccountLocked:
 		return http.StatusForbidden
-	case CodeUserNotFound, CodeProductNotFound, CodeOrderNotFound, CodeSeckillActivityNotFound, CodeSeckillItemNotFound:
+	case CodeUserNotFound, CodeProductNotFound, CodeOrderNotFound, CodeSeckillActivityNotFound, CodeSeckillItemNotFound, CodeAdminNotFound, CodeAdminRoleNotFound:
 		return http.StatusNotFound
-	case CodeAuthPhoneAlreadyRegistered, CodeProductSKUAlreadyExists, CodeOrderAlreadyClosed, CodeOrderAlreadyPaid, CodeOrderPayTimeout, CodeOrderReviewTimeout, CodeOrderReviewRejected, CodeSeckillActivityNotPublished, CodeSeckillActivityNotStarted, CodeSeckillActivityEnded, CodeSeckillOutOfStock, CodeSeckillLimitExceeded, CodeSeckillPurchaseConflict:
+	case CodeAuthPhoneAlreadyRegistered, CodeProductSKUAlreadyExists, CodeOrderAlreadyClosed, CodeOrderAlreadyPaid, CodeOrderPayTimeout, CodeOrderReviewTimeout, CodeOrderReviewRejected, CodeSeckillActivityNotPublished, CodeSeckillActivityNotStarted, CodeSeckillActivityEnded, CodeSeckillOutOfStock, CodeSeckillLimitExceeded, CodeSeckillPurchaseConflict, CodeAdminUsernameAlreadyExists, CodeAdminRoleCodeAlreadyExists:
 		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError

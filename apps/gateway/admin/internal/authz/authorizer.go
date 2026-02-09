@@ -21,6 +21,8 @@ const (
 	RoleDomainOrderManagement RoleDomain = "order_management"
 	// RoleDomainSeckillManagement 表示秒杀管理域角色能力。
 	RoleDomainSeckillManagement RoleDomain = "seckill_management"
+	// RoleDomainAdminManagement 表示管理员管理域角色能力。
+	RoleDomainAdminManagement RoleDomain = "admin_management"
 )
 
 // Subject 表示管理员身份上下文。

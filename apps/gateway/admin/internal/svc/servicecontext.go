@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"flashsale/apps/admin/rpc/adminrpc"
 	"flashsale/apps/gateway/admin/internal/authz"
 	"flashsale/apps/gateway/admin/internal/config"
 	"flashsale/apps/order/rpc/orderrpc"
@@ -25,6 +26,7 @@ type ServiceContext struct {
 	Logger        *zap.Logger
 	Authorizer    authz.Authorizer
 	UserRPCCli    userrpc.UserRpc
+	AdminRPCCli   adminrpc.AdminRpc
 	ProductRPCCli productrpc.ProductRpc
 	OrderRPCCli   orderrpc.OrderRpc
 	SeckillRPCCli seckillrpc.SeckillRpc
@@ -67,6 +69,10 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init user rpc client: %w", err)
 	}
+	adminRPCClient, err := zrpc.NewClient(c.AdminRPC)
+	if err != nil {
+		return nil, fmt.Errorf("init admin rpc client: %w", err)
+	}
 	productRPCClient, err := zrpc.NewClient(c.ProductRPC)
 	if err != nil {
 		return nil, fmt.Errorf("init product rpc client: %w", err)
@@ -86,6 +92,7 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		Logger:        logger,
 		Authorizer:    authz.NewStaticAuthorizer(),
 		UserRPCCli:    userrpc.NewUserRpc(rpcClient),
+		AdminRPCCli:   adminrpc.NewAdminRpc(adminRPCClient),
 		ProductRPCCli: productrpc.NewProductRpc(productRPCClient),
 		OrderRPCCli:   orderrpc.NewOrderRpc(orderRPCClient),
 		SeckillRPCCli: seckillrpc.NewSeckillRpc(seckillRPCClient),

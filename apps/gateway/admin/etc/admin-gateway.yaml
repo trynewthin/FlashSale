@@ -5,6 +5,9 @@ BaseConfigPath: configs/local/dev.yaml
 UserRPC:
   Target: 127.0.0.1:8081
 
+AdminRPC:
+  Target: 127.0.0.1:8087
+
 ProductRPC:
   Target: 127.0.0.1:8084
 

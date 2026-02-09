@@ -1,0 +1,283 @@
+syntax = "proto3";
+
+package admin;
+
+option go_package = "flashsale/apps/admin/rpc/pb;pb";
+
+service AdminRpc {
+  rpc AdminLogin(AdminLoginReq) returns (AdminAuthResp);
+  rpc AdminRefreshToken(AdminRefreshTokenReq) returns (AdminAuthResp);
+  rpc AdminLogout(AdminLogoutReq) returns (AdminLogoutResp);
+  rpc GetMyAdminProfile(GetMyAdminProfileReq) returns (GetMyAdminProfileResp);
+  rpc ChangeMyPassword(ChangeMyPasswordReq) returns (ChangeMyPasswordResp);
+
+  rpc CreateAdmin(CreateAdminReq) returns (CreateAdminResp);
+  rpc UpdateAdmin(UpdateAdminReq) returns (UpdateAdminResp);
+  rpc SetAdminStatus(SetAdminStatusReq) returns (SetAdminStatusResp);
+  rpc ResetAdminPassword(ResetAdminPasswordReq) returns (ResetAdminPasswordResp);
+  rpc DeleteAdmin(DeleteAdminReq) returns (DeleteAdminResp);
+  rpc GetAdmin(GetAdminReq) returns (GetAdminResp);
+  rpc ListAdmins(ListAdminsReq) returns (ListAdminsResp);
+  rpc BindAdminRoles(BindAdminRolesReq) returns (BindAdminRolesResp);
+
+  rpc CreateRole(CreateRoleReq) returns (CreateRoleResp);
+  rpc UpdateRole(UpdateRoleReq) returns (UpdateRoleResp);
+  rpc DeleteRole(DeleteRoleReq) returns (DeleteRoleResp);
+  rpc GetRole(GetRoleReq) returns (GetRoleResp);
+  rpc ListRoles(ListRolesReq) returns (ListRolesResp);
+  rpc SetRoleDomains(SetRoleDomainsReq) returns (SetRoleDomainsResp);
+
+  rpc ListAdminAuditLogs(ListAdminAuditLogsReq) returns (ListAdminAuditLogsResp);
+}
+
+message AdminAuthResp {
+  AdminView admin = 1;
+  string access_token = 2;
+  int64 access_expires_in_sec = 3;
+  string refresh_token = 4;
+  int64 refresh_expires_in_sec = 5;
+}
+
+message AdminLoginReq {
+  string username = 1;
+  string password = 2;
+  string client_ip = 3;
+  string user_agent = 4;
+}
+
+message AdminRefreshTokenReq {
+  string refresh_token = 1;
+  string client_ip = 2;
+  string user_agent = 3;
+}
+
+message AdminLogoutReq {
+  int64 admin_id = 1;
+  string refresh_token = 2;
+}
+
+message AdminLogoutResp {
+  bool success = 1;
+}
+
+message GetMyAdminProfileReq {
+  int64 admin_id = 1;
+}
+
+message GetMyAdminProfileResp {
+  AdminView admin = 1;
+}
+
+message ChangeMyPasswordReq {
+  int64 admin_id = 1;
+  string old_password = 2;
+  string new_password = 3;
+}
+
+message ChangeMyPasswordResp {
+  bool success = 1;
+}
+
+message CreateAdminReq {
+  int64 operator_admin_id = 1;
+  string username = 2;
+  string display_name = 3;
+  string password = 4;
+  string data_scope = 5;
+  int32 status = 6;
+}
+
+message CreateAdminResp {
+  AdminView admin = 1;
+}
+
+message UpdateAdminReq {
+  int64 operator_admin_id = 1;
+  int64 admin_id = 2;
+  string display_name = 3;
+  string data_scope = 4;
+}
+
+message UpdateAdminResp {
+  AdminView admin = 1;
+}
+
+message SetAdminStatusReq {
+  int64 operator_admin_id = 1;
+  int64 admin_id = 2;
+  int32 status = 3;
+}
+
+message SetAdminStatusResp {
+  bool success = 1;
+}
+
+message ResetAdminPasswordReq {
+  int64 operator_admin_id = 1;
+  int64 admin_id = 2;
+  string new_password = 3;
+}
+
+message ResetAdminPasswordResp {
+  bool success = 1;
+}
+
+message DeleteAdminReq {
+  int64 operator_admin_id = 1;
+  int64 admin_id = 2;
+}
+
+message DeleteAdminResp {
+  bool success = 1;
+}
+
+message GetAdminReq {
+  int64 admin_id = 1;
+}
+
+message GetAdminResp {
+  AdminView admin = 1;
+}
+
+message ListAdminsReq {
+  int64 page = 1;
+  int64 page_size = 2;
+  string keyword = 3;
+  int32 status = 4;
+}
+
+message ListAdminsResp {
+  repeated AdminView items = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message BindAdminRolesReq {
+  int64 operator_admin_id = 1;
+  int64 admin_id = 2;
+  repeated int64 role_ids = 3;
+}
+
+message BindAdminRolesResp {
+  bool success = 1;
+}
+
+message CreateRoleReq {
+  int64 operator_admin_id = 1;
+  string role_code = 2;
+  string role_name = 3;
+  int32 status = 4;
+}
+
+message CreateRoleResp {
+  RoleView role = 1;
+}
+
+message UpdateRoleReq {
+  int64 operator_admin_id = 1;
+  int64 role_id = 2;
+  string role_name = 3;
+  int32 status = 4;
+}
+
+message UpdateRoleResp {
+  RoleView role = 1;
+}
+
+message DeleteRoleReq {
+  int64 operator_admin_id = 1;
+  int64 role_id = 2;
+}
+
+message DeleteRoleResp {
+  bool success = 1;
+}
+
+message GetRoleReq {
+  int64 role_id = 1;
+}
+
+message GetRoleResp {
+  RoleView role = 1;
+}
+
+message ListRolesReq {
+  int64 page = 1;
+  int64 page_size = 2;
+  string keyword = 3;
+  int32 status = 4;
+}
+
+message ListRolesResp {
+  repeated RoleView items = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message SetRoleDomainsReq {
+  int64 operator_admin_id = 1;
+  int64 role_id = 2;
+  repeated string domains = 3;
+}
+
+message SetRoleDomainsResp {
+  bool success = 1;
+}
+
+message ListAdminAuditLogsReq {
+  int64 page = 1;
+  int64 page_size = 2;
+  int64 admin_id = 3;
+  string action = 4;
+  string target_type = 5;
+  int64 target_id = 6;
+}
+
+message ListAdminAuditLogsResp {
+  repeated AdminAuditLogView items = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message AdminView {
+  int64 admin_id = 1;
+  string username = 2;
+  string display_name = 3;
+  int32 status = 4;
+  string data_scope = 5;
+  bool is_super_admin = 6;
+  int64 last_login_at_unix = 7;
+  string last_login_ip = 8;
+  repeated int64 role_ids = 9;
+  repeated string domains = 10;
+  int64 created_at_unix = 11;
+  int64 updated_at_unix = 12;
+}
+
+message RoleView {
+  int64 role_id = 1;
+  string role_code = 2;
+  string role_name = 3;
+  int32 status = 4;
+  bool is_system = 5;
+  repeated string domains = 6;
+  int64 created_at_unix = 7;
+  int64 updated_at_unix = 8;
+}
+
+message AdminAuditLogView {
+  int64 log_id = 1;
+  int64 admin_id = 2;
+  string action = 3;
+  string target_type = 4;
+  int64 target_id = 5;
+  string result = 6;
+  string request_id = 7;
+  string ip = 8;
+  string user_agent = 9;
+  string detail_json = 10;
+  int64 created_at_unix = 11;
+}

@@ -73,6 +73,34 @@ func TestRequireDomainForbidden(t *testing.T) {
 	}
 }
 
+func TestRequireAnyDomainSuccess(t *testing.T) {
+	initAdminGatewayJWT(t)
+
+	token, err := baseauth.IssueWithClaims(baseauth.TokenTypeAdmin, "2002", time.Hour, []string{"order_review_management"}, "all")
+	if err != nil {
+		t.Fatalf("issue admin token failed: %v", err)
+	}
+
+	ctx := &svc.ServiceContext{Authorizer: authz.NewStaticAuthorizer()}
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	handler := AuthRequired(ctx, RequireAnyDomain(ctx, []authz.RoleDomain{
+		authz.RoleDomainOrderManagement,
+		authz.RoleDomainOrderReviewManagement,
+	}, next))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/orders", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status mismatch: got %d want %d", rec.Code, http.StatusNoContent)
+	}
+}
+
 func initAdminGatewayJWT(t *testing.T) {
 	t.Helper()
 	err := baseauth.Init(baseauth.JWTConfig{

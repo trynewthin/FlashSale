@@ -189,7 +189,7 @@ func (s *ServiceContext) bootstrapSuperAdmin(ctx context.Context) error {
 	if role, err := s.AdminRepo.FindRoleByCode(ctx, "super_admin"); err == nil && role != nil {
 		roleID = role.ID
 	}
-	if err := s.AdminRepo.ReplaceRoleDomains(ctx, roleID, []string{"operations", "user_management", "product_management", "order_management", "seckill_management", "admin_management"}); err != nil {
+	if err := s.AdminRepo.ReplaceRoleDomains(ctx, roleID, []string{"operations", "user_management", "product_management", "order_management", "order_review_management", "seckill_management", "admin_management"}); err != nil {
 		return fmt.Errorf("bootstrap replace role domains: %w", err)
 	}
 	if err := s.AdminRepo.ReplaceAdminRoles(ctx, adminID, []int64{roleID}); err != nil {

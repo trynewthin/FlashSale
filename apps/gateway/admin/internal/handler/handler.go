@@ -132,7 +132,10 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	)
 	mux.Handle(
 		"POST /api/v1/admin/orders/{order_id}/review",
-		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainOrderManagement, http.HandlerFunc(oh.ReviewOrder))),
+		middleware.AuthRequired(svcCtx, middleware.RequireAnyDomain(svcCtx, []authz.RoleDomain{
+			authz.RoleDomainOrderManagement,
+			authz.RoleDomainOrderReviewManagement,
+		}, http.HandlerFunc(oh.ReviewOrder))),
 	)
 	mux.Handle(
 		"POST /api/v1/admin/orders/{order_id}/ship",
@@ -140,11 +143,17 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	)
 	mux.Handle(
 		"GET /api/v1/admin/orders/{order_id}",
-		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainOrderManagement, http.HandlerFunc(oh.GetOrder))),
+		middleware.AuthRequired(svcCtx, middleware.RequireAnyDomain(svcCtx, []authz.RoleDomain{
+			authz.RoleDomainOrderManagement,
+			authz.RoleDomainOrderReviewManagement,
+		}, http.HandlerFunc(oh.GetOrder))),
 	)
 	mux.Handle(
 		"GET /api/v1/admin/orders",
-		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainOrderManagement, http.HandlerFunc(oh.ListOrders))),
+		middleware.AuthRequired(svcCtx, middleware.RequireAnyDomain(svcCtx, []authz.RoleDomain{
+			authz.RoleDomainOrderManagement,
+			authz.RoleDomainOrderReviewManagement,
+		}, http.HandlerFunc(oh.ListOrders))),
 	)
 	mux.Handle(
 		"POST /api/v1/admin/seckill/activities",

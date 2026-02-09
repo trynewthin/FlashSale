@@ -142,9 +142,12 @@ func (h *SeckillPublicHandler) TrackEvent(w http.ResponseWriter, r *http.Request
 		writeFail(w, http.StatusBadRequest, errorx.New(errorx.CodeSysBadRequest, "activity_item_id、event_type、idempotency_key 非法"))
 		return
 	}
-	uid, _ := middleware.UserIDFromContext(r.Context())
 	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
 	defer cancel()
+	uid, token := middleware.OptionalUserFromRequest(r)
+	if token != "" {
+		rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
+	}
 	resp, err := h.svcCtx.SeckillRPCCli.TrackEvent(rpcCtx, &seckillpb.TrackEventReq{
 		ActivityId:     activityID,
 		ActivityItemId: req.ActivityItemID,

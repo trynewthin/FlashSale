@@ -114,7 +114,7 @@ func (s *OrderRpcServer) ListOrdersUser(ctx context.Context, in *pb.ListOrdersUs
 
 // ReviewOrderAdmin 处理管理侧审核订单请求。
 func (s *OrderRpcServer) ReviewOrderAdmin(ctx context.Context, in *pb.ReviewOrderAdminReq) (*pb.ReviewOrderAdminResp, error) {
-	adminID, err := authorizeAdminOrderDomain(ctx)
+	adminID, err := authorizeAdminOrderReviewDomain(ctx)
 	if err != nil {
 		return nil, grpcerr.ToStatus(err)
 	}
@@ -159,7 +159,7 @@ func (s *OrderRpcServer) ShipOrderAdmin(ctx context.Context, in *pb.ShipOrderAdm
 
 // GetOrderAdmin 处理管理侧订单详情查询请求。
 func (s *OrderRpcServer) GetOrderAdmin(ctx context.Context, in *pb.GetOrderAdminReq) (*pb.GetOrderAdminResp, error) {
-	if _, err := authorizeAdminOrderDomain(ctx); err != nil {
+	if _, err := authorizeAdminOrderReviewDomain(ctx); err != nil {
 		return nil, grpcerr.ToStatus(err)
 	}
 	l := logic.NewGetOrderAdminLogic(ctx, s.svcCtx)
@@ -172,7 +172,7 @@ func (s *OrderRpcServer) GetOrderAdmin(ctx context.Context, in *pb.GetOrderAdmin
 
 // ListOrdersAdmin 处理管理侧订单列表查询请求。
 func (s *OrderRpcServer) ListOrdersAdmin(ctx context.Context, in *pb.ListOrdersAdminReq) (*pb.ListOrdersAdminResp, error) {
-	if _, err := authorizeAdminOrderDomain(ctx); err != nil {
+	if _, err := authorizeAdminOrderReviewDomain(ctx); err != nil {
 		return nil, grpcerr.ToStatus(err)
 	}
 	l := logic.NewListOrdersAdminLogic(ctx, s.svcCtx)

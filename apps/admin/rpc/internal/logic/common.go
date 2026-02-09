@@ -27,18 +27,19 @@ import (
 )
 
 var (
-	usernamePattern = regexp.MustCompile(`^[a-z0-9_]{4,32}$`)
+	usernamePattern   = regexp.MustCompile(`^[a-z0-9_]{4,32}$`)
 	passwordHasLetter = regexp.MustCompile(`[A-Za-z]`)
-	passwordHasDigit = regexp.MustCompile(`\d`)
+	passwordHasDigit  = regexp.MustCompile(`\d`)
 )
 
 var validDomains = map[string]struct{}{
-	"operations": {},
-	"user_management": {},
-	"product_management": {},
-	"order_management": {},
-	"seckill_management": {},
-	"admin_management": {},
+	"operations":              {},
+	"user_management":         {},
+	"product_management":      {},
+	"order_management":        {},
+	"order_review_management": {},
+	"seckill_management":      {},
+	"admin_management":        {},
 }
 
 // AdminLogic 封装管理员逻辑公共依赖。
@@ -172,15 +173,15 @@ func toAdminView(admin *model.Admin) *pb.AdminView {
 		return nil
 	}
 	view := &pb.AdminView{
-		AdminId:      admin.ID,
-		Username:     admin.Username,
-		DisplayName:  admin.DisplayName,
-		Status:       int32(admin.Status),
-		DataScope:    admin.DataScope,
-		IsSuperAdmin: admin.IsSuperAdmin,
-		LastLoginIp:  admin.LastLoginIP,
-		RoleIds:      append([]int64{}, admin.RoleIDs...),
-		Domains:      append([]string{}, admin.Domains...),
+		AdminId:       admin.ID,
+		Username:      admin.Username,
+		DisplayName:   admin.DisplayName,
+		Status:        int32(admin.Status),
+		DataScope:     admin.DataScope,
+		IsSuperAdmin:  admin.IsSuperAdmin,
+		LastLoginIp:   admin.LastLoginIP,
+		RoleIds:       append([]int64{}, admin.RoleIDs...),
+		Domains:       append([]string{}, admin.Domains...),
 		CreatedAtUnix: admin.CreatedAt.Unix(),
 		UpdatedAtUnix: admin.UpdatedAt.Unix(),
 	}
@@ -211,16 +212,16 @@ func toAuditLogView(logItem *model.AuditLog) *pb.AdminAuditLogView {
 		return nil
 	}
 	return &pb.AdminAuditLogView{
-		LogId:        logItem.ID,
-		AdminId:      logItem.AdminID,
-		Action:       logItem.Action,
-		TargetType:   logItem.TargetType,
-		TargetId:     logItem.TargetID,
-		Result:       logItem.Result,
-		RequestId:    logItem.RequestID,
-		Ip:           logItem.IP,
-		UserAgent:    logItem.UserAgent,
-		DetailJson:   logItem.DetailJSON,
+		LogId:         logItem.ID,
+		AdminId:       logItem.AdminID,
+		Action:        logItem.Action,
+		TargetType:    logItem.TargetType,
+		TargetId:      logItem.TargetID,
+		Result:        logItem.Result,
+		RequestId:     logItem.RequestID,
+		Ip:            logItem.IP,
+		UserAgent:     logItem.UserAgent,
+		DetailJson:    logItem.DetailJSON,
 		CreatedAtUnix: logItem.CreatedAt.Unix(),
 	}
 }

@@ -38,6 +38,7 @@ type AdminListQuery struct {
 type OrderRepository interface {
 	Create(ctx context.Context, order *model.Order, event model.OrderEvent) error
 	FindByID(ctx context.Context, orderID int64) (*model.Order, error)
+	FindByOrderNo(ctx context.Context, orderNo string) (*model.Order, error)
 	ListByUser(ctx context.Context, query UserListQuery) ([]*model.Order, int64, error)
 	ListAdmin(ctx context.Context, query AdminListQuery) ([]*model.Order, int64, error)
 

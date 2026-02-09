@@ -17,6 +17,8 @@ import (
 	"flashsale/pkg/base/grpcerr"
 	"flashsale/pkg/base/responsex"
 	"flashsale/pkg/base/rpcmeta"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const defaultRPCTimeout = 3 * time.Second
@@ -223,6 +225,13 @@ func writeFail(w http.ResponseWriter, status int, err error) {
 }
 
 func writeRPCFail(w http.ResponseWriter, err error) {
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.DeadlineExceeded, codes.Unavailable, codes.ResourceExhausted:
+			writeFail(w, http.StatusServiceUnavailable, errorx.New(errorx.CodeSysInternal, "服务繁忙，请稍后重试"))
+			return
+		}
+	}
 	appErr := grpcerr.FromStatus(err)
 	if appErr == nil {
 		appErr = errorx.New(errorx.CodeSysInternal, "internal error")

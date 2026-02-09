@@ -83,6 +83,26 @@ func (r *MySQLOrderRepository) FindByID(ctx context.Context, orderID int64) (*mo
 	return m, nil
 }
 
+// FindByOrderNo 按订单号查询订单详情。
+func (r *MySQLOrderRepository) FindByOrderNo(ctx context.Context, orderNo string) (*model.Order, error) {
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("repository db is nil")
+	}
+	orderNo = strings.TrimSpace(orderNo)
+	if orderNo == "" {
+		return nil, ErrOrderNotFound
+	}
+	row := r.db.QueryRowContext(ctx, "SELECT "+orderSelectColumns+" FROM orders WHERE order_no = ? LIMIT 1", orderNo)
+	m, err := scanOrder(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrOrderNotFound
+		}
+		return nil, err
+	}
+	return m, nil
+}
+
 // ListByUser 按用户分页查询订单。
 func (r *MySQLOrderRepository) ListByUser(ctx context.Context, query UserListQuery) ([]*model.Order, int64, error) {
 	if r == nil || r.db == nil {

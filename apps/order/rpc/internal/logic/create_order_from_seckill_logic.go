@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -126,18 +127,13 @@ func buildSeckillOrderNo(userID int64, idempotencyKey string) string {
 
 // findIdempotentSeckillOrder 查询幂等键对应的已存在秒杀订单并校验核心参数一致性。
 func (l *CreateOrderFromSeckillLogic) findIdempotentSeckillOrder(orderNo string, in *pb.CreateOrderFromSeckillReq) (*model.Order, bool, error) {
-	list, total, err := l.svcCtx.OrderRepo.ListAdmin(l.ctx, repository.AdminListQuery{
-		Page:     1,
-		PageSize: 1,
-		OrderNo:  orderNo,
-	})
+	existing, err := l.svcCtx.OrderRepo.FindByOrderNo(l.ctx, orderNo)
 	if err != nil {
+		if errors.Is(err, repository.ErrOrderNotFound) {
+			return nil, false, nil
+		}
 		return nil, false, err
 	}
-	if total == 0 || len(list) == 0 || list[0] == nil {
-		return nil, false, nil
-	}
-	existing := list[0]
 	if existing.OrderSource != model.OrderSourceSeckill ||
 		existing.UserID != in.UserId ||
 		existing.SeckillActivityID != in.ActivityId ||

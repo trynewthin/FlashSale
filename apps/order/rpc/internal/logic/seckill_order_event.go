@@ -13,6 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const seckillOrderStatePublishTimeout = 120 * time.Millisecond
+
 // emitSeckillOrderStateEvent 发布秒杀订单状态事件到 Kafka。
 func emitSeckillOrderStateEvent(ctx context.Context, svcCtx *svc.ServiceContext, order *model.Order, eventType string) {
 	if svcCtx == nil || svcCtx.AppConfig == nil || svcCtx.Producer == nil || order == nil {
@@ -54,7 +56,10 @@ func emitSeckillOrderStateEvent(ctx context.Context, svcCtx *svc.ServiceContext,
 		)
 		return
 	}
-	if err := svcCtx.Producer.Publish(ctx, topic, []byte(order.OrderNo), payload, map[string]string{
+	_ = ctx
+	pubCtx, cancel := context.WithTimeout(context.Background(), seckillOrderStatePublishTimeout)
+	defer cancel()
+	if err := svcCtx.Producer.Publish(pubCtx, topic, []byte(order.OrderNo), payload, map[string]string{
 		"event_type": eventType,
 	}); err != nil {
 		svcCtx.Logger.Warn("publish seckill order state event failed",

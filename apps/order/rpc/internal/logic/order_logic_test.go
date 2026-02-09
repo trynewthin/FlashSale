@@ -67,6 +67,17 @@ func (m *memoryOrderRepo) FindByID(_ context.Context, orderID int64) (*model.Ord
 	return &cp, nil
 }
 
+func (m *memoryOrderRepo) FindByOrderNo(_ context.Context, orderNo string) (*model.Order, error) {
+	for _, v := range m.byID {
+		if v == nil || v.OrderNo != orderNo {
+			continue
+		}
+		cp := *v
+		return &cp, nil
+	}
+	return nil, repository.ErrOrderNotFound
+}
+
 func (m *memoryOrderRepo) ListByUser(_ context.Context, query repository.UserListQuery) ([]*model.Order, int64, error) {
 	items := make([]*model.Order, 0, len(m.byID))
 	for _, v := range m.byID {

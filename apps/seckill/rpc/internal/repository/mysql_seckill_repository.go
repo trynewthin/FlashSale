@@ -518,7 +518,7 @@ func (r *MySQLSeckillRepository) CreateOrderLink(ctx context.Context, link *mode
 	if link == nil {
 		return fmt.Errorf("order link is nil")
 	}
-	_, err := r.db.ExecContext(ctx, insertOrderLinkSQL,
+	_, err := r.db.ExecContext(ctx, upsertOrderLinkSQL,
 		link.ID,
 		link.OrderID,
 		link.OrderNo,

@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"flashsale/apps/gateway/user/internal/middleware"
 	"flashsale/apps/gateway/user/internal/svc"
@@ -12,6 +13,13 @@ import (
 	"flashsale/pkg/base/errorx"
 	"flashsale/pkg/base/handlerx"
 	"flashsale/pkg/base/rpcmeta"
+)
+
+const (
+	// seckillPurchaseRPCTimeout 秒杀抢购链路专用超时，避免高并发下过早取消。
+	seckillPurchaseRPCTimeout = 8 * time.Second
+	// seckillTrackRPCTimeout 埋点链路专用超时。
+	seckillTrackRPCTimeout = 4 * time.Second
 )
 
 // SeckillPublicHandler 处理用户侧秒杀接口。
@@ -99,7 +107,7 @@ func (h *SeckillPublicHandler) Purchase(w http.ResponseWriter, r *http.Request) 
 		writeFail(w, http.StatusBadRequest, errorx.New(errorx.CodeSysBadRequest, "activity_item_id、quantity、idempotency_key 非法"))
 		return
 	}
-	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	rpcCtx, cancel := context.WithTimeout(r.Context(), seckillPurchaseRPCTimeout)
 	defer cancel()
 	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
 	resp, err := h.svcCtx.SeckillRPCCli.Purchase(rpcCtx, &seckillpb.PurchaseReq{
@@ -142,7 +150,7 @@ func (h *SeckillPublicHandler) TrackEvent(w http.ResponseWriter, r *http.Request
 		writeFail(w, http.StatusBadRequest, errorx.New(errorx.CodeSysBadRequest, "activity_item_id、event_type、idempotency_key 非法"))
 		return
 	}
-	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	rpcCtx, cancel := context.WithTimeout(r.Context(), seckillTrackRPCTimeout)
 	defer cancel()
 	uid, token := middleware.OptionalUserFromRequest(r)
 	if token != "" {

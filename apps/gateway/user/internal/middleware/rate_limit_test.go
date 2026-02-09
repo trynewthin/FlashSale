@@ -67,3 +67,25 @@ func TestSourceKeyFromForwardHeaders(t *testing.T) {
 		t.Fatalf("sourceKey from X-Forwarded-For mismatch: got %q", got)
 	}
 }
+
+func TestRateLimitDisabled(t *testing.T) {
+	oldCfg := rateLimitCfg
+	rateLimitCfg.Enabled = false
+	defer func() { rateLimitCfg = oldCfg }()
+
+	called := 0
+	handler := RegisterRateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/user/register", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if called != 1 {
+		t.Fatalf("when rate limit disabled, next should be called once, got %d", called)
+	}
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status mismatch: got %d want %d", rec.Code, http.StatusNoContent)
+	}
+}

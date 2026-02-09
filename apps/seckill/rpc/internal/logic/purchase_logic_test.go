@@ -233,7 +233,86 @@ func TestPurchase_IdempotencyConflictPendingWithoutImmediateCompensate(t *testin
 	if repoMock.createOrderLinkCalls != 0 {
 		t.Fatalf("pending path should not create order link, got=%d", repoMock.createOrderLinkCalls)
 	}
+	if orderMock.createFromSeckillCalls != 1 {
+		t.Fatalf("unavailable should not replay immediately, got=%d", orderMock.createFromSeckillCalls)
+	}
+}
+
+func TestPurchase_IdempotencyConflictReplayOnDeadlineExceeded(t *testing.T) {
+	item := &model.ActivityItem{
+		ID:                23,
+		ActivityID:        303,
+		ProductID:         9103,
+		SKUCode:           "SPU9103",
+		SnapshotName:      "test-product-3",
+		SnapshotMainImage: "https://img.test/p3.png",
+		SeckillPriceCent:  2990,
+	}
+	repoMock := &purchaseRepoMock{
+		seckillRepoMock: &seckillRepoMock{item: item},
+		reserveErr:      repository.ErrIdempotencyConflict,
+	}
+	call := 0
+	orderMock := &orderRPCMock{
+		createFromSeckillFn: func(_ context.Context, _ *orderpb.CreateOrderFromSeckillReq) (*orderpb.CreateOrderFromSeckillResp, error) {
+			call++
+			if call == 1 {
+				return nil, status.Error(codes.DeadlineExceeded, "timeout")
+			}
+			return &orderpb.CreateOrderFromSeckillResp{
+				Order: &orderpb.OrderView{
+					OrderId:       70003,
+					OrderNo:       "SCKORDER70003",
+					OrderStatus:   10,
+					PaymentStatus: 0,
+				},
+			}, nil
+		},
+	}
+	node, err := snowflake.NewNode(3)
+	if err != nil {
+		t.Fatalf("new snowflake node failed: %v", err)
+	}
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-access-token", "token-3"))
+	logic := NewSeckillLogic(ctx, &svc.ServiceContext{
+		SeckillRepo: repoMock,
+		OrderRPCCli: orderMock,
+		IDNode:      node,
+	})
+
+	resp, err := logic.Purchase(&pb.PurchaseReq{
+		UserId:         9003,
+		ActivityId:     303,
+		ActivityItemId: 23,
+		Quantity:       1,
+		IdempotencyKey: "idem-303-23-9003",
+	})
+	if err != nil {
+		t.Fatalf("deadline replay should recover, got err=%v", err)
+	}
+	if resp == nil || resp.OrderId != 70003 {
+		t.Fatalf("response mismatch: %+v", resp)
+	}
 	if orderMock.createFromSeckillCalls != 2 {
-		t.Fatalf("should attempt replay once, got=%d", orderMock.createFromSeckillCalls)
+		t.Fatalf("deadline path should replay once, got=%d", orderMock.createFromSeckillCalls)
+	}
+}
+
+func TestTrackEvent_DegradeOnRecordFailure(t *testing.T) {
+	repoMock := &seckillRepoMock{trafficErr: errors.New("mock traffic write failed")}
+	logic := NewSeckillLogic(context.Background(), &svc.ServiceContext{SeckillRepo: repoMock})
+	resp, err := logic.TrackEvent(&pb.TrackEventReq{
+		ActivityId:     401,
+		ActivityItemId: 41,
+		EventType:      model.TrafficEventClick,
+		ClientId:       "client-1",
+		IdempotencyKey: "track-401-41-1",
+		OccurredAtUnix: time.Now().Unix(),
+	})
+	if err != nil {
+		t.Fatalf("track event should degrade without rpc error, got=%v", err)
+	}
+	if resp == nil || resp.Accepted {
+		t.Fatalf("expected accepted=false when record fails, got=%+v", resp)
 	}
 }

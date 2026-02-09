@@ -16,10 +16,11 @@ import (
 )
 
 type seckillRepoMock struct {
-	item     *model.ActivityItem
-	synced   []*model.OrderStateSync
-	released []string
-	traffic  []*model.TrafficEvent
+	item       *model.ActivityItem
+	synced     []*model.OrderStateSync
+	released   []string
+	traffic    []*model.TrafficEvent
+	trafficErr error
 }
 
 func (m *seckillRepoMock) CreateActivity(context.Context, *model.Activity) error {
@@ -101,7 +102,7 @@ func (m *seckillRepoMock) RecordTraffic(_ context.Context, event *model.TrafficE
 		cp := *event
 		m.traffic = append(m.traffic, &cp)
 	}
-	return nil
+	return m.trafficErr
 }
 
 func (m *seckillRepoMock) ListTraffic(context.Context, int64, int64, time.Time, time.Time) ([]*model.TrafficBucket, error) {

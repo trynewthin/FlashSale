@@ -89,4 +89,5 @@ docker image inspect --format='{{index .RepoDigests 0}}' confluentinc/cp-kafka:7
 - 用户 RPC 运行态：`docs/architecture/user-rpc-runtime.md`
 - 商品 RPC 运行态：`docs/architecture/product-rpc-runtime.md`
 - 订单 RPC 运行态：`docs/architecture/order-rpc-runtime.md`
+- 秒杀 RPC 运行态：`docs/architecture/seckill-rpc-runtime.md`
 - 管理员模块设计：`docs/architecture/admin-module-design.md`

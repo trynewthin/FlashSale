@@ -89,3 +89,61 @@ func TestRateLimitDisabled(t *testing.T) {
 		t.Fatalf("status mismatch: got %d want %d", rec.Code, http.StatusNoContent)
 	}
 }
+
+func TestSeckillPurchaseRateLimitBlock(t *testing.T) {
+	oldCfg := rateLimitCfg
+	oldStore := seckillPurchaseLimiterStore
+	rateLimitCfg.Enabled = true
+	rateLimitCfg.SeckillPurchaseEnabled = true
+	seckillPurchaseLimiterStore = newKeyedLimiter(1, 1, time.Minute)
+	defer func() {
+		rateLimitCfg = oldCfg
+		seckillPurchaseLimiterStore = oldStore
+	}()
+
+	called := 0
+	handler := SeckillPurchaseRateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/seckill/activities/1/purchase", nil)
+	req.RemoteAddr = "1.2.3.4:5678"
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, req)
+	if rec1.Code != http.StatusNoContent {
+		t.Fatalf("first request should pass, got %d", rec1.Code)
+	}
+
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req)
+	if rec2.Code != http.StatusTooManyRequests {
+		t.Fatalf("status mismatch: got %d want %d", rec2.Code, http.StatusTooManyRequests)
+	}
+	if called != 1 {
+		t.Fatalf("next handler should be called once, got %d", called)
+	}
+}
+
+func TestSeckillTrackRateLimitDisabled(t *testing.T) {
+	oldCfg := rateLimitCfg
+	rateLimitCfg.Enabled = true
+	rateLimitCfg.SeckillTrackEnabled = false
+	defer func() { rateLimitCfg = oldCfg }()
+
+	called := 0
+	handler := SeckillTrackRateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/seckill/activities/1/track", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if called != 1 {
+		t.Fatalf("when seckill track limit disabled, next should be called once, got %d", called)
+	}
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status mismatch: got %d want %d", rec.Code, http.StatusNoContent)
+	}
+}

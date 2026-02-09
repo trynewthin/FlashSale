@@ -1,7 +1,7 @@
 param(
     [ValidateSet("purchase-stress", "idempotency", "track-stress")]
     [string]$Scenario = "purchase-stress",
-    [string]$BaseUrl = "http://127.0.0.1:8081",
+    [string]$BaseUrl = "http://127.0.0.1:8082",
     [long]$ActivityId,
     [long]$ItemId,
     [int]$Concurrency = 100,

@@ -82,7 +82,7 @@ func main() {
 func parseFlags() runConfig {
 	cfg := runConfig{}
 	flag.StringVar(&cfg.Scenario, "scenario", scenarioPurchaseStress, "压测场景: purchase-stress|idempotency|track-stress")
-	flag.StringVar(&cfg.BaseURL, "base-url", envOrDefault("FLASHSALE_BASE_URL", "http://127.0.0.1:8081"), "用户网关地址")
+	flag.StringVar(&cfg.BaseURL, "base-url", envOrDefault("FLASHSALE_BASE_URL", "http://127.0.0.1:8082"), "用户网关地址")
 	flag.Int64Var(&cfg.ActivityID, "activity-id", envInt64("FLASHSALE_ACTIVITY_ID", 0), "秒杀活动ID")
 	flag.Int64Var(&cfg.ActivityItemID, "item-id", envInt64("FLASHSALE_ACTIVITY_ITEM_ID", 0), "活动商品ID")
 	flag.IntVar(&cfg.Concurrency, "concurrency", envInt("FLASHSALE_PRESSURE_CONCURRENCY", 100), "并发数")
@@ -205,7 +205,8 @@ func executeOne(client *http.Client, cfg runConfig, tokens []string, workerID, i
 		status, code, order, err = doPurchase(client, cfg, token, idem)
 	case scenarioIdempotency:
 		idem := fmt.Sprintf("perf-idem-%s", strings.TrimSpace(cfg.IdempotencyGroup))
-		token := tokens[idx%len(tokens)]
+		// 幂等场景必须固定同一用户，否则会被“多用户多订单”误判为幂等失效。
+		token := tokens[0]
 		status, code, order, err = doPurchase(client, cfg, token, idem)
 	case scenarioTrackStress:
 		idem := fmt.Sprintf("perf-track-%d-%d", time.Now().UnixNano(), idx)

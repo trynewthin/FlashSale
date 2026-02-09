@@ -45,8 +45,11 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	mux.Handle("GET /api/v1/orders", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.ListOrders)))
 	mux.HandleFunc("GET /api/v1/seckill/activities", sh.ListActivities)
 	mux.HandleFunc("GET /api/v1/seckill/activities/{activity_id}", sh.GetActivity)
-	mux.Handle("POST /api/v1/seckill/activities/{activity_id}/purchase", middleware.AuthRequired(svcCtx, http.HandlerFunc(sh.Purchase)))
-	mux.HandleFunc("POST /api/v1/seckill/activities/{activity_id}/track", sh.TrackEvent)
+	mux.Handle(
+		"POST /api/v1/seckill/activities/{activity_id}/purchase",
+		middleware.AuthRequired(svcCtx, middleware.SeckillPurchaseRateLimit(http.HandlerFunc(sh.Purchase))),
+	)
+	mux.Handle("POST /api/v1/seckill/activities/{activity_id}/track", middleware.SeckillTrackRateLimit(http.HandlerFunc(sh.TrackEvent)))
 }
 
 // UserHandler 处理用户网关请求。

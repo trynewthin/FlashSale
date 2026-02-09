@@ -1,5 +1,5 @@
 param(
-    [string]$BaseUrl = "http://127.0.0.1:8081",
+    [string]$BaseUrl = "http://127.0.0.1:8082",
     [switch]$Prepare,
     [string]$AdminBaseUrl = "http://127.0.0.1:8083",
     [string]$AdminToken = "",

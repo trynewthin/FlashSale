@@ -11,7 +11,10 @@ import (
 	"flashsale/pkg/base/rpcmeta"
 )
 
-const adminOrderManagementDomain = "order_management"
+const (
+	adminOrderManagementDomain       = "order_management"
+	adminOrderReviewManagementDomain = "order_review_management"
+)
 
 func authorizeUser(ctx context.Context, targetUserID int64) error {
 	if targetUserID <= 0 {
@@ -49,6 +52,25 @@ func authorizeAdminOrderDomain(ctx context.Context) (int64, error) {
 		return 0, errorx.New(errorx.CodeAuthUnauthorized, "认证主体非法")
 	}
 	if !hasDomain(claims.Domains, adminOrderManagementDomain) {
+		return 0, errorx.New(errorx.CodeAuthForbidden, "无权限访问该接口")
+	}
+	return adminID, nil
+}
+
+func authorizeAdminOrderReviewDomain(ctx context.Context) (int64, error) {
+	token, ok := rpcmeta.AccessTokenFromIncomingContext(ctx)
+	if !ok {
+		return 0, errorx.New(errorx.CodeAuthUnauthorized, "认证信息缺失")
+	}
+	claims, err := baseauth.Parse(baseauth.TokenTypeAdmin, token)
+	if err != nil {
+		return 0, errorx.New(errorx.CodeAuthUnauthorized, "认证失败")
+	}
+	adminID, parseErr := strconv.ParseInt(claims.Subject, 10, 64)
+	if parseErr != nil || adminID <= 0 {
+		return 0, errorx.New(errorx.CodeAuthUnauthorized, "认证主体非法")
+	}
+	if !hasDomain(claims.Domains, adminOrderManagementDomain) && !hasDomain(claims.Domains, adminOrderReviewManagementDomain) {
 		return 0, errorx.New(errorx.CodeAuthForbidden, "无权限访问该接口")
 	}
 	return adminID, nil

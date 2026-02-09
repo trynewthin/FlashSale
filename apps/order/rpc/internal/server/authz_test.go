@@ -40,6 +40,10 @@ func TestAuthorizeUserAndAdminDomain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("issue admin token failed: %v", err)
 	}
+	reviewToken, err := baseauth.IssueWithClaims(baseauth.TokenTypeAdmin, "9002", time.Hour, []string{"order_review_management"}, "all")
+	if err != nil {
+		t.Fatalf("issue review admin token failed: %v", err)
+	}
 	noDomainToken, err := baseauth.IssueWithClaims(baseauth.TokenTypeAdmin, "9001", time.Hour, []string{"operations"}, "all")
 	if err != nil {
 		t.Fatalf("issue no-domain admin token failed: %v", err)
@@ -51,9 +55,30 @@ func TestAuthorizeUserAndAdminDomain(t *testing.T) {
 	if adminID != 9001 {
 		t.Fatalf("admin id mismatch: got=%d want=9001", adminID)
 	}
+	reviewAdminID, err := authorizeAdminOrderReviewDomain(incomingContextWithToken(reviewToken))
+	if err != nil {
+		t.Fatalf("authorize review admin should success: %v", err)
+	}
+	if reviewAdminID != 9002 {
+		t.Fatalf("review admin id mismatch: got=%d want=9002", reviewAdminID)
+	}
+	_, err = authorizeAdminOrderDomain(incomingContextWithToken(reviewToken))
+	if err == nil {
+		t.Fatal("authorize ship domain should fail with review-only token")
+	}
+	if code := errorx.FromError(err).Code; code != errorx.CodeAuthForbidden {
+		t.Fatalf("code mismatch: got=%s want=%s", code, errorx.CodeAuthForbidden)
+	}
 	_, err = authorizeAdminOrderDomain(incomingContextWithToken(noDomainToken))
 	if err == nil {
 		t.Fatal("authorize admin should fail without order_management domain")
+	}
+	if code := errorx.FromError(err).Code; code != errorx.CodeAuthForbidden {
+		t.Fatalf("code mismatch: got=%s want=%s", code, errorx.CodeAuthForbidden)
+	}
+	_, err = authorizeAdminOrderReviewDomain(incomingContextWithToken(noDomainToken))
+	if err == nil {
+		t.Fatal("authorize review admin should fail without order/review domain")
 	}
 	if code := errorx.FromError(err).Code; code != errorx.CodeAuthForbidden {
 		t.Fatalf("code mismatch: got=%s want=%s", code, errorx.CodeAuthForbidden)

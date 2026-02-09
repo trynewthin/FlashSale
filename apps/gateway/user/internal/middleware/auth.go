@@ -65,6 +65,26 @@ func AccessTokenFromContext(ctx context.Context) (string, bool) {
 	return token, ok && token != ""
 }
 
+// OptionalUserFromRequest 尝试从请求头解析用户身份；解析失败时按匿名返回。
+func OptionalUserFromRequest(r *http.Request) (int64, string) {
+	if r == nil {
+		return 0, ""
+	}
+	token := bearerToken(r.Header.Get("Authorization"))
+	if token == "" {
+		return 0, ""
+	}
+	claims, err := baseauth.Parse(baseauth.TokenTypeUser, token)
+	if err != nil {
+		return 0, ""
+	}
+	uid, err := strconv.ParseInt(claims.Subject, 10, 64)
+	if err != nil || uid <= 0 {
+		return 0, ""
+	}
+	return uid, token
+}
+
 func bearerToken(v string) string {
 	v = strings.TrimSpace(v)
 	if v == "" {

@@ -72,6 +72,28 @@ func RequireDomain(svcCtx *svc.ServiceContext, domain authz.RoleDomain, next htt
 	})
 }
 
+// RequireAnyDomain 校验管理员是否具备指定领域中的任意一个角色能力。
+func RequireAnyDomain(svcCtx *svc.ServiceContext, domains []authz.RoleDomain, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		subject, ok := SubjectFromContext(r.Context())
+		if !ok {
+			writeError(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证信息缺失"))
+			return
+		}
+		if svcCtx == nil || svcCtx.Authorizer == nil {
+			writeError(w, http.StatusInternalServerError, errorx.New(errorx.CodeSysInternal, "authorizer not configured"))
+			return
+		}
+		for _, domain := range domains {
+			if err := svcCtx.Authorizer.Authorize(r.Context(), subject, domain); err == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+		writeError(w, http.StatusForbidden, errorx.New(errorx.CodeAuthForbidden, "无权限访问该接口"))
+	})
+}
+
 // SubjectFromContext 读取管理员鉴权主体。
 func SubjectFromContext(ctx context.Context) (authz.Subject, bool) {
 	if ctx == nil {

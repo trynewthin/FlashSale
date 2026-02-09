@@ -53,6 +53,29 @@ func TestAuthRequiredMissingToken(t *testing.T) {
 	}
 }
 
+func TestOptionalUserFromRequest(t *testing.T) {
+	initUserGatewayJWT(t)
+
+	token, err := baseauth.Issue(baseauth.TokenTypeUser, "1003", time.Hour)
+	if err != nil {
+		t.Fatalf("issue user token failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/seckill/activities/1/track", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	uid, gotToken := OptionalUserFromRequest(req)
+	if uid != 1003 || gotToken == "" {
+		t.Fatalf("optional user parse mismatch: uid=%d token_empty=%v", uid, gotToken == "")
+	}
+
+	invalidReq := httptest.NewRequest(http.MethodPost, "/api/v1/seckill/activities/1/track", nil)
+	invalidReq.Header.Set("Authorization", "Bearer invalid.token")
+	uid, gotToken = OptionalUserFromRequest(invalidReq)
+	if uid != 0 || gotToken != "" {
+		t.Fatalf("invalid token should be treated as anonymous: uid=%d token=%q", uid, gotToken)
+	}
+}
+
 func initUserGatewayJWT(t *testing.T) {
 	t.Helper()
 	err := baseauth.Init(baseauth.JWTConfig{

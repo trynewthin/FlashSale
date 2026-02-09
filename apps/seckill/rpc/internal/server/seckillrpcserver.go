@@ -229,6 +229,11 @@ func (s *SeckillRpcServer) Purchase(ctx context.Context, in *pb.PurchaseReq) (*p
 
 // TrackEvent 处理秒杀埋点事件上报。
 func (s *SeckillRpcServer) TrackEvent(ctx context.Context, in *pb.TrackEventReq) (*pb.TrackEventResp, error) {
+	if in != nil && in.GetUserId() > 0 {
+		if err := authorizeUser(ctx, in.GetUserId()); err != nil {
+			return nil, grpcerr.ToStatus(err)
+		}
+	}
 	l := logic.NewSeckillLogic(ctx, s.svcCtx)
 	resp, err := l.TrackEvent(in)
 	if err != nil {

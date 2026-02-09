@@ -1,6 +1,6 @@
 # 本地开发快速开始
 
-更新时间：2026-02-08
+更新时间：2026-02-09
 
 ## 1. 前置条件
 
@@ -61,6 +61,18 @@ go run ./apps/product/rpc -f apps/product/rpc/etc/product.yaml
 
 ```powershell
 go run ./apps/order/rpc -f apps/order/rpc/etc/order.yaml
+```
+
+启动秒杀 RPC：
+
+```powershell
+go run ./apps/seckill/rpc -f apps/seckill/rpc/etc/seckill.yaml
+```
+
+启动管理员 RPC：
+
+```powershell
+go run ./apps/admin/rpc -f apps/admin/rpc/etc/admin.yaml
 ```
 
 启动用户网关：

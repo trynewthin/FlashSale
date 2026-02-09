@@ -1,6 +1,6 @@
 # 数据库迁移说明
 
-更新时间：2026-02-08
+更新时间：2026-02-09
 
 ## 1. 数据库初始化
 
@@ -67,3 +67,15 @@
 
 - `deploy/migrations/order/000002__orders.up.sql`
 - `deploy/migrations/order/000002__orders.down.sql`
+- `deploy/migrations/order/000003__orders_seckill_fields.up.sql`
+- `deploy/migrations/order/000003__orders_seckill_fields.down.sql`
+
+秒杀模块额外迁移：
+
+- `deploy/migrations/seckill/000002__seckill_core.up.sql`
+- `deploy/migrations/seckill/000002__seckill_core.down.sql`
+
+管理员模块额外迁移：
+
+- `deploy/migrations/admin/000002__admin_core.up.sql`
+- `deploy/migrations/admin/000002__admin_core.down.sql`

@@ -10,6 +10,10 @@
 - 分库迁移脚本：`deploy/migrations/*`
 - 基础连通性自检：`cmd/smoke/*`
 - 用户 RPC 服务：`apps/user/rpc`
+- 商品 RPC 服务：`apps/product/rpc`
+- 订单 RPC 服务：`apps/order/rpc`
+- 秒杀 RPC 服务：`apps/seckill/rpc`
+- 管理员 RPC 服务：`apps/admin/rpc`
 - 用户网关：`apps/gateway/user`
 - 管理员网关：`apps/gateway/admin`
 
@@ -83,3 +87,6 @@ docker image inspect --format='{{index .RepoDigests 0}}' confluentinc/cp-kafka:7
 - 系统总览：`docs/architecture/system-overview.md`
 - 网关运行态：`docs/architecture/gateway-runtime.md`
 - 用户 RPC 运行态：`docs/architecture/user-rpc-runtime.md`
+- 商品 RPC 运行态：`docs/architecture/product-rpc-runtime.md`
+- 订单 RPC 运行态：`docs/architecture/order-rpc-runtime.md`
+- 管理员模块设计：`docs/architecture/admin-module-design.md`

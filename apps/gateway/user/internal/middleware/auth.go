@@ -90,9 +90,12 @@ func bearerToken(v string) string {
 	if v == "" {
 		return ""
 	}
-	const prefix = "Bearer "
-	if !strings.HasPrefix(v, prefix) {
+	parts := strings.Fields(v)
+	if len(parts) != 2 {
 		return ""
 	}
-	return strings.TrimSpace(strings.TrimPrefix(v, prefix))
+	if !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(parts[1])
 }

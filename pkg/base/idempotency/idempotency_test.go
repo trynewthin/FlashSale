@@ -76,3 +76,38 @@ func TestGuardConcurrent(t *testing.T) {
 		t.Fatalf("expected duplicate error on second call, got %v", err)
 	}
 }
+
+// TestGuardRenewsLockTTL 验证长耗时执行期间锁会续租，避免并发重入。
+func TestGuardRenewsLockTTL(t *testing.T) {
+	mini, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("start miniredis: %v", err)
+	}
+	defer mini.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: mini.Addr()})
+	if err := Init(rdb, "test-idem-renew"); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		_ = Guard(context.Background(), "renew-key", 120*time.Millisecond, func() error {
+			time.Sleep(320 * time.Millisecond)
+			return nil
+		})
+		close(done)
+	}()
+
+	time.Sleep(180 * time.Millisecond)
+	err = Guard(context.Background(), "renew-key", 120*time.Millisecond, func() error { return nil })
+	if !errors.Is(err, ErrInProgress) {
+		t.Fatalf("expected ErrInProgress during long run, got %v", err)
+	}
+
+	<-done
+	err = Guard(context.Background(), "renew-key", 120*time.Millisecond, func() error { return nil })
+	if !errors.Is(err, ErrDuplicateRequest) {
+		t.Fatalf("expected duplicate after first completion, got %v", err)
+	}
+}

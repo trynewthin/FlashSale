@@ -76,6 +76,12 @@ func TestOptionalUserFromRequest(t *testing.T) {
 	}
 }
 
+func TestBearerTokenCaseInsensitive(t *testing.T) {
+	if got := bearerToken("bearer token-value"); got != "token-value" {
+		t.Fatalf("bearerToken case-insensitive parse failed: got %q", got)
+	}
+}
+
 func initUserGatewayJWT(t *testing.T) {
 	t.Helper()
 	err := baseauth.Init(baseauth.JWTConfig{

@@ -40,8 +40,7 @@ func authorizeTargetUser(ctx context.Context, targetUserID int64) error {
 	if err != nil {
 		return errorx.New(errorx.CodeAuthUnauthorized, "认证失败")
 	}
-	adminID, parseErr := strconv.ParseInt(claims.Subject, 10, 64)
-	if parseErr != nil || adminID <= 0 {
+	if adminID, parseErr := strconv.ParseInt(claims.Subject, 10, 64); parseErr != nil || adminID <= 0 {
 		return errorx.New(errorx.CodeAuthUnauthorized, "认证主体非法")
 	}
 	if !hasDomain(claims.Domains, adminUserManagementDomain) {
@@ -52,10 +51,7 @@ func authorizeTargetUser(ctx context.Context, targetUserID int64) error {
 	case "", "all":
 		return nil
 	case "self":
-		if adminID != targetUserID {
-			return errorx.New(errorx.CodeAuthForbidden, "无权限访问该用户")
-		}
-		return nil
+		return errorx.New(errorx.CodeAuthForbidden, "当前 data_scope 不允许用户管理操作")
 	default:
 		return errorx.New(errorx.CodeAuthForbidden, "无权限访问该用户")
 	}

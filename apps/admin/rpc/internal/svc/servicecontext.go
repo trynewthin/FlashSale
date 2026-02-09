@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"flashsale/apps/admin/rpc/internal/config"
 	"flashsale/apps/admin/rpc/internal/model"
@@ -25,6 +27,12 @@ import (
 
 const (
 	defaultSnowflakeNode int64 = 7
+)
+
+var (
+	bootstrapUsernamePattern = regexp.MustCompile(`^[a-z0-9_]{4,32}$`)
+	bootstrapPasswordLetter  = regexp.MustCompile(`[A-Za-z]`)
+	bootstrapPasswordDigit   = regexp.MustCompile(`\d`)
 )
 
 // ServiceContext 封装管理员 RPC 依赖。
@@ -144,11 +152,16 @@ func (s *ServiceContext) bootstrapSuperAdmin(ctx context.Context) error {
 	username := strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_USERNAME"))
 	password := strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_PASSWORD"))
 	displayName := strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_DISPLAY_NAME"))
-	if username == "" || password == "" {
-		return fmt.Errorf("bootstrap admin username/password required")
+	username = strings.ToLower(username)
+	if err := validateBootstrapCredentials(username, password); err != nil {
+		return err
 	}
 	if displayName == "" {
 		displayName = "超级管理员"
+	} else {
+		if l := utf8.RuneCountInString(displayName); l < 1 || l > 64 {
+			return fmt.Errorf("bootstrap display name length must be between 1 and 64")
+		}
 	}
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -240,4 +253,17 @@ func (s *ServiceContext) Close() error {
 func parseEnvBool(key string) bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
 	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+func validateBootstrapCredentials(username, password string) error {
+	if strings.TrimSpace(username) == "" || strings.TrimSpace(password) == "" {
+		return fmt.Errorf("bootstrap admin username/password required")
+	}
+	if !bootstrapUsernamePattern.MatchString(username) {
+		return fmt.Errorf("bootstrap username format invalid")
+	}
+	if len(password) < 8 || len(password) > 32 || !bootstrapPasswordLetter.MatchString(password) || !bootstrapPasswordDigit.MatchString(password) {
+		return fmt.Errorf("bootstrap password strength invalid")
+	}
+	return nil
 }

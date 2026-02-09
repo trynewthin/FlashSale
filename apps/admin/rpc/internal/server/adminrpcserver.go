@@ -187,7 +187,7 @@ func (s *AdminRpcServer) DeleteAdmin(ctx context.Context, in *pb.DeleteAdminReq)
 
 // GetAdmin 获取管理员详情。
 func (s *AdminRpcServer) GetAdmin(ctx context.Context, in *pb.GetAdminReq) (*pb.GetAdminResp, error) {
-	if _, err := authorizeAdminManagementDomain(ctx); err != nil {
+	if _, err := authorizeAdminManagementAll(ctx); err != nil {
 		return nil, grpcerr.ToStatus(err)
 	}
 	l := logic.NewAdminLogic(ctx, s.svcCtx)
@@ -200,7 +200,7 @@ func (s *AdminRpcServer) GetAdmin(ctx context.Context, in *pb.GetAdminReq) (*pb.
 
 // ListAdmins 查询管理员列表。
 func (s *AdminRpcServer) ListAdmins(ctx context.Context, in *pb.ListAdminsReq) (*pb.ListAdminsResp, error) {
-	if _, err := authorizeAdminManagementDomain(ctx); err != nil {
+	if _, err := authorizeAdminManagementAll(ctx); err != nil {
 		return nil, grpcerr.ToStatus(err)
 	}
 	l := logic.NewAdminLogic(ctx, s.svcCtx)
@@ -285,7 +285,7 @@ func (s *AdminRpcServer) DeleteRole(ctx context.Context, in *pb.DeleteRoleReq) (
 
 // GetRole 获取角色详情。
 func (s *AdminRpcServer) GetRole(ctx context.Context, in *pb.GetRoleReq) (*pb.GetRoleResp, error) {
-	if _, err := authorizeAdminManagementDomain(ctx); err != nil {
+	if _, err := authorizeAdminManagementAll(ctx); err != nil {
 		return nil, grpcerr.ToStatus(err)
 	}
 	l := logic.NewAdminLogic(ctx, s.svcCtx)
@@ -298,7 +298,7 @@ func (s *AdminRpcServer) GetRole(ctx context.Context, in *pb.GetRoleReq) (*pb.Ge
 
 // ListRoles 查询角色列表。
 func (s *AdminRpcServer) ListRoles(ctx context.Context, in *pb.ListRolesReq) (*pb.ListRolesResp, error) {
-	if _, err := authorizeAdminManagementDomain(ctx); err != nil {
+	if _, err := authorizeAdminManagementAll(ctx); err != nil {
 		return nil, grpcerr.ToStatus(err)
 	}
 	l := logic.NewAdminLogic(ctx, s.svcCtx)
@@ -329,7 +329,7 @@ func (s *AdminRpcServer) SetRoleDomains(ctx context.Context, in *pb.SetRoleDomai
 
 // ListAdminAuditLogs 查询审计日志。
 func (s *AdminRpcServer) ListAdminAuditLogs(ctx context.Context, in *pb.ListAdminAuditLogsReq) (*pb.ListAdminAuditLogsResp, error) {
-	if _, err := authorizeAdminManagementDomain(ctx); err != nil {
+	if _, err := authorizeAdminManagementAll(ctx); err != nil {
 		return nil, grpcerr.ToStatus(err)
 	}
 	l := logic.NewAdminLogic(ctx, s.svcCtx)

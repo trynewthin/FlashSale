@@ -53,7 +53,7 @@ func TestAuthorizeTargetUser(t *testing.T) {
 		{name: "user cross forbidden", token: userToken, targetUID: 1002, wantCode: errorx.CodeAuthForbidden},
 		{name: "admin no domain forbidden", token: adminNoDomainToken, targetUID: 1001, wantCode: errorx.CodeAuthForbidden},
 		{name: "admin with domain ok", token: adminWithDomainToken, targetUID: 1001, wantCode: ""},
-		{name: "admin self scope self ok", token: adminSelfScopeToken, targetUID: 2001, wantCode: ""},
+		{name: "admin self scope self forbidden", token: adminSelfScopeToken, targetUID: 2001, wantCode: errorx.CodeAuthForbidden},
 		{name: "admin self scope cross forbidden", token: adminSelfScopeToken, targetUID: 1001, wantCode: errorx.CodeAuthForbidden},
 		{name: "admin unknown scope forbidden", token: adminUnknownScopeToken, targetUID: 1001, wantCode: errorx.CodeAuthForbidden},
 	}

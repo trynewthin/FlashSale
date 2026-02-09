@@ -5,14 +5,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"golang.org/x/time/rate"
+	"time"
 )
 
 func TestRegisterRateLimitAllow(t *testing.T) {
-	old := registerLimiter
-	registerLimiter = rate.NewLimiter(rate.Inf, 1)
-	defer func() { registerLimiter = old }()
+	old := registerLimiterStore
+	registerLimiterStore = newKeyedLimiter(1000, 1000, time.Minute)
+	defer func() { registerLimiterStore = old }()
 
 	called := false
 	handler := RegisterRateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -33,24 +32,38 @@ func TestRegisterRateLimitAllow(t *testing.T) {
 }
 
 func TestLoginRateLimitBlock(t *testing.T) {
-	old := loginLimiter
-	loginLimiter = rate.NewLimiter(0, 0)
-	defer func() { loginLimiter = old }()
+	old := loginLimiterStore
+	loginLimiterStore = newKeyedLimiter(1, 1, time.Minute)
+	defer func() { loginLimiterStore = old }()
 
-	called := false
+	called := 0
 	handler := LoginRateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called = true
+		called++
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/user/login", nil)
+	req.RemoteAddr = "1.2.3.4:5678"
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
-
-	if called {
-		t.Fatal("next handler should not be called")
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("first request should pass, got %d", rec.Code)
 	}
-	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("status mismatch: got %d want %d", rec.Code, http.StatusTooManyRequests)
+
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req)
+	if rec2.Code != http.StatusTooManyRequests {
+		t.Fatalf("status mismatch: got %d want %d", rec2.Code, http.StatusTooManyRequests)
+	}
+	if called != 1 {
+		t.Fatalf("next handler should be called once, got %d", called)
+	}
+}
+
+func TestSourceKeyFromForwardHeaders(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/user/login", nil)
+	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
+	if got := sourceKey(req); got != "10.0.0.1" {
+		t.Fatalf("sourceKey from X-Forwarded-For mismatch: got %q", got)
 	}
 }

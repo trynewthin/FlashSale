@@ -238,6 +238,19 @@ func (l *SeckillLogic) PublishActivity(in *pb.PublishActivityReq) (*pb.PublishAc
 	if len(items) == 0 {
 		return nil, errorx.New(errorx.CodeSeckillInvalidConfig, "活动至少配置一个商品")
 	}
+	enabledCount := 0
+	for _, item := range items {
+		if item == nil || item.Status != model.ItemStatusEnabled {
+			continue
+		}
+		if item.ReservedStockTotal <= 0 {
+			return nil, errorx.New(errorx.CodeSeckillInvalidConfig, "启用商品预占库存必须大于0")
+		}
+		enabledCount++
+	}
+	if enabledCount == 0 {
+		return nil, errorx.New(errorx.CodeSeckillInvalidConfig, "活动至少配置一个启用商品")
+	}
 	token, err := l.svcCtx.IssueProductManagementToken()
 	if err != nil {
 		return nil, errorx.Wrap(errorx.CodeSysInternal, "生成商品服务令牌失败", err)

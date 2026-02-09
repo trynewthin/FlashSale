@@ -160,8 +160,12 @@ func (l *TimeoutJobLogic) handleRefundCompletion(now time.Time) {
 			Payload:      "{}",
 			CreatedAt:    now,
 		}
-		if err := l.svcCtx.OrderRepo.CompleteRefund(l.ctx, item.ID, now, event); err != nil && err != repository.ErrOrderStateConflict {
-			l.Logger.Errorf("complete refund failed order_id=%d err=%v", item.ID, err)
+		completeErr := l.svcCtx.OrderRepo.CompleteRefund(l.ctx, item.ID, now, event)
+		if completeErr != nil {
+			if completeErr != repository.ErrOrderStateConflict {
+				l.Logger.Errorf("complete refund failed order_id=%d err=%v", item.ID, completeErr)
+			}
+			continue
 		}
 		updated, err := l.svcCtx.OrderRepo.FindByID(l.ctx, item.ID)
 		if err == nil {
@@ -186,8 +190,12 @@ func (l *TimeoutJobLogic) handleAutoReceive(now time.Time) {
 			Payload:      "{}",
 			CreatedAt:    now,
 		}
-		if err := l.svcCtx.OrderRepo.AutoReceive(l.ctx, item.ID, now, event); err != nil && err != repository.ErrOrderStateConflict {
-			l.Logger.Errorf("auto receive failed order_id=%d err=%v", item.ID, err)
+		autoReceiveErr := l.svcCtx.OrderRepo.AutoReceive(l.ctx, item.ID, now, event)
+		if autoReceiveErr != nil {
+			if autoReceiveErr != repository.ErrOrderStateConflict {
+				l.Logger.Errorf("auto receive failed order_id=%d err=%v", item.ID, autoReceiveErr)
+			}
+			continue
 		}
 		updated, err := l.svcCtx.OrderRepo.FindByID(l.ctx, item.ID)
 		if err == nil {

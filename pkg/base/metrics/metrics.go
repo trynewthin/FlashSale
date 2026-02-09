@@ -3,6 +3,7 @@ package metrics
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,8 +27,12 @@ func Init(cfg MetricsConfig) error {
 	defer mu.Unlock()
 
 	reg := prometheus.NewRegistry()
-	reg.MustRegister(collectors.NewGoCollector())
-	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	registerer := prometheus.Registerer(reg)
+	if ns := strings.TrimSpace(cfg.Namespace); ns != "" {
+		registerer = prometheus.WrapRegistererWithPrefix(ns+"_", registerer)
+	}
+	registerer.MustRegister(collectors.NewGoCollector())
+	registerer.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	registry = reg
 	return nil
 }

@@ -33,6 +33,14 @@ var (
 	prefix = "idempotency"
 )
 
+// renewScript 校验 token 后续租锁 TTL，避免长耗时任务期间锁过期。
+var renewScript = redis.NewScript(`
+if redis.call("get", KEYS[1]) == ARGV[1] then
+	return redis.call("pexpire", KEYS[1], ARGV[2])
+end
+return 0
+`)
+
 // Init 初始化幂等组件。
 func Init(c *redis.Client, keyPrefix string) error {
 	if c == nil {
@@ -92,6 +100,8 @@ func Guard(ctx context.Context, key string, ttl time.Duration, run func() error)
 	if !ok {
 		return ErrInProgress
 	}
+	stopRenew := startLockRenewal(c, lockKey, token, ttl)
+	defer close(stopRenew)
 	defer func() {
 		unlockCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -101,10 +111,44 @@ func Guard(ctx context.Context, key string, ttl time.Duration, run func() error)
 	if err := run(); err != nil {
 		return err
 	}
-	if err := c.Set(ctx, doneKey, "1", ttl).Err(); err != nil {
+	// done 标记使用独立短超时上下文，避免业务已成功但请求 ctx 已取消导致漏标记。
+	doneCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := c.Set(doneCtx, doneKey, "1", ttl).Err(); err != nil {
 		return err
 	}
 	return nil
+}
+
+// startLockRenewal 后台续租锁，保证长耗时业务执行期间锁不会因 TTL 到期而被并发抢占。
+func startLockRenewal(c *redis.Client, lockKey, token string, ttl time.Duration) chan struct{} {
+	stop := make(chan struct{})
+	if c == nil || lockKey == "" || token == "" || ttl <= 0 {
+		close(stop)
+		return stop
+	}
+	interval := ttl / 3
+	if interval <= 0 {
+		interval = time.Second
+	}
+	if interval > 2*time.Second {
+		interval = 2 * time.Second
+	}
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				renewCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				_, _ = renewScript.Run(renewCtx, c, []string{lockKey}, token, fmt.Sprintf("%d", ttl.Milliseconds())).Result()
+				cancel()
+			}
+		}
+	}()
+	return stop
 }
 
 // state 返回当前初始化状态中的 Redis 客户端和前缀。

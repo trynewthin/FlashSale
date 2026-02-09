@@ -26,6 +26,7 @@ const (
 	upsertOrderLinkSQL   = "INSERT INTO seckill_order_links (id, order_id, order_no, user_id, activity_id, activity_item_id, quantity, order_status, payment_status, close_reason, last_synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE order_no = VALUES(order_no), user_id = VALUES(user_id), activity_id = VALUES(activity_id), activity_item_id = VALUES(activity_item_id), quantity = VALUES(quantity), order_status = VALUES(order_status), payment_status = VALUES(payment_status), close_reason = VALUES(close_reason), last_synced_at = VALUES(last_synced_at)"
 	insertTrafficRawSQL  = "INSERT INTO seckill_traffic_raw_events (activity_id, activity_item_id, event_type, user_id, client_id, event_time, idempotency_key) VALUES (?, ?, ?, ?, ?, ?, ?)"
 	insertStockLedgerSQL = "INSERT INTO seckill_stock_ledger (id, activity_id, activity_item_id, order_id, event_type, delta, remain_after, idempotency_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+	trafficUVMarkerEvent = "uv_marker"
 )
 
 // MySQLSeckillRepository 是 SeckillRepository 的 MySQL 实现。
@@ -730,7 +731,11 @@ func (r *MySQLSeckillRepository) RecordTraffic(ctx context.Context, event *model
 		return err
 	}
 	bucket := event.OccurredAt.UTC().Truncate(time.Minute)
-	incPV, incUV, incClick, incAttempt, incSuccess, incFail, incPaySuccess, incOrderClosed := eventIncrements(event)
+	incPV, _, incClick, incAttempt, incSuccess, incFail, incPaySuccess, incOrderClosed := eventIncrements(event)
+	incUV, err := r.resolveUVIncrement(ctx, event, bucket)
+	if err != nil {
+		return err
+	}
 	_, err = r.db.ExecContext(ctx,
 		"INSERT INTO seckill_traffic_agg_minute (bucket_minute, activity_id, activity_item_id, pv, uv, click, purchase_attempt, purchase_success, purchase_fail, pay_success, order_closed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE pv = pv + VALUES(pv), uv = uv + VALUES(uv), click = click + VALUES(click), purchase_attempt = purchase_attempt + VALUES(purchase_attempt), purchase_success = purchase_success + VALUES(purchase_success), purchase_fail = purchase_fail + VALUES(purchase_fail), pay_success = pay_success + VALUES(pay_success), order_closed = order_closed + VALUES(order_closed)",
 		bucket,
@@ -897,13 +902,9 @@ func eventIncrements(event *model.TrafficEvent) (pv, uv, click, attempt, success
 	if event == nil {
 		return
 	}
-	hasIdentity := event.UserID > 0 || strings.TrimSpace(event.ClientID) != ""
 	switch event.EventType {
 	case model.TrafficEventPV:
 		pv = 1
-		if hasIdentity {
-			uv = 1
-		}
 	case model.TrafficEventClick:
 		click = 1
 	case model.TrafficEventPurchaseAttempt:
@@ -918,6 +919,53 @@ func eventIncrements(event *model.TrafficEvent) (pv, uv, click, attempt, success
 		orderClosed = 1
 	}
 	return
+}
+
+// resolveUVIncrement 返回 UV 增量：同分钟同访客只计一次。
+func (r *MySQLSeckillRepository) resolveUVIncrement(ctx context.Context, event *model.TrafficEvent, bucket time.Time) (int64, error) {
+	if event == nil || event.EventType != model.TrafficEventPV {
+		return 0, nil
+	}
+	identity := visitorIdentity(event)
+	if identity == "" {
+		return 0, nil
+	}
+	_, err := r.db.ExecContext(ctx, insertTrafficRawSQL,
+		event.ActivityID,
+		event.ActivityItemID,
+		trafficUVMarkerEvent,
+		event.UserID,
+		strings.TrimSpace(event.ClientID),
+		bucket,
+		buildUVMarkerIdempotencyKey(event.ActivityID, event.ActivityItemID, bucket, identity),
+	)
+	if err != nil {
+		if isDuplicateEntry(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return 1, nil
+}
+
+// visitorIdentity 统一提取 UV 去重身份。
+func visitorIdentity(event *model.TrafficEvent) string {
+	if event == nil {
+		return ""
+	}
+	if event.UserID > 0 {
+		return fmt.Sprintf("u:%d", event.UserID)
+	}
+	clientID := strings.TrimSpace(event.ClientID)
+	if clientID == "" {
+		return ""
+	}
+	return "c:" + clientID
+}
+
+// buildUVMarkerIdempotencyKey 生成分钟级访客去重键。
+func buildUVMarkerIdempotencyKey(activityID, activityItemID int64, bucket time.Time, identity string) string {
+	return fmt.Sprintf("uv:%d:%d:%s:%s", activityID, activityItemID, bucket.UTC().Format("200601021504"), strings.TrimSpace(identity))
 }
 
 // isDuplicateEntry 判断是否是 MySQL 唯一键冲突。

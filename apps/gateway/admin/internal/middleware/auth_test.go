@@ -121,3 +121,9 @@ func initAdminGatewayJWT(t *testing.T) {
 		t.Fatalf("init auth failed: %v", err)
 	}
 }
+
+func TestBearerTokenCaseInsensitive(t *testing.T) {
+	if got := bearerToken("bearer token-value"); got != "token-value" {
+		t.Fatalf("bearerToken case-insensitive parse failed: got %q", got)
+	}
+}

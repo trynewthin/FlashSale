@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,7 +16,17 @@ import (
 	"flashsale/apps/order/rpc/pb"
 	"flashsale/pkg/base/errorx"
 	"flashsale/pkg/base/eventx"
+	gomysql "github.com/go-sql-driver/mysql"
 	"github.com/zeromicro/go-zero/core/logx"
+)
+
+const seckillCreateAcquireFallback = 80 * time.Millisecond
+
+var errSeckillCreateOverloaded = errors.New("seckill create overloaded")
+
+const (
+	idempotentReplayRetryCount = 3
+	idempotentReplayRetryWait  = 15 * time.Millisecond
 )
 
 // CreateOrderFromSeckillLogic 封装秒杀建单逻辑。
@@ -53,9 +64,16 @@ func (l *CreateOrderFromSeckillLogic) CreateOrderFromSeckill(in *pb.CreateOrderF
 	if l.svcCtx == nil || l.svcCtx.OrderRepo == nil || l.svcCtx.IDNode == nil {
 		return nil, errorx.New(errorx.CodeSysInternal, "服务未初始化")
 	}
+	release, err := l.acquireCreateSlot()
+	if err != nil {
+		return nil, errorx.New(errorx.CodeSeckillPurchaseConflict, "建单服务繁忙，请稍后重试")
+	}
+	if release != nil {
+		defer release()
+	}
 
 	orderID := l.svcCtx.IDNode.Generate().Int64()
-	orderNo := buildSeckillOrderNo(in.UserId, idempotencyKey)
+	orderNo := buildSeckillOrderNo(in.UserId, in.ActivityId, in.ActivityItemId, idempotencyKey)
 	now := time.Now()
 	unitPrice := in.SeckillPriceCent
 	totalAmount := unitPrice * in.Quantity
@@ -98,6 +116,16 @@ func (l *CreateOrderFromSeckillLogic) CreateOrderFromSeckill(in *pb.CreateOrderF
 		CreatedAt: now,
 	}
 	if err := l.svcCtx.OrderRepo.Create(l.ctx, order, createEvent); err != nil {
+		if isDuplicateOrderNoErr(err) {
+			existing, ok, replayErr := l.findIdempotentSeckillOrderWithRetry(orderNo, in)
+			if replayErr != nil {
+				return nil, errorx.Wrap(errorx.CodeDBError, "查询秒杀幂等订单失败", replayErr)
+			}
+			if ok {
+				return &pb.CreateOrderFromSeckillResp{Order: toOrderView(existing)}, nil
+			}
+			return nil, errorx.New(errorx.CodeSeckillPurchaseConflict, "订单处理中，请稍后重试")
+		}
 		existing, ok, lookupErr := l.findIdempotentSeckillOrder(orderNo, in)
 		if lookupErr != nil {
 			return nil, errorx.Wrap(errorx.CodeDBError, "查询秒杀幂等订单失败", lookupErr)
@@ -107,17 +135,13 @@ func (l *CreateOrderFromSeckillLogic) CreateOrderFromSeckill(in *pb.CreateOrderF
 		}
 		return nil, errorx.Wrap(errorx.CodeDBError, "创建秒杀订单失败", err)
 	}
-	created, err := l.svcCtx.OrderRepo.FindByID(l.ctx, orderID)
-	if err != nil {
-		return nil, errorx.Wrap(errorx.CodeDBError, "查询秒杀订单失败", err)
-	}
-	emitSeckillOrderStateEvent(l.ctx, l.svcCtx, created, eventx.SeckillOrderStateEventTypeCreated)
-	return &pb.CreateOrderFromSeckillResp{Order: toOrderView(created)}, nil
+	emitSeckillOrderStateEvent(l.ctx, l.svcCtx, order, eventx.SeckillOrderStateEventTypeCreated)
+	return &pb.CreateOrderFromSeckillResp{Order: toOrderView(order)}, nil
 }
 
 // buildSeckillOrderNo 基于用户与幂等键构造稳定订单号，用于秒杀建单幂等重放。
-func buildSeckillOrderNo(userID int64, idempotencyKey string) string {
-	raw := fmt.Sprintf("%d:%s", userID, strings.TrimSpace(idempotencyKey))
+func buildSeckillOrderNo(userID, activityID, activityItemID int64, idempotencyKey string) string {
+	raw := fmt.Sprintf("%d:%d:%d:%s", userID, activityID, activityItemID, strings.TrimSpace(idempotencyKey))
 	sum := sha1.Sum([]byte(raw))
 	hexDigest := strings.ToUpper(hex.EncodeToString(sum[:]))
 	// orders.order_no 长度上限 32，固定前缀 + 截断哈希。
@@ -126,18 +150,13 @@ func buildSeckillOrderNo(userID int64, idempotencyKey string) string {
 
 // findIdempotentSeckillOrder 查询幂等键对应的已存在秒杀订单并校验核心参数一致性。
 func (l *CreateOrderFromSeckillLogic) findIdempotentSeckillOrder(orderNo string, in *pb.CreateOrderFromSeckillReq) (*model.Order, bool, error) {
-	list, total, err := l.svcCtx.OrderRepo.ListAdmin(l.ctx, repository.AdminListQuery{
-		Page:     1,
-		PageSize: 1,
-		OrderNo:  orderNo,
-	})
+	existing, err := l.svcCtx.OrderRepo.FindByOrderNo(l.ctx, orderNo)
 	if err != nil {
+		if errors.Is(err, repository.ErrOrderNotFound) {
+			return nil, false, nil
+		}
 		return nil, false, err
 	}
-	if total == 0 || len(list) == 0 || list[0] == nil {
-		return nil, false, nil
-	}
-	existing := list[0]
 	if existing.OrderSource != model.OrderSourceSeckill ||
 		existing.UserID != in.UserId ||
 		existing.SeckillActivityID != in.ActivityId ||
@@ -145,4 +164,59 @@ func (l *CreateOrderFromSeckillLogic) findIdempotentSeckillOrder(orderNo string,
 		return nil, false, nil
 	}
 	return existing, true, nil
+}
+
+func (l *CreateOrderFromSeckillLogic) findIdempotentSeckillOrderWithRetry(orderNo string, in *pb.CreateOrderFromSeckillReq) (*model.Order, bool, error) {
+	existing, ok, err := l.findIdempotentSeckillOrder(orderNo, in)
+	if err != nil {
+		return nil, false, err
+	}
+	if ok {
+		return existing, true, nil
+	}
+	for i := 0; i < idempotentReplayRetryCount; i++ {
+		select {
+		case <-l.ctx.Done():
+			return nil, false, l.ctx.Err()
+		case <-time.After(idempotentReplayRetryWait):
+		}
+		existing, ok, err = l.findIdempotentSeckillOrder(orderNo, in)
+		if err != nil {
+			return nil, false, err
+		}
+		if ok {
+			return existing, true, nil
+		}
+	}
+	return nil, false, nil
+}
+
+func (l *CreateOrderFromSeckillLogic) acquireCreateSlot() (func(), error) {
+	if l == nil || l.svcCtx == nil || l.svcCtx.SeckillCreateLimiter == nil {
+		return nil, nil
+	}
+	waitDur := l.svcCtx.SeckillCreateAcquireTimeoutDur
+	if waitDur <= 0 {
+		waitDur = seckillCreateAcquireFallback
+	}
+	waitCtx, cancel := context.WithTimeout(l.ctx, waitDur)
+	defer cancel()
+	select {
+	case l.svcCtx.SeckillCreateLimiter <- struct{}{}:
+		return func() { <-l.svcCtx.SeckillCreateLimiter }, nil
+	case <-waitCtx.Done():
+		return nil, errSeckillCreateOverloaded
+	}
+}
+
+func isDuplicateOrderNoErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	var mysqlErr *gomysql.MySQLError
+	if errors.As(err, &mysqlErr) {
+		return mysqlErr.Number == 1062
+	}
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "duplicate entry") || strings.Contains(text, "for key")
 }

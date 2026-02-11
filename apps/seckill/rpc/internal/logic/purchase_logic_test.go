@@ -154,9 +154,11 @@ func TestPurchase_IdempotencyConflictRecoversByOrderReplay(t *testing.T) {
 	}
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-access-token", "token-1"))
 	logic := NewSeckillLogic(ctx, &svc.ServiceContext{
-		SeckillRepo: repoMock,
-		OrderRPCCli: orderMock,
-		IDNode:      node,
+		SeckillRepo:              repoMock,
+		OrderRPCCli:              orderMock,
+		IDNode:                   node,
+		OrderLinkWriteOnPurchase: true,
+		OrderLinkSyncFallback:    true,
 	})
 
 	resp, err := logic.Purchase(&pb.PurchaseReq{
@@ -233,7 +235,212 @@ func TestPurchase_IdempotencyConflictPendingWithoutImmediateCompensate(t *testin
 	if repoMock.createOrderLinkCalls != 0 {
 		t.Fatalf("pending path should not create order link, got=%d", repoMock.createOrderLinkCalls)
 	}
+	if orderMock.createFromSeckillCalls != 1 {
+		t.Fatalf("unavailable should not replay immediately, got=%d", orderMock.createFromSeckillCalls)
+	}
+}
+
+func TestPurchase_IdempotencyConflictReplayOnDeadlineExceeded(t *testing.T) {
+	item := &model.ActivityItem{
+		ID:                23,
+		ActivityID:        303,
+		ProductID:         9103,
+		SKUCode:           "SPU9103",
+		SnapshotName:      "test-product-3",
+		SnapshotMainImage: "https://img.test/p3.png",
+		SeckillPriceCent:  2990,
+	}
+	repoMock := &purchaseRepoMock{
+		seckillRepoMock: &seckillRepoMock{item: item},
+		reserveErr:      repository.ErrIdempotencyConflict,
+	}
+	call := 0
+	orderMock := &orderRPCMock{
+		createFromSeckillFn: func(_ context.Context, _ *orderpb.CreateOrderFromSeckillReq) (*orderpb.CreateOrderFromSeckillResp, error) {
+			call++
+			if call == 1 {
+				return nil, status.Error(codes.DeadlineExceeded, "timeout")
+			}
+			return &orderpb.CreateOrderFromSeckillResp{
+				Order: &orderpb.OrderView{
+					OrderId:       70003,
+					OrderNo:       "SCKORDER70003",
+					OrderStatus:   10,
+					PaymentStatus: 0,
+				},
+			}, nil
+		},
+	}
+	node, err := snowflake.NewNode(3)
+	if err != nil {
+		t.Fatalf("new snowflake node failed: %v", err)
+	}
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-access-token", "token-3"))
+	logic := NewSeckillLogic(ctx, &svc.ServiceContext{
+		SeckillRepo: repoMock,
+		OrderRPCCli: orderMock,
+		IDNode:      node,
+	})
+
+	resp, err := logic.Purchase(&pb.PurchaseReq{
+		UserId:         9003,
+		ActivityId:     303,
+		ActivityItemId: 23,
+		Quantity:       1,
+		IdempotencyKey: "idem-303-23-9003",
+	})
+	if err != nil {
+		t.Fatalf("deadline replay should recover, got err=%v", err)
+	}
+	if resp == nil || resp.OrderId != 70003 {
+		t.Fatalf("response mismatch: %+v", resp)
+	}
 	if orderMock.createFromSeckillCalls != 2 {
-		t.Fatalf("should attempt replay once, got=%d", orderMock.createFromSeckillCalls)
+		t.Fatalf("deadline path should replay once, got=%d", orderMock.createFromSeckillCalls)
+	}
+}
+
+func TestPurchase_OrderCreateOverloadedCompensates(t *testing.T) {
+	item := &model.ActivityItem{
+		ID:                24,
+		ActivityID:        304,
+		ProductID:         9104,
+		SKUCode:           "SPU9104",
+		SnapshotName:      "test-product-4",
+		SnapshotMainImage: "https://img.test/p4.png",
+		SeckillPriceCent:  3990,
+		MaxQtyPerOrder:    2,
+	}
+	repoMock := &purchaseRepoMock{
+		seckillRepoMock: &seckillRepoMock{item: item},
+		reservation: &model.PurchaseReservation{
+			ActivityID:        304,
+			ActivityItemID:    24,
+			ProductID:         9104,
+			Quantity:          1,
+			RemainStock:       99,
+			SeckillPriceCent:  3990,
+			SKUCode:           "SPU9104",
+			SnapshotName:      "test-product-4",
+			SnapshotMainImage: "https://img.test/p4.png",
+		},
+	}
+	orderMock := &orderRPCMock{
+		createFromSeckillFn: func(_ context.Context, _ *orderpb.CreateOrderFromSeckillReq) (*orderpb.CreateOrderFromSeckillResp, error) {
+			return &orderpb.CreateOrderFromSeckillResp{
+				Order: &orderpb.OrderView{OrderId: 70004, OrderNo: "SCKORDER70004"},
+			}, nil
+		},
+	}
+	node, err := snowflake.NewNode(4)
+	if err != nil {
+		t.Fatalf("new snowflake node failed: %v", err)
+	}
+	limiter := make(chan struct{}, 1)
+	limiter <- struct{}{}
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-access-token", "token-4"))
+	logic := NewSeckillLogic(ctx, &svc.ServiceContext{
+		SeckillRepo:               repoMock,
+		OrderRPCCli:               orderMock,
+		IDNode:                    node,
+		OrderCreateLimiter:        limiter,
+		OrderCreateAcquireTimeout: time.Millisecond,
+	})
+
+	_, err = logic.Purchase(&pb.PurchaseReq{
+		UserId:         9004,
+		ActivityId:     304,
+		ActivityItemId: 24,
+		Quantity:       1,
+		IdempotencyKey: "idem-304-24-9004",
+	})
+	appErr := errorx.FromError(err)
+	if appErr == nil || appErr.Code != errorx.CodeSeckillPurchaseConflict {
+		t.Fatalf("expected purchase conflict on overload, got err=%v", err)
+	}
+	if orderMock.createFromSeckillCalls != 0 {
+		t.Fatalf("overload should fail fast before order rpc call, got=%d", orderMock.createFromSeckillCalls)
+	}
+	if repoMock.compensateCalls != 1 {
+		t.Fatalf("overload should compensate reserved stock, got=%d", repoMock.compensateCalls)
+	}
+}
+
+func TestPurchase_OrderCreateConflictCompensates(t *testing.T) {
+	item := &model.ActivityItem{
+		ID:                25,
+		ActivityID:        305,
+		ProductID:         9105,
+		SKUCode:           "SPU9105",
+		SnapshotName:      "test-product-5",
+		SnapshotMainImage: "https://img.test/p5.png",
+		SeckillPriceCent:  4990,
+		MaxQtyPerOrder:    2,
+	}
+	repoMock := &purchaseRepoMock{
+		seckillRepoMock: &seckillRepoMock{item: item},
+		reservation: &model.PurchaseReservation{
+			ActivityID:        305,
+			ActivityItemID:    25,
+			ProductID:         9105,
+			Quantity:          1,
+			RemainStock:       99,
+			SeckillPriceCent:  4990,
+			SKUCode:           "SPU9105",
+			SnapshotName:      "test-product-5",
+			SnapshotMainImage: "https://img.test/p5.png",
+		},
+	}
+	orderMock := &orderRPCMock{
+		createFromSeckillFn: func(_ context.Context, _ *orderpb.CreateOrderFromSeckillReq) (*orderpb.CreateOrderFromSeckillResp, error) {
+			return nil, errorx.New(errorx.CodeSeckillPurchaseConflict, "busy")
+		},
+	}
+	node, err := snowflake.NewNode(5)
+	if err != nil {
+		t.Fatalf("new snowflake node failed: %v", err)
+	}
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-access-token", "token-5"))
+	logic := NewSeckillLogic(ctx, &svc.ServiceContext{
+		SeckillRepo: repoMock,
+		OrderRPCCli: orderMock,
+		IDNode:      node,
+	})
+
+	_, err = logic.Purchase(&pb.PurchaseReq{
+		UserId:         9005,
+		ActivityId:     305,
+		ActivityItemId: 25,
+		Quantity:       1,
+		IdempotencyKey: "idem-305-25-9005",
+	})
+	appErr := errorx.FromError(err)
+	if appErr == nil || appErr.Code != errorx.CodeSeckillPurchaseConflict {
+		t.Fatalf("expected purchase conflict on order busy, got err=%v", err)
+	}
+	if repoMock.compensateCalls != 1 {
+		t.Fatalf("order busy should compensate reserved stock, got=%d", repoMock.compensateCalls)
+	}
+	if repoMock.createOrderLinkCalls != 0 {
+		t.Fatalf("order busy should not create order link, got=%d", repoMock.createOrderLinkCalls)
+	}
+}
+
+func TestTrackEvent_DegradeOnRecordFailure(t *testing.T) {
+	repoMock := &seckillRepoMock{trafficErr: errors.New("mock traffic write failed")}
+	logic := NewSeckillLogic(context.Background(), &svc.ServiceContext{SeckillRepo: repoMock})
+	resp, err := logic.TrackEvent(&pb.TrackEventReq{
+		ActivityId:     401,
+		ActivityItemId: 41,
+		EventType:      model.TrafficEventClick,
+		ClientId:       "client-1",
+		IdempotencyKey: "track-401-41-1",
+		OccurredAtUnix: time.Now().Unix(),
+	})
+	if err != nil {
+		t.Fatalf("track event should degrade without rpc error, got=%v", err)
+	}
+	if resp == nil || resp.Accepted {
+		t.Fatalf("expected accepted=false when record fails, got=%+v", resp)
 	}
 }

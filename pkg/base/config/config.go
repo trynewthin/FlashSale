@@ -205,6 +205,21 @@ func applyExplicitEnvOverrides(cfg *AppConfig) {
 			cfg.MySQL.Port = p
 		}
 	}
+	if v := strings.TrimSpace(os.Getenv("FLASHSALE_MYSQL_MAX_OPEN_CONNS")); v != "" {
+		if p, err := strconv.Atoi(v); err == nil && p > 0 {
+			cfg.MySQL.MaxOpenConns = p
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("FLASHSALE_MYSQL_MAX_IDLE_CONNS")); v != "" {
+		if p, err := strconv.Atoi(v); err == nil && p >= 0 {
+			cfg.MySQL.MaxIdleConns = p
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("FLASHSALE_MYSQL_CONN_MAX_LIFETIME")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			cfg.MySQL.ConnMaxLifetime = d
+		}
+	}
 	if v := strings.TrimSpace(os.Getenv("FLASHSALE_MYSQL_USER")); v != "" {
 		cfg.MySQL.User = v
 	}

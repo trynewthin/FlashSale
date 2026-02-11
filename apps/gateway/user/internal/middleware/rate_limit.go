@@ -4,6 +4,8 @@ package middleware
 import (
 	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -12,20 +14,83 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const (
+	rateLimitEnabledEnv       = "FLASHSALE_RATE_LIMIT_ENABLED"
+	registerRateLimitRPSEnv   = "FLASHSALE_REGISTER_RATE_LIMIT_RPS"
+	registerRateLimitBurstEnv = "FLASHSALE_REGISTER_RATE_LIMIT_BURST"
+	registerRateLimitTTLEnv   = "FLASHSALE_REGISTER_RATE_LIMIT_TTL_SEC"
+	loginRateLimitRPSEnv      = "FLASHSALE_LOGIN_RATE_LIMIT_RPS"
+	loginRateLimitBurstEnv    = "FLASHSALE_LOGIN_RATE_LIMIT_BURST"
+	loginRateLimitTTLEnv      = "FLASHSALE_LOGIN_RATE_LIMIT_TTL_SEC"
+	seckillPurchaseEnableEnv  = "FLASHSALE_SECKILL_PURCHASE_RATE_LIMIT_ENABLED"
+	seckillPurchaseRPSEnv     = "FLASHSALE_SECKILL_PURCHASE_RATE_LIMIT_RPS"
+	seckillPurchaseBurstEnv   = "FLASHSALE_SECKILL_PURCHASE_RATE_LIMIT_BURST"
+	seckillPurchaseTTLEnv     = "FLASHSALE_SECKILL_PURCHASE_RATE_LIMIT_TTL_SEC"
+	seckillTrackEnableEnv     = "FLASHSALE_SECKILL_TRACK_RATE_LIMIT_ENABLED"
+	seckillTrackRPSEnv        = "FLASHSALE_SECKILL_TRACK_RATE_LIMIT_RPS"
+	seckillTrackBurstEnv      = "FLASHSALE_SECKILL_TRACK_RATE_LIMIT_BURST"
+	seckillTrackTTLEnv        = "FLASHSALE_SECKILL_TRACK_RATE_LIMIT_TTL_SEC"
+)
+
+type rateLimitConfig struct {
+	Enabled                bool
+	RegisterRPS            float64
+	RegisterBurst          int
+	RegisterTTL            time.Duration
+	LoginRPS               float64
+	LoginBurst             int
+	LoginTTL               time.Duration
+	SeckillPurchaseEnabled bool
+	SeckillPurchaseRPS     float64
+	SeckillPurchaseBurst   int
+	SeckillPurchaseTTL     time.Duration
+	SeckillTrackEnabled    bool
+	SeckillTrackRPS        float64
+	SeckillTrackBurst      int
+	SeckillTrackTTL        time.Duration
+}
+
 var (
+	// rateLimitCfg 保存网关限流参数（可由环境变量覆盖）。
+	rateLimitCfg = loadRateLimitConfig()
 	// 注册/登录按来源键控限流，避免单个来源耗尽全局令牌。
-	registerLimiterStore = newKeyedLimiter(5, 10, 10*time.Minute)
-	loginLimiterStore    = newKeyedLimiter(5, 10, 10*time.Minute)
+	registerLimiterStore = newKeyedLimiter(rateLimitCfg.RegisterRPS, rateLimitCfg.RegisterBurst, rateLimitCfg.RegisterTTL)
+	loginLimiterStore    = newKeyedLimiter(rateLimitCfg.LoginRPS, rateLimitCfg.LoginBurst, rateLimitCfg.LoginTTL)
+	// 秒杀接口单独限流开关，便于压测时按需启停。
+	seckillPurchaseLimiterStore = newKeyedLimiter(rateLimitCfg.SeckillPurchaseRPS, rateLimitCfg.SeckillPurchaseBurst, rateLimitCfg.SeckillPurchaseTTL)
+	seckillTrackLimiterStore    = newKeyedLimiter(rateLimitCfg.SeckillTrackRPS, rateLimitCfg.SeckillTrackBurst, rateLimitCfg.SeckillTrackTTL)
 )
 
 // RegisterRateLimit 对注册入口做限流保护。
 func RegisterRateLimit(next http.Handler) http.Handler {
+	if !rateLimitCfg.Enabled {
+		return next
+	}
 	return rateLimitBySource(registerLimiterStore, next)
 }
 
 // LoginRateLimit 对登录入口做限流保护。
 func LoginRateLimit(next http.Handler) http.Handler {
+	if !rateLimitCfg.Enabled {
+		return next
+	}
 	return rateLimitBySource(loginLimiterStore, next)
+}
+
+// SeckillPurchaseRateLimit 对秒杀下单入口做来源限流，默认关闭，可用环境变量开启。
+func SeckillPurchaseRateLimit(next http.Handler) http.Handler {
+	if !rateLimitCfg.Enabled || !rateLimitCfg.SeckillPurchaseEnabled {
+		return next
+	}
+	return rateLimitBySource(seckillPurchaseLimiterStore, next)
+}
+
+// SeckillTrackRateLimit 对秒杀埋点入口做来源限流，默认关闭，可用环境变量开启。
+func SeckillTrackRateLimit(next http.Handler) http.Handler {
+	if !rateLimitCfg.Enabled || !rateLimitCfg.SeckillTrackEnabled {
+		return next
+	}
+	return rateLimitBySource(seckillTrackLimiterStore, next)
 }
 
 func rateLimitBySource(store *keyedLimiterStore, next http.Handler) http.Handler {
@@ -116,4 +181,67 @@ func sourceKey(r *http.Request) string {
 		return v
 	}
 	return "unknown"
+}
+
+func loadRateLimitConfig() rateLimitConfig {
+	registerTTL := time.Duration(envIntWithDefault(registerRateLimitTTLEnv, int((10*time.Minute).Seconds()))) * time.Second
+	loginTTL := time.Duration(envIntWithDefault(loginRateLimitTTLEnv, int((10*time.Minute).Seconds()))) * time.Second
+	seckillPurchaseTTL := time.Duration(envIntWithDefault(seckillPurchaseTTLEnv, int((3*time.Minute).Seconds()))) * time.Second
+	seckillTrackTTL := time.Duration(envIntWithDefault(seckillTrackTTLEnv, int((3*time.Minute).Seconds()))) * time.Second
+	return rateLimitConfig{
+		Enabled:                envBoolWithDefault(rateLimitEnabledEnv, true),
+		RegisterRPS:            envFloatWithDefault(registerRateLimitRPSEnv, 5),
+		RegisterBurst:          envIntWithDefault(registerRateLimitBurstEnv, 10),
+		RegisterTTL:            registerTTL,
+		LoginRPS:               envFloatWithDefault(loginRateLimitRPSEnv, 5),
+		LoginBurst:             envIntWithDefault(loginRateLimitBurstEnv, 10),
+		LoginTTL:               loginTTL,
+		SeckillPurchaseEnabled: envBoolWithDefault(seckillPurchaseEnableEnv, false),
+		SeckillPurchaseRPS:     envFloatWithDefault(seckillPurchaseRPSEnv, 30),
+		SeckillPurchaseBurst:   envIntWithDefault(seckillPurchaseBurstEnv, 60),
+		SeckillPurchaseTTL:     seckillPurchaseTTL,
+		SeckillTrackEnabled:    envBoolWithDefault(seckillTrackEnableEnv, false),
+		SeckillTrackRPS:        envFloatWithDefault(seckillTrackRPSEnv, 200),
+		SeckillTrackBurst:      envIntWithDefault(seckillTrackBurstEnv, 400),
+		SeckillTrackTTL:        seckillTrackTTL,
+	}
+}
+
+func envBoolWithDefault(key string, fallback bool) bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if v == "" {
+		return fallback
+	}
+	switch v {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
+}
+
+func envFloatWithDefault(key string, fallback float64) float64 {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	out, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return fallback
+	}
+	return out
+}
+
+func envIntWithDefault(key string, fallback int) int {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	out, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return out
 }

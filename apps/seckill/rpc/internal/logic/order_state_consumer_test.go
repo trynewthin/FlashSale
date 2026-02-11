@@ -16,10 +16,11 @@ import (
 )
 
 type seckillRepoMock struct {
-	item     *model.ActivityItem
-	synced   []*model.OrderStateSync
-	released []string
-	traffic  []*model.TrafficEvent
+	item       *model.ActivityItem
+	synced     []*model.OrderStateSync
+	released   []string
+	traffic    []*model.TrafficEvent
+	trafficErr error
 }
 
 func (m *seckillRepoMock) CreateActivity(context.Context, *model.Activity) error {
@@ -101,7 +102,7 @@ func (m *seckillRepoMock) RecordTraffic(_ context.Context, event *model.TrafficE
 		cp := *event
 		m.traffic = append(m.traffic, &cp)
 	}
-	return nil
+	return m.trafficErr
 }
 
 func (m *seckillRepoMock) ListTraffic(context.Context, int64, int64, time.Time, time.Time) ([]*model.TrafficBucket, error) {
@@ -209,5 +210,42 @@ func TestConsumeOrderStateMessage_NoReleaseOnCompleted(t *testing.T) {
 	}
 	if got := len(repoMock.synced); got != 1 {
 		t.Fatalf("sync order link count mismatch: got=%d want=1", got)
+	}
+}
+
+func TestConsumeOrderStateMessage_SkipWhenActivityItemMissing(t *testing.T) {
+	repoMock := &seckillRepoMock{}
+	svcCtx := &svc.ServiceContext{
+		SeckillRepo: repoMock,
+		Logger:      zap.NewNop(),
+	}
+	evt := eventx.SeckillOrderStateEvent{
+		EventType:            eventx.SeckillOrderStateEventTypeClosed,
+		OrderID:              701,
+		OrderNo:              "SCKORD701",
+		UserID:               7003,
+		ActivityID:           204,
+		ActivityItemID:       24,
+		Quantity:             1,
+		OrderStatus:          90,
+		PaymentStatus:        1,
+		CloseReason:          eventx.CloseReasonAuditReject,
+		OccurredAtUnixSecond: time.Now().Unix(),
+	}
+	payload, err := json.Marshal(evt)
+	if err != nil {
+		t.Fatalf("marshal event failed: %v", err)
+	}
+
+	// 活动商品缺失时应跳过并继续消费，避免同一消息阻塞消费组。
+	err = consumeOrderStateMessage(context.Background(), svcCtx, kafkax.Message{Value: payload})
+	if err != nil {
+		t.Fatalf("consume order state should skip missing item, got err=%v", err)
+	}
+	if got := len(repoMock.synced); got != 1 {
+		t.Fatalf("sync order link count mismatch: got=%d want=1", got)
+	}
+	if got := len(repoMock.released); got != 0 {
+		t.Fatalf("missing item should not release stock, got=%d", got)
 	}
 }

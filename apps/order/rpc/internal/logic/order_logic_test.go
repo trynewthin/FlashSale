@@ -67,6 +67,17 @@ func (m *memoryOrderRepo) FindByID(_ context.Context, orderID int64) (*model.Ord
 	return &cp, nil
 }
 
+func (m *memoryOrderRepo) FindByOrderNo(_ context.Context, orderNo string) (*model.Order, error) {
+	for _, v := range m.byID {
+		if v == nil || v.OrderNo != orderNo {
+			continue
+		}
+		cp := *v
+		return &cp, nil
+	}
+	return nil, repository.ErrOrderNotFound
+}
+
 func (m *memoryOrderRepo) ListByUser(_ context.Context, query repository.UserListQuery) ([]*model.Order, int64, error) {
 	items := make([]*model.Order, 0, len(m.byID))
 	for _, v := range m.byID {
@@ -838,6 +849,38 @@ func TestCreateOrderFromSeckillIdempotentReplay(t *testing.T) {
 	}
 	if first.GetOrder().GetOrderNo() != second.GetOrder().GetOrderNo() {
 		t.Fatalf("idempotent order no mismatch: first=%s second=%s", first.GetOrder().GetOrderNo(), second.GetOrder().GetOrderNo())
+	}
+}
+
+func TestCreateOrderFromSeckill_OverloadFastFail(t *testing.T) {
+	initOrderAuthForTest(t)
+	repo := newMemoryOrderRepo()
+	svcCtx := newTestOrderSvc(t, repo, nil)
+	limiter := make(chan struct{}, 1)
+	limiter <- struct{}{}
+	svcCtx.SeckillCreateLimiter = limiter
+	svcCtx.SeckillCreateAcquireTimeoutDur = time.Millisecond
+	ctx := context.Background()
+
+	logic := NewCreateOrderFromSeckillLogic(ctx, svcCtx)
+	_, err := logic.CreateOrderFromSeckill(&pb.CreateOrderFromSeckillReq{
+		UserId:            8002,
+		ActivityId:        903,
+		ActivityItemId:    904,
+		ProductId:         3002,
+		Quantity:          1,
+		SeckillPriceCent:  299,
+		SnapshotName:      "秒杀雪碧",
+		SnapshotMainImage: "https://img/seckill-sprite.png",
+		SkuCode:           "SPU3002",
+		IdempotencyKey:    "idem-overload-001",
+	})
+	appErr := errorx.FromError(err)
+	if appErr == nil || appErr.Code != errorx.CodeSeckillPurchaseConflict {
+		t.Fatalf("expected conflict on overload, got err=%v", err)
+	}
+	if len(repo.byID) != 0 {
+		t.Fatalf("overload fast-fail should not create order, got=%d", len(repo.byID))
 	}
 }
 

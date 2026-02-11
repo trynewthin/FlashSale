@@ -99,7 +99,7 @@ func (h *SeckillPublicHandler) Purchase(w http.ResponseWriter, r *http.Request) 
 		writeFail(w, http.StatusBadRequest, errorx.New(errorx.CodeSysBadRequest, "activity_item_id、quantity、idempotency_key 非法"))
 		return
 	}
-	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	rpcCtx, cancel := context.WithTimeout(r.Context(), h.svcCtx.SeckillPurchaseRPCTimeout())
 	defer cancel()
 	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
 	resp, err := h.svcCtx.SeckillRPCCli.Purchase(rpcCtx, &seckillpb.PurchaseReq{
@@ -142,7 +142,7 @@ func (h *SeckillPublicHandler) TrackEvent(w http.ResponseWriter, r *http.Request
 		writeFail(w, http.StatusBadRequest, errorx.New(errorx.CodeSysBadRequest, "activity_item_id、event_type、idempotency_key 非法"))
 		return
 	}
-	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	rpcCtx, cancel := context.WithTimeout(r.Context(), h.svcCtx.SeckillTrackEventRPCTimeout())
 	defer cancel()
 	uid, token := middleware.OptionalUserFromRequest(r)
 	if token != "" {

@@ -17,6 +17,8 @@ import (
 	"flashsale/pkg/base/grpcerr"
 	"flashsale/pkg/base/responsex"
 	"flashsale/pkg/base/rpcmeta"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const defaultRPCTimeout = 3 * time.Second
@@ -43,8 +45,11 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	mux.Handle("GET /api/v1/orders", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.ListOrders)))
 	mux.HandleFunc("GET /api/v1/seckill/activities", sh.ListActivities)
 	mux.HandleFunc("GET /api/v1/seckill/activities/{activity_id}", sh.GetActivity)
-	mux.Handle("POST /api/v1/seckill/activities/{activity_id}/purchase", middleware.AuthRequired(svcCtx, http.HandlerFunc(sh.Purchase)))
-	mux.HandleFunc("POST /api/v1/seckill/activities/{activity_id}/track", sh.TrackEvent)
+	mux.Handle(
+		"POST /api/v1/seckill/activities/{activity_id}/purchase",
+		middleware.AuthRequired(svcCtx, middleware.SeckillPurchaseRateLimit(http.HandlerFunc(sh.Purchase))),
+	)
+	mux.Handle("POST /api/v1/seckill/activities/{activity_id}/track", middleware.SeckillTrackRateLimit(http.HandlerFunc(sh.TrackEvent)))
 }
 
 // UserHandler 处理用户网关请求。
@@ -223,6 +228,13 @@ func writeFail(w http.ResponseWriter, status int, err error) {
 }
 
 func writeRPCFail(w http.ResponseWriter, err error) {
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.DeadlineExceeded, codes.Unavailable, codes.ResourceExhausted:
+			writeFail(w, http.StatusServiceUnavailable, errorx.New(errorx.CodeSysInternal, "服务繁忙，请稍后重试"))
+			return
+		}
+	}
 	appErr := grpcerr.FromStatus(err)
 	if appErr == nil {
 		appErr = errorx.New(errorx.CodeSysInternal, "internal error")

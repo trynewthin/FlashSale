@@ -54,14 +54,8 @@ func emitSeckillOrderStateEvent(ctx context.Context, svcCtx *svc.ServiceContext,
 		)
 		return
 	}
-	if err := svcCtx.Producer.Publish(ctx, topic, []byte(order.OrderNo), payload, map[string]string{
+	_ = ctx
+	svcCtx.EmitSeckillOrderEvent(topic, []byte(order.OrderNo), payload, map[string]string{
 		"event_type": eventType,
-	}); err != nil {
-		svcCtx.Logger.Warn("publish seckill order state event failed",
-			zap.Error(err),
-			zap.Int64("order_id", order.ID),
-			zap.String("event_type", eventType),
-			zap.String("topic", topic),
-		)
-	}
+	}, order.ID, eventType)
 }

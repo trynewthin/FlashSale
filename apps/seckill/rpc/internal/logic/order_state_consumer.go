@@ -4,10 +4,12 @@ package logic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
 	"flashsale/apps/seckill/rpc/internal/model"
+	"flashsale/apps/seckill/rpc/internal/repository"
 	"flashsale/apps/seckill/rpc/internal/svc"
 	"flashsale/pkg/base/eventx"
 	"flashsale/pkg/base/kafkax"
@@ -41,6 +43,9 @@ func RunOrderStateConsumer(ctx context.Context, svcCtx *svc.ServiceContext) {
 		if err == nil || ctx.Err() != nil {
 			return
 		}
+		if svcCtx.Perf != nil {
+			svcCtx.Perf.MarkOrderStateLoopError()
+		}
 		svcCtx.Logger.Warn("consume seckill order state failed", zap.Error(err), zap.String("topic", topic), zap.String("group", group))
 		select {
 		case <-ctx.Done():
@@ -55,8 +60,14 @@ func consumeOrderStateMessage(ctx context.Context, svcCtx *svc.ServiceContext, m
 	if svcCtx == nil {
 		return nil
 	}
+	if svcCtx.Perf != nil {
+		svcCtx.Perf.MarkOrderStateConsumed()
+	}
 	var evt eventx.SeckillOrderStateEvent
 	if err := json.Unmarshal(msg.Value, &evt); err != nil {
+		if svcCtx.Perf != nil {
+			svcCtx.Perf.MarkOrderStateDecodeFailed()
+		}
 		svcCtx.Logger.Warn("decode seckill order state payload failed", zap.Error(err))
 		return nil
 	}
@@ -78,6 +89,9 @@ func consumeOrderStateMessage(ctx context.Context, svcCtx *svc.ServiceContext, m
 		LastSyncedAt:   evt.OccurredAtTime(),
 	}
 	if err := svcCtx.SeckillRepo.SyncOrderLinkState(ctx, syncModel); err != nil {
+		if svcCtx.Perf != nil {
+			svcCtx.Perf.MarkOrderStateSyncFailed()
+		}
 		return err
 	}
 
@@ -104,16 +118,37 @@ func consumeOrderStateMessage(ctx context.Context, svcCtx *svc.ServiceContext, m
 
 	item, err := svcCtx.SeckillRepo.FindActivityItem(ctx, evt.ActivityID, evt.ActivityItemID)
 	if err != nil {
+		if isOrderStateSkipErr(err) {
+			if svcCtx.Perf != nil {
+				svcCtx.Perf.MarkOrderStateSkippedMissing()
+			}
+			svcCtx.Logger.Debug("skip seckill order state event: activity item missing",
+				zap.Int64("order_id", evt.OrderID),
+				zap.Int64("activity_id", evt.ActivityID),
+				zap.Int64("activity_item_id", evt.ActivityItemID),
+				zap.Error(err),
+			)
+			return nil
+		}
 		return err
 	}
 	if shouldReleaseActivityStock(evt.CloseReason) {
 		releaseID := evt.OrderNo + ":close_release"
 		if err := svcCtx.SeckillRepo.ReleasePurchaseByOrder(ctx, evt.ActivityID, evt.ActivityItemID, evt.OrderID, evt.Quantity, releaseID); err != nil {
+			if svcCtx.Perf != nil {
+				svcCtx.Perf.MarkOrderStateReleaseFailed()
+			}
 			return err
+		}
+		if svcCtx.Perf != nil {
+			svcCtx.Perf.MarkOrderStateReleaseSuccess()
 		}
 		logic.releaseByCloseInCache(ctx, item, evt.UserID, evt.Quantity, releaseID)
 	}
 	if shouldRecordWindowCompleted(evt.CloseReason) {
+		if svcCtx.Perf != nil {
+			svcCtx.Perf.MarkOrderStateWindowRecorded()
+		}
 		logic.recordCompletedWindow(ctx, item, evt.UserID, evt.Quantity, evt.OrderID, evt.OccurredAtTime())
 	}
 	return nil
@@ -145,4 +180,10 @@ func shouldRecordWindowCompleted(closeReason string) bool {
 // isOrderClosed 判断订单状态是否为已关闭。
 func isOrderClosed(orderStatus int32) bool {
 	return orderStatus == 90
+}
+
+// isOrderStateSkipErr 判断订单状态回流是否可跳过该错误。
+func isOrderStateSkipErr(err error) bool {
+	return errors.Is(err, repository.ErrActivityNotFound) ||
+		errors.Is(err, repository.ErrActivityItemNotFound)
 }

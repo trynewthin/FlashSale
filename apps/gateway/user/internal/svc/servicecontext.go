@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"flashsale/apps/gateway/user/internal/config"
 	"flashsale/apps/order/rpc/orderrpc"
@@ -20,13 +21,15 @@ import (
 
 // ServiceContext 封装用户网关业务依赖。
 type ServiceContext struct {
-	Config        config.Config
-	AppConfig     *baseconfig.AppConfig
-	Logger        *zap.Logger
-	UserRPCCli    userrpc.UserRpc
-	ProductRPCCli productrpc.ProductRpc
-	OrderRPCCli   orderrpc.OrderRpc
-	SeckillRPCCli seckillrpc.SeckillRpc
+	Config                      config.Config
+	AppConfig                   *baseconfig.AppConfig
+	Logger                      *zap.Logger
+	UserRPCCli                  userrpc.UserRpc
+	ProductRPCCli               productrpc.ProductRpc
+	OrderRPCCli                 orderrpc.OrderRpc
+	SeckillRPCCli               seckillrpc.SeckillRpc
+	seckillPurchaseRPCTimeout   time.Duration
+	seckillTrackEventRPCTimeout time.Duration
 }
 
 // NewServiceContext 初始化用户网关依赖。
@@ -74,20 +77,42 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init order rpc client: %w", err)
 	}
-	seckillRPCClient, err := zrpc.NewClient(c.SeckillRPC)
+	seckillRPCConf := c.SeckillRPC
+	if c.SeckillRPCTimeoutMs > 0 {
+		seckillRPCConf.Timeout = int64(c.SeckillRPCTimeoutMs)
+	}
+	seckillRPCClient, err := zrpc.NewClient(seckillRPCConf)
 	if err != nil {
 		return nil, fmt.Errorf("init seckill rpc client: %w", err)
 	}
 
 	return &ServiceContext{
-		Config:        c,
-		AppConfig:     appCfg,
-		Logger:        logger,
-		UserRPCCli:    userrpc.NewUserRpc(rpcClient),
-		ProductRPCCli: productrpc.NewProductRpc(productRPCClient),
-		OrderRPCCli:   orderrpc.NewOrderRpc(orderRPCClient),
-		SeckillRPCCli: seckillrpc.NewSeckillRpc(seckillRPCClient),
+		Config:                      c,
+		AppConfig:                   appCfg,
+		Logger:                      logger,
+		UserRPCCli:                  userrpc.NewUserRpc(rpcClient),
+		ProductRPCCli:               productrpc.NewProductRpc(productRPCClient),
+		OrderRPCCli:                 orderrpc.NewOrderRpc(orderRPCClient),
+		SeckillRPCCli:               seckillrpc.NewSeckillRpc(seckillRPCClient),
+		seckillPurchaseRPCTimeout:   time.Duration(maxInt(c.SeckillPurchaseRPCTimeoutMs, 0)) * time.Millisecond,
+		seckillTrackEventRPCTimeout: time.Duration(maxInt(c.SeckillTrackEventRPCTimeoutMs, 0)) * time.Millisecond,
 	}, nil
+}
+
+// SeckillPurchaseRPCTimeout 返回秒杀购买 RPC 超时配置。
+func (s *ServiceContext) SeckillPurchaseRPCTimeout() time.Duration {
+	if s == nil || s.seckillPurchaseRPCTimeout <= 0 {
+		return 8 * time.Second
+	}
+	return s.seckillPurchaseRPCTimeout
+}
+
+// SeckillTrackEventRPCTimeout 返回秒杀埋点 RPC 超时配置。
+func (s *ServiceContext) SeckillTrackEventRPCTimeout() time.Duration {
+	if s == nil || s.seckillTrackEventRPCTimeout <= 0 {
+		return 4 * time.Second
+	}
+	return s.seckillTrackEventRPCTimeout
 }
 
 // Close 释放上下文中的外部资源。
@@ -99,4 +124,11 @@ func (s *ServiceContext) Close() error {
 		return errors.New(err.Error())
 	}
 	return nil
+}
+
+func maxInt(v, fallback int) int {
+	if v > 0 {
+		return v
+	}
+	return fallback
 }

@@ -1,11 +1,13 @@
 param(
     [string]$BaseUrl = "http://127.0.0.1:8082",
     [switch]$Prepare,
+    [bool]$AutoLoadDevEnv = $true,
+    [string]$EnvFile = "configs/local/dev.env",
     [string]$AdminBaseUrl = "http://127.0.0.1:8083",
     [string]$AdminToken = "",
     [string]$AdminTokenFile = ".memory/runlogs/admin.token.txt",
-    [string]$AdminUsername = "",
-    [string]$AdminPassword = "",
+    [string]$AdminUsername = $env:FLASHSALE_ADMIN_USERNAME,
+    [string]$AdminPassword = $env:FLASHSALE_ADMIN_PASSWORD,
     [long]$ProductId = 0,
     [string]$ProductIdFile = ".memory/runlogs/perf.product_id.txt",
     [int]$DurationMinutes = 30,
@@ -15,10 +17,26 @@ param(
     [string]$TokenFile = "",
     [int]$Concurrency = 100,
     [int]$Requests = 1000,
-    [int]$ExpectedMaxSuccess = -1
+    [int]$ExpectedMaxSuccess = -1,
+    [int]$TrackMaxConnsPerHost = 200
 )
 
 $ErrorActionPreference = "Stop"
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\")).Path
+if ($AutoLoadDevEnv) {
+    . (Join-Path $PSScriptRoot "common.ps1")
+    $envPath = Join-Path $repoRoot $EnvFile
+    if (Test-Path $envPath) {
+        Load-DevEnv -Path $envPath
+    }
+}
+if ([string]::IsNullOrWhiteSpace($AdminUsername) -and -not [string]::IsNullOrWhiteSpace($env:FLASHSALE_ADMIN_USERNAME)) {
+    $AdminUsername = $env:FLASHSALE_ADMIN_USERNAME
+}
+if ([string]::IsNullOrWhiteSpace($AdminPassword) -and -not [string]::IsNullOrWhiteSpace($env:FLASHSALE_ADMIN_PASSWORD)) {
+    $AdminPassword = $env:FLASHSALE_ADMIN_PASSWORD
+}
 
 if ($Prepare) {
     Write-Host "=== 准备压测活动与商品 ==="
@@ -84,5 +102,6 @@ Write-Host "=== 场景3: 匿名埋点洪峰测试 ==="
     -ActivityId $ActivityId `
     -ItemId $ItemId `
     -Concurrency $Concurrency `
-    -Requests $Requests
+    -Requests $Requests `
+    -MaxConnsPerHost $TrackMaxConnsPerHost
 if (-not $?) { exit 1 }

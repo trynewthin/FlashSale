@@ -13,3 +13,7 @@ OrderRPC:
 
 SeckillRPC:
   Target: 127.0.0.1:8086
+  Timeout: 8000
+
+SeckillPurchaseRPCTimeoutMs: 8000
+SeckillTrackEventRPCTimeoutMs: 4000

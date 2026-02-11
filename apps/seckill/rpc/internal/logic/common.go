@@ -134,8 +134,69 @@ func mapRepoErr(err error) error {
 	case repository.ErrIdempotencyConflict:
 		return errorx.New(errorx.CodeSeckillPurchaseConflict, "请求冲突，请勿重复提交")
 	default:
+		if isContextCancellation(err) {
+			return errorx.New(errorx.CodeSeckillPurchaseConflict, "请求冲突，请稍后重试")
+		}
+		if isMySQLTooManyConnections(err) {
+			return errorx.New(errorx.CodeSeckillPurchaseConflict, "系统繁忙，请稍后重试")
+		}
+		if isMySQLTxnContention(err) {
+			return errorx.New(errorx.CodeSeckillPurchaseConflict, "请求冲突，请稍后重试")
+		}
 		return errorx.Wrap(errorx.CodeDBError, "数据库操作失败", err)
 	}
+}
+
+func isContextCancellation(err error) bool {
+	return err == context.DeadlineExceeded || err == context.Canceled
+}
+
+func isMySQLTxnContention(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	if msg == "" {
+		return false
+	}
+	return strings.Contains(msg, "error 1213") ||
+		strings.Contains(msg, "deadlock found") ||
+		strings.Contains(msg, "error 1205") ||
+		strings.Contains(msg, "lock wait timeout")
+}
+
+// isMySQLTooManyConnections 判断是否为 MySQL 连接数打满导致的过载错误。
+func isMySQLTooManyConnections(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	if msg == "" {
+		return false
+	}
+	return strings.Contains(msg, "error 1040") || strings.Contains(msg, "too many connections")
+}
+
+// shouldLogReserveErrorAtErrorLevel 判断预扣失败是否需要按 error 级别记录。
+// 说明：
+//   - 秒杀高并发下，冲突类错误（超时/锁争用/库存不足/限购超限/幂等冲突）属于预期分支，
+//     按 error 打日志会放大 IO 压力并污染告警。
+//   - 非预期错误仍按 error 保留，便于故障定位。
+func shouldLogReserveErrorAtErrorLevel(err error) bool {
+	if err == nil {
+		return false
+	}
+	switch err {
+	case repository.ErrActivityStateConflict,
+		repository.ErrActivityOutOfStock,
+		repository.ErrActivityLimitExceeded,
+		repository.ErrIdempotencyConflict:
+		return false
+	}
+	if isContextCancellation(err) || isMySQLTxnContention(err) || isMySQLTooManyConnections(err) {
+		return false
+	}
+	return true
 }
 
 func toActivityAdmin(activity *model.Activity, items []*model.ActivityItem) *pb.ActivityAdmin {
@@ -203,15 +264,15 @@ func toActivityPublic(activity *model.Activity, items []*model.ActivityItem) *pb
 			continue
 		}
 		out.Items = append(out.Items, &pb.ActivityItemPublic{
-			ItemId:           item.ID,
-			ProductId:        item.ProductID,
-			SkuCode:          item.SKUCode,
-			SnapshotName:     item.SnapshotName,
+			ItemId:            item.ID,
+			ProductId:         item.ProductID,
+			SkuCode:           item.SKUCode,
+			SnapshotName:      item.SnapshotName,
 			SnapshotMainImage: item.SnapshotMainImage,
-			OriginPriceCent:  item.OriginPriceCent,
-			SeckillPriceCent: item.SeckillPriceCent,
-			InStock:          item.AvailableStock > 0,
-			MaxQtyPerOrder:   item.MaxQtyPerOrder,
+			OriginPriceCent:   item.OriginPriceCent,
+			SeckillPriceCent:  item.SeckillPriceCent,
+			InStock:           item.AvailableStock > 0,
+			MaxQtyPerOrder:    item.MaxQtyPerOrder,
 		})
 	}
 	return out

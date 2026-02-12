@@ -392,10 +392,14 @@ func (h *AdminModuleHandler) BindAdminRoles(w http.ResponseWriter, r *http.Reque
 		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysBadRequest, "请求体非法", err))
 		return
 	}
+	roleIDs := make([]int64, 0, len(req.RoleIDs))
+	for _, roleID := range req.RoleIDs {
+		roleIDs = append(roleIDs, roleID.Int64())
+	}
 	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
 	defer cancel()
 	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
-	resp, err := h.svcCtx.AdminRPCCli.BindAdminRoles(rpcCtx, &pb.BindAdminRolesReq{AdminId: adminID, RoleIds: req.RoleIDs})
+	resp, err := h.svcCtx.AdminRPCCli.BindAdminRoles(rpcCtx, &pb.BindAdminRolesReq{AdminId: adminID, RoleIds: roleIDs})
 	if err != nil {
 		writeRPCFail(w, err)
 		return

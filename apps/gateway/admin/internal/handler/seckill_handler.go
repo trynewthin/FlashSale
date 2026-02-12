@@ -267,7 +267,7 @@ func (h *SeckillAdminHandler) upsertActivityItem(w http.ResponseWriter, r *http.
 	resp, err := h.svcCtx.SeckillRPCCli.UpsertActivityItem(rpcCtx, &seckillpb.UpsertActivityItemReq{
 		ActivityId:         activityID,
 		ItemId:             itemID,
-		ProductId:          req.ProductID,
+		ProductId:          req.ProductID.Int64(),
 		SeckillPriceCent:   req.SeckillPriceCent,
 		ReservedStockTotal: req.ReservedStockTotal,
 		UserLimitMode:      req.UserLimitMode,

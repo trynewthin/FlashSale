@@ -11,3 +11,10 @@
 - 本地开发配置：`docs/development/configuration.md`
 - 本地迁移说明：`docs/development/migrations.md`
 - 本地测试说明：`docs/development/testing.md`
+- 用户端前端接口文档：`docs/development/frontend-user-api.md`
+- 管理端前端接口文档：`docs/development/frontend-admin-api.md`
+- 用户端 Hooks 设计：`docs/development/frontend-user-hooks-design.md`
+- 管理端 Hooks 设计：`docs/development/frontend-admin-hooks-design.md`
+- 用户端页面设计：`docs/development/frontend-user-page-design.md`
+- 管理端页面设计：`docs/development/frontend-admin-page-design.md`
+- 前端 shadcn 组件集合：`docs/development/frontend-shadcn-components.md`

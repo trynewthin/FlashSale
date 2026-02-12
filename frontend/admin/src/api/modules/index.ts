@@ -1,0 +1,8 @@
+export * from "@/api/modules/auth"
+export * from "@/api/modules/admin"
+export * from "@/api/modules/user"
+export * from "@/api/modules/product"
+export * from "@/api/modules/order"
+export * from "@/api/modules/seckill"
+export * from "@/api/modules/operations"
+

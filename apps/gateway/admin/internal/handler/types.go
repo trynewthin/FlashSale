@@ -1,6 +1,8 @@
 // handler 包包含相关应用代码。
 package handler
 
+import "flashsale/pkg/base/handlerx"
+
 // productUpsertReq 是管理员商品创建/更新请求体。
 type productUpsertReq struct {
 	Name        string `json:"name"`
@@ -13,14 +15,14 @@ type productUpsertReq struct {
 
 // activityItemUpsertReq 是秒杀活动商品创建/更新请求体。
 type activityItemUpsertReq struct {
-	ProductID          int64 `json:"product_id"`
-	SeckillPriceCent   int64 `json:"seckill_price_cent"`
-	ReservedStockTotal int64 `json:"reserved_stock_total"`
-	UserLimitMode      int32 `json:"user_limit_mode"`
-	UserLimitWindowSec int64 `json:"user_limit_window_sec"`
-	UserLimitQty       int64 `json:"user_limit_qty"`
-	MaxQtyPerOrder     int64 `json:"max_qty_per_order"`
-	Status             int32 `json:"status"`
+	ProductID          handlerx.JSONInt64 `json:"product_id"`
+	SeckillPriceCent   int64              `json:"seckill_price_cent"`
+	ReservedStockTotal int64              `json:"reserved_stock_total"`
+	UserLimitMode      int32              `json:"user_limit_mode"`
+	UserLimitWindowSec int64              `json:"user_limit_window_sec"`
+	UserLimitQty       int64              `json:"user_limit_qty"`
+	MaxQtyPerOrder     int64              `json:"max_qty_per_order"`
+	Status             int32              `json:"status"`
 }
 
 // adminLoginReq 是管理员登录请求体。
@@ -67,7 +69,7 @@ type adminResetPasswordReq struct {
 
 // adminBindRolesReq 是管理员角色绑定请求体。
 type adminBindRolesReq struct {
-	RoleIDs []int64 `json:"role_ids"`
+	RoleIDs []handlerx.JSONInt64 `json:"role_ids"`
 }
 
 // roleCreateReq 是角色创建请求体。

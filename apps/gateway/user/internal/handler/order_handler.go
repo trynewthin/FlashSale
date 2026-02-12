@@ -43,14 +43,14 @@ func (h *OrderUserHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		ProductID   int64 `json:"product_id"`
-		OrderSource int32 `json:"order_source"`
+		ProductID   handlerx.JSONInt64 `json:"product_id"`
+		OrderSource int32              `json:"order_source"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysBadRequest, "请求体非法", err))
 		return
 	}
-	if req.ProductID <= 0 {
+	if req.ProductID.Int64() <= 0 {
 		writeFail(w, http.StatusBadRequest, errorx.New(errorx.CodeSysBadRequest, "product_id 非法"))
 		return
 	}
@@ -59,7 +59,7 @@ func (h *OrderUserHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
 	resp, err := h.svcCtx.OrderRPCCli.CreateOrder(rpcCtx, &orderpb.CreateOrderReq{
 		UserId:      uid,
-		ProductId:   req.ProductID,
+		ProductId:   req.ProductID.Int64(),
 		OrderSource: req.OrderSource,
 	})
 	if err != nil {

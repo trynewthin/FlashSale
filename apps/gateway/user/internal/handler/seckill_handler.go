@@ -87,15 +87,15 @@ func (h *SeckillPublicHandler) Purchase(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var req struct {
-		ActivityItemID int64  `json:"activity_item_id"`
-		Quantity       int64  `json:"quantity"`
-		IdempotencyKey string `json:"idempotency_key"`
+		ActivityItemID handlerx.JSONInt64 `json:"activity_item_id"`
+		Quantity       int64              `json:"quantity"`
+		IdempotencyKey string             `json:"idempotency_key"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysBadRequest, "请求体非法", err))
 		return
 	}
-	if req.ActivityItemID <= 0 || req.Quantity <= 0 || strings.TrimSpace(req.IdempotencyKey) == "" {
+	if req.ActivityItemID.Int64() <= 0 || req.Quantity <= 0 || strings.TrimSpace(req.IdempotencyKey) == "" {
 		writeFail(w, http.StatusBadRequest, errorx.New(errorx.CodeSysBadRequest, "activity_item_id、quantity、idempotency_key 非法"))
 		return
 	}
@@ -105,7 +105,7 @@ func (h *SeckillPublicHandler) Purchase(w http.ResponseWriter, r *http.Request) 
 	resp, err := h.svcCtx.SeckillRPCCli.Purchase(rpcCtx, &seckillpb.PurchaseReq{
 		UserId:         uid,
 		ActivityId:     activityID,
-		ActivityItemId: req.ActivityItemID,
+		ActivityItemId: req.ActivityItemID.Int64(),
 		Quantity:       req.Quantity,
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
 	})
@@ -128,17 +128,17 @@ func (h *SeckillPublicHandler) TrackEvent(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req struct {
-		ActivityItemID int64  `json:"activity_item_id"`
-		EventType      string `json:"event_type"`
-		ClientID       string `json:"client_id"`
-		IdempotencyKey string `json:"idempotency_key"`
-		OccurredAtUnix int64  `json:"occurred_at_unix"`
+		ActivityItemID handlerx.JSONInt64 `json:"activity_item_id"`
+		EventType      string             `json:"event_type"`
+		ClientID       string             `json:"client_id"`
+		IdempotencyKey string             `json:"idempotency_key"`
+		OccurredAtUnix int64              `json:"occurred_at_unix"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysBadRequest, "请求体非法", err))
 		return
 	}
-	if req.ActivityItemID <= 0 || strings.TrimSpace(req.EventType) == "" || strings.TrimSpace(req.IdempotencyKey) == "" {
+	if req.ActivityItemID.Int64() <= 0 || strings.TrimSpace(req.EventType) == "" || strings.TrimSpace(req.IdempotencyKey) == "" {
 		writeFail(w, http.StatusBadRequest, errorx.New(errorx.CodeSysBadRequest, "activity_item_id、event_type、idempotency_key 非法"))
 		return
 	}
@@ -150,7 +150,7 @@ func (h *SeckillPublicHandler) TrackEvent(w http.ResponseWriter, r *http.Request
 	}
 	resp, err := h.svcCtx.SeckillRPCCli.TrackEvent(rpcCtx, &seckillpb.TrackEventReq{
 		ActivityId:     activityID,
-		ActivityItemId: req.ActivityItemID,
+		ActivityItemId: req.ActivityItemID.Int64(),
 		EventType:      strings.TrimSpace(req.EventType),
 		UserId:         uid,
 		ClientId:       strings.TrimSpace(req.ClientID),

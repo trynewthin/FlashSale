@@ -20,9 +20,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\")).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\")).Path
 if ($AutoLoadDevEnv) {
-    . (Join-Path $PSScriptRoot "common.ps1")
+    . (Join-Path $PSScriptRoot "..\common.ps1")
     $envPath = Join-Path $repoRoot $EnvFile
     if (Test-Path $envPath) {
         Load-DevEnv -Path $envPath
@@ -231,3 +231,4 @@ Set-Content -Path (Join-Path $OutputDir "perf.product_id.txt") -Value $productID
 
 Write-Host "[seckill-prepare] activity_id=$activityID item_id=$itemID product_id=$productID"
 Write-Host "[seckill-prepare] window=$startAt..$endAt (unix seconds)"
+

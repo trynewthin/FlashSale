@@ -1,8 +1,8 @@
 $ErrorActionPreference = "Stop"
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\")).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\")).Path
 $devEnvFile = Join-Path $repoRoot "configs\local\dev.env"
 
-. (Join-Path $PSScriptRoot "common.ps1")
+. (Join-Path $PSScriptRoot "..\common.ps1")
 Load-DevEnv -Path $devEnvFile
 
 Push-Location $repoRoot
@@ -23,3 +23,4 @@ try {
 } finally {
     Pop-Location
 }
+

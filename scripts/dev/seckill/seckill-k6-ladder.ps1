@@ -26,9 +26,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\")).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\")).Path
 if ($AutoLoadDevEnv) {
-    . (Join-Path $PSScriptRoot "common.ps1")
+    . (Join-Path $PSScriptRoot "..\common.ps1")
     $envPath = Join-Path $repoRoot $EnvFile
     if (Test-Path $envPath) {
         Load-DevEnv -Path $envPath
@@ -164,7 +164,7 @@ foreach ($rate in $rateList) {
         $invokeParams.ItemId = $itemId
     }
 
-    & ./scripts/dev/seckill-k6-open.ps1 @invokeParams
+    & (Join-Path $repoRoot "scripts/dev/seckill/seckill-k6-open.ps1") @invokeParams
 
     $latest = Get-LatestK6OpenDir -AfterTime $before
     if ($null -eq $latest) {
@@ -240,3 +240,5 @@ $jsonOut = Join-Path $outputDir "ladder-summary.json"
 
 Write-Info "report generated: $reportOut"
 Write-Info "summary generated: $jsonOut"
+
+

@@ -11,10 +11,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\")).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\")).Path
 $envPath = Join-Path $repoRoot $EnvFile
 
-. (Join-Path $PSScriptRoot "common.ps1")
+. (Join-Path $PSScriptRoot "..\common.ps1")
 Load-DevEnv -Path $envPath
 
 function Write-Info {
@@ -175,3 +175,4 @@ foreach ($svc in $services) {
 }
 
 Write-Info "done"
+

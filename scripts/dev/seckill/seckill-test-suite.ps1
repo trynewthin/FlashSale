@@ -68,9 +68,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\")).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\")).Path
 if ($AutoLoadDevEnv) {
-    . (Join-Path $PSScriptRoot "common.ps1")
+    . (Join-Path $PSScriptRoot "..\common.ps1")
     $envPath = Join-Path $repoRoot $EnvFile
     if (Test-Path $envPath) {
         Load-DevEnv -Path $envPath
@@ -506,7 +506,7 @@ if ($Prepare) {
     $lastPrepareError = $null
     foreach ($stock in $candidates) {
         try {
-            $prepareOutput = powershell -ExecutionPolicy Bypass -File scripts/dev/seckill-prepare.ps1 `
+            $prepareOutput = powershell -ExecutionPolicy Bypass -File (Join-Path $repoRoot "scripts/dev/seckill/seckill-prepare.ps1") `
                 -BaseUrl $AdminBaseUrl `
                 -AdminToken $adminAccessToken `
                 -ProductId $ProductId `
@@ -837,3 +837,5 @@ if (-not $overallPass) {
     exit 2
 }
 exit 0
+
+

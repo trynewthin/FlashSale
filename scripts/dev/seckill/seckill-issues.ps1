@@ -23,9 +23,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\")).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\")).Path
 if ($AutoLoadDevEnv) {
-    . (Join-Path $PSScriptRoot "common.ps1")
+    . (Join-Path $PSScriptRoot "..\common.ps1")
     $envPath = Join-Path $repoRoot $EnvFile
     if (Test-Path $envPath) {
         Load-DevEnv -Path $envPath
@@ -40,7 +40,7 @@ if ([string]::IsNullOrWhiteSpace($AdminPassword) -and -not [string]::IsNullOrWhi
 
 if ($Prepare) {
     Write-Host "=== 准备压测活动与商品 ==="
-    ./scripts/dev/seckill-prepare.ps1 `
+    & (Join-Path $repoRoot "scripts/dev/seckill/seckill-prepare.ps1") `
         -BaseUrl $AdminBaseUrl `
         -AdminToken $AdminToken `
         -AdminTokenFile $AdminTokenFile `
@@ -71,7 +71,7 @@ if ([string]::IsNullOrWhiteSpace($idemToken)) {
 }
 
 Write-Host "=== 场景1: 幂等重放冲突测试（同幂等键并发） ==="
-./scripts/dev/seckill-perf.ps1 `
+& (Join-Path $repoRoot "scripts/dev/seckill/seckill-perf.ps1") `
     -Scenario "idempotency" `
     -BaseUrl $BaseUrl `
     -ActivityId $ActivityId `
@@ -83,7 +83,7 @@ Write-Host "=== 场景1: 幂等重放冲突测试（同幂等键并发） ==="
 if (-not $?) { exit 1 }
 
 Write-Host "=== 场景2: 抢购压力测试（库存/限购冲突） ==="
-./scripts/dev/seckill-perf.ps1 `
+& (Join-Path $repoRoot "scripts/dev/seckill/seckill-perf.ps1") `
     -Scenario "purchase-stress" `
     -BaseUrl $BaseUrl `
     -ActivityId $ActivityId `
@@ -96,7 +96,7 @@ Write-Host "=== 场景2: 抢购压力测试（库存/限购冲突） ==="
 if (-not $?) { exit 1 }
 
 Write-Host "=== 场景3: 匿名埋点洪峰测试 ==="
-./scripts/dev/seckill-perf.ps1 `
+& (Join-Path $repoRoot "scripts/dev/seckill/seckill-perf.ps1") `
     -Scenario "track-stress" `
     -BaseUrl $BaseUrl `
     -ActivityId $ActivityId `
@@ -105,3 +105,5 @@ Write-Host "=== 场景3: 匿名埋点洪峰测试 ==="
     -Requests $Requests `
     -MaxConnsPerHost $TrackMaxConnsPerHost
 if (-not $?) { exit 1 }
+
+

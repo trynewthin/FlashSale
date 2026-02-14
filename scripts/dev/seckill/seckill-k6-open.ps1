@@ -35,9 +35,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\")).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\")).Path
 if ($AutoLoadDevEnv) {
-    . (Join-Path $PSScriptRoot "common.ps1")
+    . (Join-Path $PSScriptRoot "..\common.ps1")
     $envPath = Join-Path $repoRoot $EnvFile
     if (Test-Path $envPath) {
         Load-DevEnv -Path $envPath
@@ -220,7 +220,7 @@ Write-Info "token pool ready: $tokenCount"
 if ($Prepare) {
     $adminAccessToken = Resolve-AdminToken -Base $AdminBaseUrl -Token $AdminToken -TokenFile $AdminTokenFile -Username $AdminUsername -Password $AdminPassword
     Write-Info "prepare fresh activity/item"
-    powershell -ExecutionPolicy Bypass -File scripts/dev/seckill-prepare.ps1 `
+    powershell -ExecutionPolicy Bypass -File (Join-Path $repoRoot "scripts/dev/seckill/seckill-prepare.ps1") `
         -BaseUrl $AdminBaseUrl `
         -AdminToken $adminAccessToken `
         -ProductId $ProductId `
@@ -334,3 +334,5 @@ Set-Content -Path $reportPath -Value $sb.ToString()
 
 Write-Info "report generated: $reportPath"
 Write-Info "summary generated: $summaryPath"
+
+

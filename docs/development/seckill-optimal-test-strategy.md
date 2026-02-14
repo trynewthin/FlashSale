@@ -12,13 +12,13 @@
 
 ### 2.1 闭环并发模型（现有主力）
 
-- 工具：`cmd/perf/seckillload` + `scripts/dev/seckill-test-suite.ps1`
+- 工具：`cmd/perf/seckillload` + `scripts/dev/seckill/seckill-test-suite.ps1`
 - 用途：回归门禁、功能正确性、对账与幂等验证。
 - 特点：每个并发请求等待响应后再发下一个请求，适合发现链路稳定性问题。
 
 ### 2.2 开环到达率模型（已落地）
 
-- 工具：k6 `constant-arrival-rate`（脚本：`scripts/perf/k6/seckill_open_model.js`，入口：`scripts/dev/seckill-k6-open.ps1`）
+- 工具：k6 `constant-arrival-rate`（脚本：`scripts/perf/k6/seckill_open_model.js`，入口：`scripts/dev/seckill/seckill-k6-open.ps1`）
 - 用途：模拟秒杀洪峰、评估固定 RPS 下系统是否掉队。
 - 依据：
   - k6 对 open/closed model 区分明确：<https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/>
@@ -33,7 +33,7 @@
 - 避免每阶段 `go run` 重新编译。
 
 2. 自动容量搜索
-- 新增：`scripts/dev/seckill-capacity-search.ps1`
+- 新增：`scripts/dev/seckill/seckill-capacity-search.ps1`
 - 自动输出推荐稳定并发。
 
 3. 门禁并发可配置
@@ -49,18 +49,18 @@
 
 1. 容量搜索（2~4 分钟）
 ```powershell
-./scripts/dev/seckill-capacity-search.ps1 -Prepare -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt -LoadRunnerMode binary
+./scripts/dev/seckill/seckill-capacity-search.ps1 -Prepare -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt -LoadRunnerMode binary
 ```
 
 2. 门禁验收（按容量结果回填并发）
 ```powershell
-./scripts/dev/seckill-test-suite.ps1 -Prepare -EnableL3 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt -LoadRunnerMode binary -L2PurchaseConcurrency 120 -L2PurchaseRequests 2400 -L3PurchaseConcurrency 140 -L3PurchaseRequests 2800
+./scripts/dev/seckill/seckill-test-suite.ps1 -Prepare -EnableL3 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt -LoadRunnerMode binary -L2PurchaseConcurrency 120 -L2PurchaseRequests 2400 -L3PurchaseConcurrency 140 -L3PurchaseRequests 2800
 ```
 
 2.1 strict 同口径推荐模板（触发限购路径）
 ```powershell
 $env:FLASHSALE_SECKILL_RESERVE_DB_USER_LIMIT_CHECK = "false"
-./scripts/dev/seckill-test-suite.ps1 `
+./scripts/dev/seckill/seckill-test-suite.ps1 `
   -GateProfile strict -EnableL3:$true -Prepare `
   -UserLimitQty 100000 `
   -RestartRuntimeBeforeRun:$true `
@@ -71,18 +71,18 @@ $env:FLASHSALE_SECKILL_RESERVE_DB_USER_LIMIT_CHECK = "false"
 
 3. 问题复现场景（仅失败时）
 ```powershell
-./scripts/dev/seckill-issues.ps1 -ActivityId <activity_id> -ItemId <item_id> -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-issues.ps1 -ActivityId <activity_id> -ItemId <item_id> -TokenFile .memory/runlogs/user.tokens.txt
 ```
 
 4. 开环到达率压测（补充固定 RPS 视角）
 ```powershell
-./scripts/dev/seckill-k6-open.ps1 -Prepare -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt -PurchaseRate 120 -TrackRate 0 -DurationSeconds 30
+./scripts/dev/seckill/seckill-k6-open.ps1 -Prepare -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt -PurchaseRate 120 -TrackRate 0 -DurationSeconds 30
 ```
 
 5. 开环阶梯压测（自动找 RPS 拐点）
 ```powershell
-./scripts/dev/seckill-k6-ladder.ps1 -Mode purchase -Rates "80,120,160" -DurationSeconds 10 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
-./scripts/dev/seckill-k6-ladder.ps1 -Mode track -Rates "500,1000,1500" -DurationSeconds 10 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-k6-ladder.ps1 -Mode purchase -Rates "80,120,160" -DurationSeconds 10 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-k6-ladder.ps1 -Mode track -Rates "500,1000,1500" -DurationSeconds 10 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
 ```
 
 ## 5. 本机最新实测结论（2026-02-11）
@@ -135,3 +135,4 @@ $env:FLASHSALE_SECKILL_RESERVE_DB_USER_LIMIT_CHECK = "false"
   - <https://github.com/tsenart/vegeta>
 - wrk2（恒吞吐与 coordinated omission 说明）
   - <https://github.com/giltene/wrk2>
+

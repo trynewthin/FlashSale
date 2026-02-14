@@ -29,19 +29,19 @@
 向前迁移：
 
 ```powershell
-./scripts/dev/migrate-up.ps1
+./scripts/dev/env/migrate-up.ps1
 ```
 
 回滚：
 
 ```powershell
-./scripts/dev/migrate-down.ps1 -Steps 1
+./scripts/dev/env/migrate-down.ps1 -Steps 1
 ```
 
 全部回滚：
 
 ```powershell
-./scripts/dev/migrate-down.ps1 -All
+./scripts/dev/env/migrate-down.ps1 -All
 ```
 
 ## 4. 命名规范
@@ -79,3 +79,4 @@
 
 - `deploy/migrations/admin/000002__admin_core.up.sql`
 - `deploy/migrations/admin/000002__admin_core.down.sql`
+

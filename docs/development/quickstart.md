@@ -20,19 +20,19 @@ Copy-Item configs/local/dev.env.example configs/local/dev.env
 ## 3. 启动基础依赖
 
 ```powershell
-./scripts/dev/up.ps1
+./scripts/dev/env/up.ps1
 ```
 
 启用可观测性组件：
 
 ```powershell
-./scripts/dev/up.ps1 -Observability
+./scripts/dev/env/up.ps1 -Observability
 ```
 
 ## 4. 执行数据库迁移
 
 ```powershell
-./scripts/dev/migrate-up.ps1
+./scripts/dev/env/migrate-up.ps1
 ```
 
 该脚本会对 `flash_user`、`flash_admin`、`flash_product`、`flash_order`、`flash_seckill` 依次执行迁移。
@@ -40,7 +40,7 @@ Copy-Item configs/local/dev.env.example configs/local/dev.env
 ## 5. 运行连通性检查
 
 ```powershell
-./scripts/dev/smoke.ps1
+./scripts/dev/env/smoke.ps1
 ```
 
 ## 6. 启动应用服务
@@ -90,11 +90,12 @@ go run ./apps/gateway/admin -f apps/gateway/admin/etc/admin-gateway.yaml
 ## 7. 停止环境
 
 ```powershell
-./scripts/dev/down.ps1
+./scripts/dev/env/down.ps1
 ```
 
 删除数据卷：
 
 ```powershell
-./scripts/dev/down.ps1 -RemoveVolumes
+./scripts/dev/env/down.ps1 -RemoveVolumes
 ```
+

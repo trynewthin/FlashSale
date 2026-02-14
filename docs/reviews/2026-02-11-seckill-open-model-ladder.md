@@ -7,7 +7,7 @@
 
 ## 2. 测试方法
 
-1. 使用 `scripts/dev/seckill-k6-ladder.ps1` 执行阶梯测试。
+1. 使用 `scripts/dev/seckill/seckill-k6-ladder.ps1` 执行阶梯测试。
 2. 每轮自动创建新活动（`seckill-prepare.ps1`），避免历史库存污染。
 3. 结果判定口径：
 - `effective_rate`：非基础设施失败占比（非 network/5xx/DB_ERROR/SYS_INTERNAL）。
@@ -70,3 +70,4 @@
 1. 优先优化 `seckill -> order CreateOrderFromSeckill` 路径（并发舱壁、超时、慢查询）。
 2. 将购买链路 open-model 验收阈值纳入 CI 夜间任务（建议先从 `50/60/80 req/s` 阶梯开始）。
 3. 对 `DB_ERROR/SYS_INTERNAL` 增加细分指标，区分连接池耗尽、事务冲突、超时取消来源。
+

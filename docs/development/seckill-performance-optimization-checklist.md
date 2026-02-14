@@ -120,13 +120,13 @@
 - 目标：杜绝库存污染导致的数据失真。
 
 4. 固化管理员登录自动回退，减少无效失败
-- 已在 `scripts/dev/seckill-test-suite.ps1` 实现：
+- 已在 `scripts/dev/seckill/seckill-test-suite.ps1` 实现：
   - token 可用则复用；
   - token 失效自动回退 `username/password` 登录。
 - 目标：避免压测因管理端 token 过期而中断。
 
 5. 固化“容量搜索 -> 门禁验收”的两段式流程
-- 新增脚本：`scripts/dev/seckill-capacity-search.ps1`
+- 新增脚本：`scripts/dev/seckill/seckill-capacity-search.ps1`
 - 执行顺序：
   - 先跑 `seckill-capacity-search.ps1`，快速获得当前机器稳定并发上限；
   - 再按上限回填 `seckill-test-suite.ps1` 的 `L2/L3` 参数做门禁。
@@ -169,7 +169,7 @@
 ## 4. P2（后续）
 
 1. 引入开放模型压测（arrival-rate）
-- 当前已落地 `scripts/dev/seckill-k6-open.ps1` + `scripts/perf/k6/seckill_open_model.js`（constant-arrival-rate）。
+- 当前已落地 `scripts/dev/seckill/seckill-k6-open.ps1` + `scripts/perf/k6/seckill_open_model.js`（constant-arrival-rate）。
 - 闭环模型仍用于回归门禁，开环模型用于容量退化拐点确认（固定 RPS）。
 
 2. 指标平台化
@@ -241,3 +241,4 @@
   - 回归门禁固定：`L1 + L2(c100/c200) + L4`
   - 极限探测独立：`L3+` 或 k6 open-model 阶梯
   - 每次优化必须给出 A/B 对照样本（同活动、同参数、同 token 池）
+

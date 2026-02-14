@@ -43,85 +43,85 @@ go test ./...
 
 仓库已提供本地可执行的秒杀压测脚本：
 
-- `scripts/dev/seckill-perf.ps1`：单场景压测（购买/幂等/埋点）
-- `scripts/dev/seckill-prepare.ps1`：自动创建并发布压测活动（避免活动过期、库存脏数据）
-- `scripts/dev/seckill-issues.ps1`：典型秒杀问题场景组合测试
-- `scripts/dev/seckill-test-suite.ps1`：分层门禁压测（预检->幂等->容量分档->埋点->对账->Markdown报告）
-- `scripts/dev/seckill-capacity-search.ps1`：快速容量搜索（自动扫描并发阶梯，输出稳定并发上限）
-- `scripts/dev/seckill-k6-open.ps1`：k6 开环压测（到达率模型，支持 Docker 执行）
-- `scripts/dev/seckill-k6-ladder.ps1`：k6 开环阶梯压测（自动跑多档 RPS 并输出拐点报告）
-- `scripts/dev/restart-seckill-runtime.ps1`：压测前重启核心服务（自动加载 `configs/local/dev.env`，避免环境变量缺失）
+- `scripts/dev/seckill/seckill-perf.ps1`：单场景压测（购买/幂等/埋点）
+- `scripts/dev/seckill/seckill-prepare.ps1`：自动创建并发布压测活动（避免活动过期、库存脏数据）
+- `scripts/dev/seckill/seckill-issues.ps1`：典型秒杀问题场景组合测试
+- `scripts/dev/seckill/seckill-test-suite.ps1`：分层门禁压测（预检->幂等->容量分档->埋点->对账->Markdown报告）
+- `scripts/dev/seckill/seckill-capacity-search.ps1`：快速容量搜索（自动扫描并发阶梯，输出稳定并发上限）
+- `scripts/dev/seckill/seckill-k6-open.ps1`：k6 开环压测（到达率模型，支持 Docker 执行）
+- `scripts/dev/seckill/seckill-k6-ladder.ps1`：k6 开环阶梯压测（自动跑多档 RPS 并输出拐点报告）
+- `scripts/dev/seckill/restart-seckill-runtime.ps1`：压测前重启核心服务（自动加载 `configs/local/dev.env`，避免环境变量缺失）
 
 示例：
 
 ```powershell
 # 购买压力
-./scripts/dev/seckill-perf.ps1 -Scenario purchase-stress -ActivityId 1001 -ItemId 2001 -TokenFile .\tokens.txt -Concurrency 200 -Requests 5000
+./scripts/dev/seckill/seckill-perf.ps1 -Scenario purchase-stress -ActivityId 1001 -ItemId 2001 -TokenFile .\tokens.txt -Concurrency 200 -Requests 5000
 
 # 同幂等键冲突
-./scripts/dev/seckill-perf.ps1 -Scenario idempotency -ActivityId 1001 -ItemId 2001 -Token "<jwt>" -Concurrency 50 -Requests 200
+./scripts/dev/seckill/seckill-perf.ps1 -Scenario idempotency -ActivityId 1001 -ItemId 2001 -Token "<jwt>" -Concurrency 50 -Requests 200
 
 # 埋点高并发（建议限制每主机并发连接，减少本机连接风暴误差）
-./scripts/dev/seckill-perf.ps1 -Scenario track-stress -ActivityId 1001 -ItemId 2001 -Concurrency 300 -Requests 6000 -MaxConnsPerHost 200
+./scripts/dev/seckill/seckill-perf.ps1 -Scenario track-stress -ActivityId 1001 -ItemId 2001 -Concurrency 300 -Requests 6000 -MaxConnsPerHost 200
 
 # 典型问题组合（幂等+抢购+埋点）
-./scripts/dev/seckill-issues.ps1 -ActivityId 1001 -ItemId 2001 -TokenFile .\tokens.txt
+./scripts/dev/seckill/seckill-issues.ps1 -ActivityId 1001 -ItemId 2001 -TokenFile .\tokens.txt
 
 # 自动准备新活动后再执行组合测试
-./scripts/dev/seckill-issues.ps1 -Prepare -BaseUrl http://127.0.0.1:8082 -AdminBaseUrl http://127.0.0.1:8083 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .\tokens.txt
+./scripts/dev/seckill/seckill-issues.ps1 -Prepare -BaseUrl http://127.0.0.1:8082 -AdminBaseUrl http://127.0.0.1:8083 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .\tokens.txt
 
 # 推荐：一键分层门禁压测（默认跑到 L2，失败即停，自动产出报告）
-./scripts/dev/seckill-test-suite.ps1 -Prepare -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-test-suite.ps1 -Prepare -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
 
 # 稳定门禁（推荐日常回归）与严格门禁（性能压测）两档
-./scripts/dev/seckill-test-suite.ps1 -Prepare -GateProfile stable -EnableL3 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
-./scripts/dev/seckill-test-suite.ps1 -Prepare -GateProfile strict -EnableL3 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-test-suite.ps1 -Prepare -GateProfile stable -EnableL3 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-test-suite.ps1 -Prepare -GateProfile strict -EnableL3 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
 
 # 如果要评估“限购聚合校验”开关收益，请设置 UserLimitQty>0（否则该校验路径不会触发）
-./scripts/dev/seckill-test-suite.ps1 -Prepare -GateProfile strict -EnableL3 -UserLimitQty 100000 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-test-suite.ps1 -Prepare -GateProfile strict -EnableL3 -UserLimitQty 100000 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
 
 # 推荐先做容量快速搜索，再跑门禁（减少盲目重跑）
-./scripts/dev/seckill-capacity-search.ps1 -Prepare -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-capacity-search.ps1 -Prepare -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
 
 # 需要探测高压拐点时再开启 L3
-./scripts/dev/seckill-test-suite.ps1 -Prepare -EnableL3 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-test-suite.ps1 -Prepare -EnableL3 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
 
 # 连续压测诊断（不中断、自动补跑 L2 诊断层）
-./scripts/dev/seckill-test-suite.ps1 -Prepare -EnableL3 -StopOnFirstFailure false -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-test-suite.ps1 -Prepare -EnableL3 -StopOnFirstFailure false -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
 
 # 按目标机器调参（避免客户端参数过小导致“假失败”）
-./scripts/dev/seckill-test-suite.ps1 -Prepare -EnableL3 -StopOnFirstFailure false -L2PurchaseTimeoutMs 7000 -L2PurchaseMaxConnsPerHost 240 -L3PurchaseTimeoutMs 9000 -L3PurchaseMaxConnsPerHost 300 -TrackTimeoutMs 3500 -TrackMaxConnsPerHost 240 -StageCooldownSeconds 8 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-test-suite.ps1 -Prepare -EnableL3 -StopOnFirstFailure false -L2PurchaseTimeoutMs 7000 -L2PurchaseMaxConnsPerHost 240 -L3PurchaseTimeoutMs 9000 -L3PurchaseMaxConnsPerHost 300 -TrackTimeoutMs 3500 -TrackMaxConnsPerHost 240 -StageCooldownSeconds 8 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
 
 # 自定义门禁阈值（用于不同机器规格的阶段性目标）
-./scripts/dev/seckill-test-suite.ps1 -Prepare -EnableL3 -StopOnFirstFailure false -L3PurchaseTimeoutMs 9000 -L3MaxP95Ms 7600 -L3MaxP99Ms 8200 -L3MinSuccessRate 0.95 -L3MaxNetworkErrorRate 0.05 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-test-suite.ps1 -Prepare -EnableL3 -StopOnFirstFailure false -L3PurchaseTimeoutMs 9000 -L3MaxP95Ms 7600 -L3MaxP99Ms 8200 -L3MinSuccessRate 0.95 -L3MaxNetworkErrorRate 0.05 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
 
 # 二进制模式（只编译一次，后续复用，减少 go run 编译开销）
-./scripts/dev/seckill-test-suite.ps1 -Prepare -LoadRunnerMode binary -BuildLoadBinary
-./scripts/dev/seckill-perf.ps1 -Scenario purchase-stress -ActivityId 1001 -ItemId 2001 -TokenFile .\tokens.txt -RunnerMode binary -BuildBinary
+./scripts/dev/seckill/seckill-test-suite.ps1 -Prepare -LoadRunnerMode binary -BuildLoadBinary
+./scripts/dev/seckill/seckill-perf.ps1 -Scenario purchase-stress -ActivityId 1001 -ItemId 2001 -TokenFile .\tokens.txt -RunnerMode binary -BuildBinary
 
 # 按容量搜索结果调整门禁并发档位（避免固定 c200/c300 无效重跑）
-./scripts/dev/seckill-test-suite.ps1 -Prepare -EnableL3 -L2PurchaseConcurrency 120 -L2PurchaseRequests 2400 -L3PurchaseConcurrency 160 -L3PurchaseRequests 3200 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-test-suite.ps1 -Prepare -EnableL3 -L2PurchaseConcurrency 120 -L2PurchaseRequests 2400 -L3PurchaseConcurrency 160 -L3PurchaseRequests 3200 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
 
 # k6 开环压测（固定到达率，默认走 Docker）
-./scripts/dev/seckill-k6-open.ps1 -Prepare -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt -PurchaseRate 120 -TrackRate 0 -DurationSeconds 30
+./scripts/dev/seckill/seckill-k6-open.ps1 -Prepare -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt -PurchaseRate 120 -TrackRate 0 -DurationSeconds 30
 
 # k6 开环阶梯压测（自动输出推荐 RPS）
-./scripts/dev/seckill-k6-ladder.ps1 -Mode purchase -Rates "80,120,160" -DurationSeconds 10 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
+./scripts/dev/seckill/seckill-k6-ladder.ps1 -Mode purchase -Rates "80,120,160" -DurationSeconds 10 -AdminUsername admin_root -AdminPassword Admin1234 -TokenFile .memory/runlogs/user.tokens.txt
 
 # 压测前重启核心服务（默认重启 order/seckill，可选加上 user-gateway）
-./scripts/dev/restart-seckill-runtime.ps1
-./scripts/dev/restart-seckill-runtime.ps1 -RestartUserGateway
+./scripts/dev/seckill/restart-seckill-runtime.ps1
+./scripts/dev/seckill/restart-seckill-runtime.ps1 -RestartUserGateway
 
 # 压测前重启并固定本地网络口径（推荐）
 # - 强制 IPv4 回环，避免 localhost 命中 IPv6 回环超时
 # - 连接池保持安全默认值，避免触发 MySQL "Too many connections"
-./scripts/dev/restart-seckill-runtime.ps1 -ForceIPv4Loopback true -MySQLMaxOpenConns 32 -MySQLMaxIdleConns 8
+./scripts/dev/seckill/restart-seckill-runtime.ps1 -ForceIPv4Loopback true -MySQLMaxOpenConns 32 -MySQLMaxIdleConns 8
 
 # strict 同口径（UserLimitQty>0）推荐模板：
 # 1) 关闭 DB 限购聚合校验（最终一致口径）
 # 2) 将秒杀预扣超时设为 5000ms（当前稳定档）
 $env:FLASHSALE_SECKILL_RESERVE_DB_USER_LIMIT_CHECK = "false"
-./scripts/dev/seckill-test-suite.ps1 -GateProfile strict -EnableL3:$true -Prepare -UserLimitQty 100000 -RuntimeReservePurchaseTimeoutMs 5000 -RestartRuntimeBeforeRun:$true
+./scripts/dev/seckill/seckill-test-suite.ps1 -GateProfile strict -EnableL3:$true -Prepare -UserLimitQty 100000 -RuntimeReservePurchaseTimeoutMs 5000 -RestartRuntimeBeforeRun:$true
 ```
 
 对应 Go 实现入口：
@@ -168,3 +168,4 @@ $env:FLASHSALE_SECKILL_RESERVE_DB_USER_LIMIT_CHECK = "false"
 - 建议执行顺序：`seckill-capacity-search.ps1`（快速找拐点）-> `seckill-test-suite.ps1`（门禁验收）-> `seckill-issues.ps1`（问题复现）。
 - `seckill-k6-open.ps1` 用于补充开环模型，验证固定 RPS 下的真实退化点；与闭环门禁配合使用。
 - 手工重启 `order/seckill/user-gateway` 前建议执行 `restart-seckill-runtime.ps1`，确保 `FLASHSALE_MYSQL_PASSWORD` 等环境变量已注入。
+

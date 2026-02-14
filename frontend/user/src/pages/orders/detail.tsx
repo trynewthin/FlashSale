@@ -10,13 +10,17 @@ import { ArrowLeft } from "lucide-react"
 
 import { useOrderDetailQuery } from "@/hooks/user/use-order-hooks"
 import { useApiError } from "@/hooks/common/use-api-error"
+import {
+  ORDER_STATUS_LABELS,
+  PAYMENT_STATUS_LABELS,
+  REVIEW_STATUS_LABELS,
+  SHIPPING_STATUS_LABELS,
+  canCancelOrder,
+  canConfirmReceipt,
+  canPayOrder,
+} from "@/features/order/status"
 
 import { PayDialog, CancelDialog, ConfirmReceiptDialog } from "@/components/order"
-
-const ORDER_STATUS: Record<number, string> = { 1: "待支付", 2: "已支付", 3: "已审核", 4: "已发货", 5: "已收货", 6: "已关闭" }
-const PAYMENT_STATUS: Record<number, string> = { 0: "未支付", 1: "已支付", 2: "已退款" }
-const REVIEW_STATUS: Record<number, string> = { 0: "待审核", 1: "通过", 2: "拒绝" }
-const SHIPPING_STATUS: Record<number, string> = { 0: "未发货", 1: "已发货", 2: "已收货" }
 
 function formatCent(cent: number) { return `¥${(cent / 100).toFixed(2)}` }
 function formatUnix(unix: number) { if (!unix) return "-"; return new Date(unix * 1000).toLocaleString("zh-CN") }
@@ -43,9 +47,13 @@ export function OrderDetailPage() {
 
   if (!order) return null
 
-  const canPay = order.order_status === 1
-  const canCancel = order.order_status === 1
-  const canConfirmReceipt = order.order_status === 4
+  const paymentStatus = Number(order.payment_status ?? 0)
+  const reviewStatus = Number(order.review_status ?? 0)
+  const shippingStatus = Number(order.shipping_status ?? 0)
+
+  const canPay = canPayOrder(order)
+  const canCancel = canCancelOrder(order)
+  const canReceipt = canConfirmReceipt(order)
 
   return (
     <div className="space-y-4">
@@ -57,7 +65,7 @@ export function OrderDetailPage() {
         <CardHeader>
           <div className="flex items-start justify-between">
             <CardTitle className="text-lg">订单详情</CardTitle>
-            <Badge variant="outline">{ORDER_STATUS[order.order_status] ?? order.order_status}</Badge>
+            <Badge variant="outline">{ORDER_STATUS_LABELS[order.order_status] ?? order.order_status}</Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -76,9 +84,9 @@ export function OrderDetailPage() {
           <div className="grid grid-cols-2 gap-3 text-sm">
             <InfoRow label="订单号" value={order.order_no} />
             <InfoRow label="来源" value={order.order_source === 2 ? "秒杀" : "普通"} />
-            <InfoRow label="支付状态" value={PAYMENT_STATUS[order.payment_status] ?? "-"} />
-            <InfoRow label="审核状态" value={REVIEW_STATUS[order.review_status] ?? "-"} />
-            <InfoRow label="发货状态" value={SHIPPING_STATUS[order.shipping_status] ?? "-"} />
+            <InfoRow label="支付状态" value={PAYMENT_STATUS_LABELS[paymentStatus] ?? "-"} />
+            <InfoRow label="审核状态" value={REVIEW_STATUS_LABELS[reviewStatus] ?? "-"} />
+            <InfoRow label="发货状态" value={SHIPPING_STATUS_LABELS[shippingStatus] ?? "-"} />
             <InfoRow label="创建时间" value={formatUnix(order.created_at_unix)} />
             {order.tracking_no && <InfoRow label="物流单号" value={order.tracking_no} />}
             {order.close_reason && <InfoRow label="关闭原因" value={order.close_reason} />}
@@ -92,7 +100,7 @@ export function OrderDetailPage() {
           <div className="flex gap-2">
             {canPay && <Button size="sm" onClick={() => setPayOpen(true)}>支付 & 填写信息</Button>}
             {canCancel && <Button size="sm" variant="outline" onClick={() => setCancelOpen(true)}>取消订单</Button>}
-            {canConfirmReceipt && <Button size="sm" onClick={() => setConfirmReceiptOpen(true)}>确认收货</Button>}
+            {canReceipt && <Button size="sm" onClick={() => setConfirmReceiptOpen(true)}>确认收货</Button>}
           </div>
         </CardContent>
       </Card>

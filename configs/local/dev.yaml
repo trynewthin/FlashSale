@@ -5,7 +5,7 @@ log:
   format: json
 
 mysql:
-  host: localhost
+  host: 127.0.0.1
   port: 13306
   user: flash
   password: ""
@@ -22,7 +22,7 @@ mysql:
     - flash_seckill
 
 redis:
-  addr: localhost:16379
+  addr: 127.0.0.1:16379
   password: ""
   db: 0
   dialTimeout: 5s
@@ -31,7 +31,7 @@ redis:
 
 kafka:
   brokers:
-    - localhost:39092
+    - 127.0.0.1:39092
   clientID: flashsale-local
   groupID: flashsale-smoke
   topics:
@@ -55,7 +55,7 @@ jwt:
     ttl: 12h
 
 otel:
-  endpoint: localhost:4317
+  endpoint: 127.0.0.1:4317
   insecure: true
   serviceName: flashsale-base
 

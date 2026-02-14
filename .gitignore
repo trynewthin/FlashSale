@@ -12,6 +12,7 @@ vendor/
 .memory/
 AGENTS.md
 configs/local/dev.env
+configs/prod/prod.env
 go.work
 go.work.sum
 # Local memory files (not version-controlled)
@@ -22,3 +23,13 @@ task_plan.md
 findings.md
 progress.md
 docs/project-memory.md
+
+# Root build artifacts
+/*.exe
+/*.out
+/*.test
+/*.dll
+/*.so
+/*.dylib
+/fs
+/seckillload

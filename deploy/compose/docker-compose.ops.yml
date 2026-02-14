@@ -1,0 +1,25 @@
+name: flashsale-ops
+
+services:
+  dozzle:
+    image: amir20/dozzle:v8.14.7
+    container_name: flashsale-dozzle
+    restart: unless-stopped
+    ports:
+      - "18081:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  portainer:
+    image: portainer/portainer-ce:2.21.5
+    container_name: flashsale-portainer
+    restart: unless-stopped
+    ports:
+      - "19000:9000"
+      - "19443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+
+volumes:
+  portainer_data:

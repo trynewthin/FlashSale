@@ -22,43 +22,77 @@
 1. 启动基础环境：
 
 ```powershell
-./scripts/dev/env/up.ps1
+go run ./cmd/fs env up
 ```
 
 2. 执行数据库迁移：
 
 ```powershell
-./scripts/dev/env/migrate-up.ps1
+go run ./cmd/fs env migrate-up
 ```
 
 3. 执行 smoke 检查：
 
 ```powershell
-./scripts/dev/env/smoke.ps1
+go run ./cmd/fs env smoke
 ```
 
 4. 停止基础环境：
 
 ```powershell
-./scripts/dev/env/down.ps1
+go run ./cmd/fs env down
 ```
 
 启用可观测性组件：
 
 ```powershell
-./scripts/dev/env/up.ps1 -Observability
+go run ./cmd/fs env up --observability
 ```
+
+## 独立运维控制台（第一版）
+
+运维控制台与业务服务解耦，支持 Web 可视化与 CLI 双入口：
+
+```powershell
+# 0) 配置访问密钥（建议写入 configs/local/dev.env）
+$env:FLASHSALE_OPS_ACCESS_KEY="replace_me_strong_key"
+
+# 1) 启动独立可视化组件（容器日志与容器管理）
+go run ./cmd/fs env ops-up
+
+# 2) 启动 ops-control（任务编排 API + Web 页面）
+go run ./cmd/fs ops server --addr 0.0.0.0:18080 --repo-root . --auth-key-env FLASHSALE_OPS_ACCESS_KEY
+
+# 3) 访问
+# ops-control: http://127.0.0.1:18080
+# dozzle:     http://127.0.0.1:18081
+# portainer:  http://127.0.0.1:19000
+```
+
+CLI 也可直接调 ops-control：
+
+```powershell
+go run ./cmd/fs ops tasks --key-env FLASHSALE_OPS_ACCESS_KEY
+go run ./cmd/fs ops run --task env.start --key-env FLASHSALE_OPS_ACCESS_KEY
+go run ./cmd/fs ops jobs --limit 20 --key-env FLASHSALE_OPS_ACCESS_KEY
+go run ./cmd/fs ops logs --job <job_id> --key-env FLASHSALE_OPS_ACCESS_KEY
+```
+
+远程访问建议：
+- 仅开放 `18080` 到受信网络。
+- 生产建议在 Nginx 后挂 TLS，并加 IP 白名单。
+- 密钥只放环境变量，不写入仓库。
 
 ## 端口与连接配置
 
-开发脚本统一读取：`configs/local/dev.env`
+开发 CLI 统一读取：`configs/local/dev.env`
 
 - `FLASH_*`：Docker 对外端口
 - `FLASHSALE_*`：应用连接覆盖参数
 - `FLASH_MYSQL_ROOT_PASSWORD` / `FLASH_MYSQL_APP_PASSWORD`：数据库容器与应用账号密码
 - `FLASH_GRAFANA_ADMIN_USER` / `FLASH_GRAFANA_ADMIN_PASSWORD`：Grafana 管理员凭据
 
-如果本机端口被占用，只需修改 `configs/local/dev.env`，再执行脚本即可。
+如果本机端口被占用，只需修改 `configs/local/dev.env`，再执行 `fs` 命令即可。
 
 ## 组件版本
 
@@ -84,11 +118,11 @@ docker image inspect --format='{{index .RepoDigests 0}}' confluentinc/cp-kafka:7
 ## 架构文档
 
 - 文档索引：`docs/README.md`
-- 系统总览：`docs/architecture/system-overview.md`
-- 网关运行态：`docs/architecture/gateway-runtime.md`
-- 用户 RPC 运行态：`docs/architecture/user-rpc-runtime.md`
-- 商品 RPC 运行态：`docs/architecture/product-rpc-runtime.md`
-- 订单 RPC 运行态：`docs/architecture/order-rpc-runtime.md`
-- 秒杀 RPC 运行态：`docs/architecture/seckill-rpc-runtime.md`
-- 管理员模块设计：`docs/architecture/admin-module-design.md`
-
+- 系统与代码总览：`docs/architecture/01-system-and-code-architecture.md`
+- 目录预览：`docs/architecture/02-directory-preview.md`
+- 网关模块：`docs/architecture/modules/gateway-module.md`
+- 用户模块：`docs/architecture/modules/user-module.md`
+- 商品模块：`docs/architecture/modules/product-module.md`
+- 订单模块：`docs/architecture/modules/order-module.md`
+- 秒杀模块：`docs/architecture/modules/seckill-module.md`
+- 管理员模块：`docs/architecture/modules/admin-module.md`

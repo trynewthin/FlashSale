@@ -22,6 +22,8 @@ const (
 	scenarioPurchaseStress = "purchase-stress"
 	scenarioIdempotency    = "idempotency"
 	scenarioTrackStress    = "track-stress"
+	scenarioPurchaseOpen   = "purchase-open"
+	scenarioTrackOpen      = "track-open"
 	outputText             = "text"
 	outputJSON             = "json"
 )
@@ -49,6 +51,8 @@ type runConfig struct {
 	ActivityItemID   int64
 	Concurrency      int
 	Requests         int
+	OpenRate         int
+	OpenDuration     time.Duration
 	Quantity         int64
 	EventType        string
 	ClientIDPrefix   string
@@ -79,6 +83,8 @@ type reportConfig struct {
 	ActivityItemID int64  `json:"item_id"`
 	Requests       int    `json:"requests"`
 	Concurrency    int    `json:"concurrency"`
+	OpenRate       int    `json:"open_rate,omitempty"`
+	OpenDurationMs int64  `json:"open_duration_ms,omitempty"`
 	TimeoutMs      int64  `json:"timeout_ms"`
 }
 
@@ -135,12 +141,14 @@ func main() {
 
 func parseFlags() runConfig {
 	cfg := runConfig{}
-	flag.StringVar(&cfg.Scenario, "scenario", scenarioPurchaseStress, "压测场景: purchase-stress|idempotency|track-stress")
+	flag.StringVar(&cfg.Scenario, "scenario", scenarioPurchaseStress, "压测场景: purchase-stress|idempotency|track-stress|purchase-open|track-open")
 	flag.StringVar(&cfg.BaseURL, "base-url", envOrDefault("FLASHSALE_BASE_URL", "http://127.0.0.1:8082"), "用户网关地址")
 	flag.Int64Var(&cfg.ActivityID, "activity-id", envInt64("FLASHSALE_ACTIVITY_ID", 0), "秒杀活动ID")
 	flag.Int64Var(&cfg.ActivityItemID, "item-id", envInt64("FLASHSALE_ACTIVITY_ITEM_ID", 0), "活动商品ID")
 	flag.IntVar(&cfg.Concurrency, "concurrency", envInt("FLASHSALE_PRESSURE_CONCURRENCY", 100), "并发数")
 	flag.IntVar(&cfg.Requests, "requests", envInt("FLASHSALE_PRESSURE_REQUESTS", 1000), "请求总数")
+	flag.IntVar(&cfg.OpenRate, "rate", envInt("FLASHSALE_OPEN_RATE", 0), "开环固定到达率(req/s)")
+	flag.DurationVar(&cfg.OpenDuration, "open-duration", envDuration("FLASHSALE_OPEN_DURATION", 30*time.Second), "开环持续时间")
 	flag.Int64Var(&cfg.Quantity, "quantity", envInt64("FLASHSALE_PRESSURE_QUANTITY", 1), "购买件数")
 	flag.StringVar(&cfg.EventType, "event-type", envOrDefault("FLASHSALE_TRACK_EVENT_TYPE", "pv"), "埋点事件类型")
 	flag.StringVar(&cfg.ClientIDPrefix, "client-id-prefix", envOrDefault("FLASHSALE_CLIENT_ID_PREFIX", "perf-client"), "匿名埋点 client_id 前缀")
@@ -189,7 +197,7 @@ func newHTTPClient(cfg runConfig) *http.Client {
 
 func validateConfig(cfg runConfig) error {
 	switch cfg.Scenario {
-	case scenarioPurchaseStress, scenarioIdempotency, scenarioTrackStress:
+	case scenarioPurchaseStress, scenarioIdempotency, scenarioTrackStress, scenarioPurchaseOpen, scenarioTrackOpen:
 	default:
 		return fmt.Errorf("unsupported scenario: %s", cfg.Scenario)
 	}
@@ -201,6 +209,14 @@ func validateConfig(cfg runConfig) error {
 	}
 	if cfg.Requests <= 0 {
 		return errors.New("requests 必须大于 0")
+	}
+	if cfg.isOpenModel() {
+		if cfg.OpenRate <= 0 {
+			return errors.New("开环场景 rate 必须大于 0")
+		}
+		if cfg.OpenDuration <= 0 {
+			return errors.New("开环场景 open-duration 必须大于 0")
+		}
 	}
 	if cfg.Quantity <= 0 {
 		return errors.New("quantity 必须大于 0")
@@ -242,13 +258,20 @@ func loadTokens(cfg runConfig) ([]string, error) {
 			return nil, err
 		}
 	}
-	if (cfg.Scenario == scenarioPurchaseStress || cfg.Scenario == scenarioIdempotency) && len(list) == 0 {
+	if (cfg.Scenario == scenarioPurchaseStress || cfg.Scenario == scenarioIdempotency || cfg.Scenario == scenarioPurchaseOpen) && len(list) == 0 {
 		return nil, errors.New("购买场景必须提供 token 或 token-file")
 	}
 	return list, nil
 }
 
 func runScenario(client *http.Client, cfg runConfig, tokens []string) []requestResult {
+	if cfg.isOpenModel() {
+		return runOpenScenario(client, cfg, tokens)
+	}
+	return runClosedScenario(client, cfg, tokens)
+}
+
+func runClosedScenario(client *http.Client, cfg runConfig, tokens []string) []requestResult {
 	results := make([]requestResult, 0, cfg.Requests)
 	jobs := make(chan int, cfg.Requests)
 	out := make(chan requestResult, cfg.Requests)
@@ -281,6 +304,76 @@ func runScenario(client *http.Client, cfg runConfig, tokens []string) []requestR
 	return results
 }
 
+// errOpenModelDropped 表示开环发压时因本地并发槽满被主动丢弃。
+var errOpenModelDropped = errors.New("open model request dropped by local inflight limiter")
+
+// runOpenScenario 以固定速率投递请求，模拟开环到达率模型。
+func runOpenScenario(client *http.Client, cfg runConfig, tokens []string) []requestResult {
+	capHint := cfg.Concurrency * 4
+	if capHint < 128 {
+		capHint = 128
+	}
+	if capHint > 8192 {
+		capHint = 8192
+	}
+
+	results := make([]requestResult, 0, capHint)
+	out := make(chan requestResult, capHint)
+	jobs := make(chan int, cfg.Concurrency)
+	collectDone := make(chan struct{})
+	var collectMu sync.Mutex
+	go func() {
+		for r := range out {
+			collectMu.Lock()
+			results = append(results, r)
+			collectMu.Unlock()
+		}
+		close(collectDone)
+	}()
+
+	workerCount := cfg.Concurrency
+	if workerCount < 1 {
+		workerCount = 1
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			for idx := range jobs {
+				out <- executeOne(client, cfg, tokens, workerID, idx)
+			}
+		}(i)
+	}
+
+	ticker := time.NewTicker(time.Second / time.Duration(cfg.OpenRate))
+	defer ticker.Stop()
+	timer := time.NewTimer(cfg.OpenDuration)
+	defer timer.Stop()
+
+	sent := 0
+loop:
+	for {
+		select {
+		case <-timer.C:
+			break loop
+		case <-ticker.C:
+			select {
+			case jobs <- sent:
+				sent++
+			default:
+				sent++
+				out <- requestResult{Err: errOpenModelDropped}
+			}
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	close(out)
+	<-collectDone
+	return results
+}
+
 func executeOne(client *http.Client, cfg runConfig, tokens []string, workerID, idx int) requestResult {
 	start := time.Now()
 	var (
@@ -293,7 +386,7 @@ func executeOne(client *http.Client, cfg runConfig, tokens []string, workerID, i
 	)
 
 	switch cfg.Scenario {
-	case scenarioPurchaseStress:
+	case scenarioPurchaseStress, scenarioPurchaseOpen:
 		idem := fmt.Sprintf("perf-purchase-%d-%d", time.Now().UnixNano(), idx)
 		token := tokens[idx%len(tokens)]
 		status, code, order, err = doPurchase(client, cfg, token, idem)
@@ -302,7 +395,7 @@ func executeOne(client *http.Client, cfg runConfig, tokens []string, workerID, i
 		// 幂等场景必须固定同一用户，否则会被“多用户多订单”误判为幂等失效。
 		token := tokens[0]
 		status, code, order, err = doPurchase(client, cfg, token, idem)
-	case scenarioTrackStress:
+	case scenarioTrackStress, scenarioTrackOpen:
 		idem := fmt.Sprintf("perf-track-%d-%d", time.Now().UnixNano(), idx)
 		clientID := fmt.Sprintf("%s-%d-%d", strings.TrimSpace(cfg.ClientIDPrefix), workerID, idx)
 		status, code, trackAccepted, err = doTrack(client, cfg, idem, clientID)
@@ -499,9 +592,13 @@ func printSummary(cfg runConfig, s summary) {
 	fmt.Printf("Scenario          : %s\n", cfg.Scenario)
 	fmt.Printf("Base URL          : %s\n", cfg.BaseURL)
 	fmt.Printf("Activity/Item     : %d / %d\n", cfg.ActivityID, cfg.ActivityItemID)
+	if cfg.isOpenModel() {
+		fmt.Printf("Open Rate/Duration: %d req/s / %s\n", cfg.OpenRate, cfg.OpenDuration)
+	}
 	fmt.Printf("Requests/Conc     : %d / %d\n", cfg.Requests, cfg.Concurrency)
 	fmt.Printf("Elapsed           : %s\n", s.Elapsed)
 	fmt.Printf("RPS               : %.2f\n", s.RPS)
+	fmt.Printf("Total             : %d\n", s.Total)
 	fmt.Printf("Success           : %d\n", s.Success)
 	if cfg.Scenario == scenarioTrackStress {
 		fmt.Printf("Track Accepted    : %d\n", s.TrackAccepted)
@@ -537,6 +634,8 @@ func printSummaryJSON(cfg runConfig, s summary) {
 			ActivityItemID: cfg.ActivityItemID,
 			Requests:       cfg.Requests,
 			Concurrency:    cfg.Concurrency,
+			OpenRate:       cfg.OpenRate,
+			OpenDurationMs: cfg.OpenDuration.Milliseconds(),
 			TimeoutMs:      cfg.Timeout.Milliseconds(),
 		},
 		Summary: summaryPayload{
@@ -579,6 +678,9 @@ func ratio(numerator, denominator int) float64 {
 func classifyNetworkError(err error) string {
 	if err == nil {
 		return ""
+	}
+	if errors.Is(err, errOpenModelDropped) {
+		return "local_drop"
 	}
 	msg := strings.ToLower(strings.TrimSpace(err.Error()))
 	switch {
@@ -723,4 +825,9 @@ func envBool(key string, fallback bool) bool {
 func fatalf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "ERROR: "+format+"\n", args...)
 	os.Exit(1)
+}
+
+// isOpenModel 判断当前是否为开环场景。
+func (cfg runConfig) isOpenModel() bool {
+	return cfg.Scenario == scenarioPurchaseOpen || cfg.Scenario == scenarioTrackOpen
 }

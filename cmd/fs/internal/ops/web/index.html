@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <!-- ops 控制台入口页面：由 app.js 组装各业务组件。 -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FlashSale Ops Control</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <h1>FlashSale Ops Control</h1>
+      <p class="muted">轻量组件化运维面板（任务执行、状态查看、实时日志流）。</p>
+    </header>
+
+    <section id="status-bar"></section>
+    <section id="auth-panel" class="card"></section>
+    <section id="task-runner" class="card"></section>
+
+    <section class="card">
+      <h3>任务白名单</h3>
+      <div id="task-table"></div>
+    </section>
+
+    <section class="card">
+      <h3>最近任务</h3>
+      <div id="job-table"></div>
+    </section>
+
+    <section class="card">
+      <h3>任务日志（实时流）</h3>
+      <div id="log-stream"></div>
+    </section>
+  </main>
+
+  <script type="module" src="/assets/app.js"></script>
+</body>
+</html>

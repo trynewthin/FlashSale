@@ -36,6 +36,8 @@ type Config struct {
 
 const (
 	seckillRPCListenOnEnv                 = "FLASHSALE_SECKILL_RPC_LISTEN_ON"
+	seckillProductRPCTargetEnv            = "FLASHSALE_SECKILL_PRODUCT_RPC_TARGET"
+	seckillOrderRPCTargetEnv              = "FLASHSALE_SECKILL_ORDER_RPC_TARGET"
 	seckillActivityItemCacheTTLmsEnv      = "FLASHSALE_SECKILL_ACTIVITY_ITEM_CACHE_TTL_MS"
 	seckillReservePurchaseTimeoutMsEnv    = "FLASHSALE_SECKILL_RESERVE_PURCHASE_TIMEOUT_MS"
 	seckillReserveDBUserLimitCheckEnv     = "FLASHSALE_SECKILL_RESERVE_DB_USER_LIMIT_CHECK"
@@ -61,6 +63,12 @@ func ApplyEnvOverrides(c *Config) {
 	}
 	if v := strings.TrimSpace(os.Getenv(seckillRPCListenOnEnv)); v != "" {
 		c.ListenOn = v
+	}
+	if v := strings.TrimSpace(os.Getenv(seckillProductRPCTargetEnv)); v != "" {
+		c.ProductRPC.Target = v
+	}
+	if v := strings.TrimSpace(os.Getenv(seckillOrderRPCTargetEnv)); v != "" {
+		c.OrderRPC.Target = v
 	}
 	if v, ok := envInt(seckillActivityItemCacheTTLmsEnv); ok {
 		c.ActivityItemCacheTTLMs = v

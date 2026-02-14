@@ -28,6 +28,10 @@ const (
 	userGatewaySeckillRPCTimeoutMsEnv      = "FLASHSALE_USER_GATEWAY_SECKILL_RPC_TIMEOUT_MS"
 	userGatewaySeckillPurchaseTimeoutMsEnv = "FLASHSALE_USER_GATEWAY_SECKILL_PURCHASE_RPC_TIMEOUT_MS"
 	userGatewaySeckillTrackTimeoutMsEnv    = "FLASHSALE_USER_GATEWAY_SECKILL_TRACK_RPC_TIMEOUT_MS"
+	userGatewayUserRPCTargetEnv            = "FLASHSALE_USER_GATEWAY_USER_RPC_TARGET"
+	userGatewayProductRPCTargetEnv         = "FLASHSALE_USER_GATEWAY_PRODUCT_RPC_TARGET"
+	userGatewayOrderRPCTargetEnv           = "FLASHSALE_USER_GATEWAY_ORDER_RPC_TARGET"
+	userGatewaySeckillRPCTargetEnv         = "FLASHSALE_USER_GATEWAY_SECKILL_RPC_TARGET"
 )
 
 // ApplyEnvOverrides 使用环境变量覆盖关键配置项。
@@ -46,6 +50,18 @@ func ApplyEnvOverrides(c *Config) {
 	}
 	if v, ok := envInt(userGatewaySeckillTrackTimeoutMsEnv); ok {
 		c.SeckillTrackEventRPCTimeoutMs = v
+	}
+	if v := strings.TrimSpace(os.Getenv(userGatewayUserRPCTargetEnv)); v != "" {
+		c.UserRPC.Target = v
+	}
+	if v := strings.TrimSpace(os.Getenv(userGatewayProductRPCTargetEnv)); v != "" {
+		c.ProductRPC.Target = v
+	}
+	if v := strings.TrimSpace(os.Getenv(userGatewayOrderRPCTargetEnv)); v != "" {
+		c.OrderRPC.Target = v
+	}
+	if v := strings.TrimSpace(os.Getenv(userGatewaySeckillRPCTargetEnv)); v != "" {
+		c.SeckillRPC.Target = v
 	}
 }
 

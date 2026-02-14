@@ -6,7 +6,7 @@ services:
     container_name: flashsale-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${FLASH_MYSQL_ROOT_PASSWORD:?set FLASH_MYSQL_ROOT_PASSWORD in configs/local/dev.env}
+      MYSQL_ROOT_PASSWORD: ${FLASH_MYSQL_ROOT_PASSWORD:-flashsale_root_dev}
       TZ: Asia/Shanghai
     ports:
       - "${FLASH_MYSQL_PORT:-13306}:3306"
@@ -26,9 +26,9 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      MYSQL_ROOT_PASSWORD: ${FLASH_MYSQL_ROOT_PASSWORD:?set FLASH_MYSQL_ROOT_PASSWORD in configs/local/dev.env}
-      MYSQL_APP_USER: ${FLASH_MYSQL_APP_USER:?set FLASH_MYSQL_APP_USER in configs/local/dev.env}
-      MYSQL_APP_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:?set FLASH_MYSQL_APP_PASSWORD in configs/local/dev.env}
+      MYSQL_ROOT_PASSWORD: ${FLASH_MYSQL_ROOT_PASSWORD:-flashsale_root_dev}
+      MYSQL_APP_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      MYSQL_APP_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
     command:
       - /bin/bash
       - -ec
@@ -133,13 +133,30 @@ services:
     ports:
       - "${FLASH_GRAFANA_PORT:-3000}:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: ${FLASH_GRAFANA_ADMIN_USER:?set FLASH_GRAFANA_ADMIN_USER in configs/local/dev.env}
-      GF_SECURITY_ADMIN_PASSWORD: ${FLASH_GRAFANA_ADMIN_PASSWORD:?set FLASH_GRAFANA_ADMIN_PASSWORD in configs/local/dev.env}
+      GF_SECURITY_ADMIN_USER: ${FLASH_GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${FLASH_GRAFANA_ADMIN_PASSWORD:-admin}
     volumes:
       - ../grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
     depends_on:
       prometheus:
         condition: service_started
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: flashsale-nginx
+    restart: unless-stopped
+    ports:
+      - "${FLASH_NGINX_HTTP_PORT:-18000}:80"
+    volumes:
+      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    # 允许容器访问宿主机上的 gateway/ops 进程端口。
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
 
 volumes:
   mysql_data:

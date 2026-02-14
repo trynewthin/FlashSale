@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -332,9 +334,57 @@ func runRuntimeStopOpsControl(args []string) error {
 	return nil
 }
 
-func findProcessByPort(_ int) int {
-	// 纯 Go 跨平台无法稳定按端口查 PID，这里依赖 pid 文件。
-	return 0
+// findProcessByPort 尝试通过监听端口反查进程 PID，用于兜底清理残留进程。
+func findProcessByPort(port int) int {
+	if port <= 0 {
+		return 0
+	}
+	target := ":" + strconv.Itoa(port)
+	if runtime.GOOS == "windows" {
+		out, err := exec.Command("netstat", "-ano", "-p", "tcp").Output()
+		if err != nil {
+			return 0
+		}
+		lines := strings.Split(string(out), "\n")
+		for _, raw := range lines {
+			line := strings.TrimSpace(raw)
+			if line == "" {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) < 5 {
+				continue
+			}
+			localAddr := fields[1]
+			state := strings.ToUpper(fields[3])
+			if !strings.Contains(state, "LISTEN") {
+				continue
+			}
+			if !strings.HasSuffix(localAddr, target) {
+				continue
+			}
+			pid, convErr := strconv.Atoi(fields[len(fields)-1])
+			if convErr == nil && pid > 0 {
+				return pid
+			}
+		}
+		return 0
+	}
+
+	cmd := exec.Command("sh", "-c", fmt.Sprintf("lsof -ti tcp:%d -sTCP:LISTEN 2>/dev/null | head -n 1", port))
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	pidStr := strings.TrimSpace(string(out))
+	if pidStr == "" {
+		return 0
+	}
+	pid, convErr := strconv.Atoi(pidStr)
+	if convErr != nil || pid <= 0 {
+		return 0
+	}
+	return pid
 }
 
 func readPIDs(path string) ([]processPID, error) {

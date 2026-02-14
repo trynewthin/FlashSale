@@ -40,3 +40,24 @@ func TestApplyEnvOverridesSeckillTimeouts(t *testing.T) {
 		t.Fatalf("seckill track timeout mismatch: got %d", cfg.SeckillTrackEventRPCTimeoutMs)
 	}
 }
+
+func TestApplyEnvOverridesRPCTargets(t *testing.T) {
+	t.Setenv(userGatewayUserRPCTargetEnv, "user-rpc:8081")
+	t.Setenv(userGatewayProductRPCTargetEnv, "product-rpc:8084")
+	t.Setenv(userGatewayOrderRPCTargetEnv, "order-rpc:8085")
+	t.Setenv(userGatewaySeckillRPCTargetEnv, "seckill-rpc:8086")
+	cfg := &Config{}
+	ApplyEnvOverrides(cfg)
+	if cfg.UserRPC.Target != "user-rpc:8081" {
+		t.Fatalf("user rpc target mismatch: got %q", cfg.UserRPC.Target)
+	}
+	if cfg.ProductRPC.Target != "product-rpc:8084" {
+		t.Fatalf("product rpc target mismatch: got %q", cfg.ProductRPC.Target)
+	}
+	if cfg.OrderRPC.Target != "order-rpc:8085" {
+		t.Fatalf("order rpc target mismatch: got %q", cfg.OrderRPC.Target)
+	}
+	if cfg.SeckillRPC.Target != "seckill-rpc:8086" {
+		t.Fatalf("seckill rpc target mismatch: got %q", cfg.SeckillRPC.Target)
+	}
+}

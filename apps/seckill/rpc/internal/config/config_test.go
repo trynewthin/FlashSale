@@ -29,3 +29,16 @@ func TestApplyEnvOverridesReserveDBUserLimitCheckInvalid(t *testing.T) {
 		t.Fatalf("invalid env value should keep original config")
 	}
 }
+
+func TestApplyEnvOverridesRPCTargets(t *testing.T) {
+	t.Setenv(seckillProductRPCTargetEnv, "product-rpc:8084")
+	t.Setenv(seckillOrderRPCTargetEnv, "order-rpc:8085")
+	cfg := &Config{}
+	ApplyEnvOverrides(cfg)
+	if cfg.ProductRPC.Target != "product-rpc:8084" {
+		t.Fatalf("product rpc target mismatch: got %q", cfg.ProductRPC.Target)
+	}
+	if cfg.OrderRPC.Target != "order-rpc:8085" {
+		t.Fatalf("order rpc target mismatch: got %q", cfg.OrderRPC.Target)
+	}
+}

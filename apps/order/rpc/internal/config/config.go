@@ -25,6 +25,7 @@ type Config struct {
 
 const (
 	orderRPCListenOnEnv                 = "FLASHSALE_ORDER_RPC_LISTEN_ON"
+	orderProductRPCTargetEnv            = "FLASHSALE_ORDER_PRODUCT_RPC_TARGET"
 	orderSeckillCreateMaxInFlightEnv    = "FLASHSALE_ORDER_SECKILL_CREATE_MAX_IN_FLIGHT"
 	orderSeckillCreateAcquireTimeoutEnv = "FLASHSALE_ORDER_SECKILL_CREATE_ACQUIRE_TIMEOUT_MS"
 	orderSeckillOrderEventEnabledEnv    = "FLASHSALE_ORDER_SECKILL_ORDER_EVENT_ENABLED"
@@ -40,6 +41,9 @@ func ApplyEnvOverrides(c *Config) {
 	}
 	if v := strings.TrimSpace(os.Getenv(orderRPCListenOnEnv)); v != "" {
 		c.ListenOn = v
+	}
+	if v := strings.TrimSpace(os.Getenv(orderProductRPCTargetEnv)); v != "" {
+		c.ProductRPC.Target = v
 	}
 	if v, ok := envInt(orderSeckillCreateMaxInFlightEnv); ok {
 		c.SeckillCreateMaxInFlight = v

@@ -15,13 +15,16 @@ import { type OrderView } from "@/api/modules/order"
 import { useAdminOrderListQuery } from "@/hooks/biz/use-order-mgmt-hooks"
 import { useAdminPermission } from "@/hooks/auth/use-admin-permission"
 import { useApiError } from "@/hooks/common/use-api-error"
+import {
+  ORDER_STATUS_LABELS,
+  PAYMENT_STATUS_LABELS,
+  REVIEW_FILTER_OPTIONS,
+  REVIEW_STATUS,
+  REVIEW_STATUS_LABELS,
+  SHIPPING_STATUS_LABELS,
+} from "@/features/order/status"
 
 import { ReviewOrderDialog, ShipOrderDialog, OrderRowActions } from "@/components/order"
-
-const ORDER_STATUS: Record<number, string> = { 1: "待支付", 2: "已支付", 3: "已审核", 4: "已发货", 5: "已收货", 6: "已关闭" }
-const PAYMENT_STATUS: Record<number, string> = { 0: "未支付", 1: "已支付", 2: "已退款" }
-const REVIEW_STATUS: Record<number, string> = { 0: "待审核", 1: "通过", 2: "拒绝" }
-const SHIPPING_STATUS: Record<number, string> = { 0: "未发货", 1: "已发货", 2: "已收货" }
 
 function formatCent(cent: number) { return `¥${(cent / 100).toFixed(2)}` }
 function formatUnix(unix: number) { if (!unix) return "-"; return new Date(unix * 1000).toLocaleString("zh-CN") }
@@ -67,19 +70,19 @@ export function OrderManagementPage() {
         </div>
         <div className="space-y-1">
           <Label className="text-xs">订单状态</Label>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "")}>
-            <SelectTrigger className="w-28"><SelectValue placeholder="全部" /></SelectTrigger>
-            <SelectContent>
-              {Object.entries(ORDER_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-            </SelectContent>
-          </Select>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "")}>
+              <SelectTrigger className="w-28"><SelectValue placeholder="全部" /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
         </div>
         <div className="space-y-1">
           <Label className="text-xs">审核状态</Label>
           <Select value={reviewFilter} onValueChange={(v) => setReviewFilter(v ?? "")}>
             <SelectTrigger className="w-28"><SelectValue placeholder="全部" /></SelectTrigger>
             <SelectContent>
-              {Object.entries(REVIEW_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+              {Object.entries(REVIEW_FILTER_OPTIONS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -108,22 +111,28 @@ export function OrderManagementPage() {
             {items.length === 0 && (
               <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">{listQuery.isLoading ? "加载中…" : "暂无数据"}</TableCell></TableRow>
             )}
-            {items.map((order) => (
-              <TableRow key={order.order_id}>
+            {items.map((order) => {
+              // 后端 proto3 在 0 值字段时会省略，前端按默认值兜底显示。
+              const paymentStatus = Number(order.payment_status ?? 0)
+              const reviewStatus = Number(order.review_status ?? 0)
+              const shippingStatus = Number(order.shipping_status ?? 0)
+              return (
+                <TableRow key={order.order_id}>
                 <TableCell className="font-mono text-xs">{order.order_no}</TableCell>
                 <TableCell>{order.user_id}</TableCell>
                 <TableCell>{formatCent(order.total_amount_cent)}</TableCell>
-                <TableCell><Badge variant="outline">{ORDER_STATUS[order.order_status] ?? order.order_status}</Badge></TableCell>
-                <TableCell><Badge variant="secondary">{PAYMENT_STATUS[order.payment_status] ?? order.payment_status}</Badge></TableCell>
-                <TableCell><Badge variant={order.review_status === 1 ? "default" : "secondary"}>{REVIEW_STATUS[order.review_status] ?? order.review_status}</Badge></TableCell>
-                <TableCell><Badge variant="secondary">{SHIPPING_STATUS[order.shipping_status] ?? order.shipping_status}</Badge></TableCell>
+                <TableCell><Badge variant="outline">{ORDER_STATUS_LABELS[order.order_status] ?? order.order_status}</Badge></TableCell>
+                <TableCell><Badge variant="secondary">{PAYMENT_STATUS_LABELS[paymentStatus] ?? paymentStatus}</Badge></TableCell>
+                <TableCell><Badge variant={reviewStatus === REVIEW_STATUS.passed ? "default" : "secondary"}>{REVIEW_STATUS_LABELS[reviewStatus] ?? reviewStatus}</Badge></TableCell>
+                <TableCell><Badge variant="secondary">{SHIPPING_STATUS_LABELS[shippingStatus] ?? shippingStatus}</Badge></TableCell>
                 <TableCell className="text-sm text-muted-foreground">{formatUnix(order.created_at_unix)}</TableCell>
                 <TableCell>
                   <OrderRowActions order={order} canReview={canReview} canShip={canShip}
                     onReview={() => setReviewTarget(order)} onShip={() => setShipTarget(order)} />
                 </TableCell>
-              </TableRow>
-            ))}
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </div>

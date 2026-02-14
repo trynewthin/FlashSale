@@ -5,12 +5,13 @@ import {
 import { MoreHorizontal } from "lucide-react"
 
 import { type OrderView } from "@/api/modules/order"
+import { canReviewOrder, canShipOrder } from "@/features/order/status"
 
 export function OrderRowActions({ order, canReview, canShip, onReview, onShip }: {
   order: OrderView; canReview: boolean; canShip: boolean; onReview: () => void; onShip: () => void
 }) {
-  const showReview = canReview && order.review_status === 0
-  const showShip = canShip && order.review_status === 1 && order.shipping_status === 0
+  const showReview = canReview && canReviewOrder(order)
+  const showShip = canShip && canShipOrder(order)
   if (!showReview && !showShip) return null
   return (
     <DropdownMenu>

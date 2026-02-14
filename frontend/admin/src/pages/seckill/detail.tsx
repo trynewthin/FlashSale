@@ -23,12 +23,10 @@ import {
   ItemFormFields,
   ItemEditForm, DeleteItemDialog, ItemRowActions,
 } from "@/components/seckill"
+import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/features/order/status"
 
 const ITEM_STATUS: Record<number, string> = { 1: "启用", 2: "禁用" }
 const LIMIT_MODE: Record<number, string> = { 0: "不限", 1: "按窗口", 2: "按活动" }
-const ORDER_STATUS: Record<number, string> = { 1: "待支付", 2: "已支付", 3: "已审核", 4: "已发货", 5: "已收货", 6: "已关闭" }
-const PAYMENT_STATUS: Record<number, string> = { 0: "未支付", 1: "已支付", 2: "已退款" }
-
 function formatCent(cent: number) { return `¥${(cent / 100).toFixed(2)}` }
 function formatUnix(unix: number) { if (!unix) return "-"; return new Date(unix * 1000).toLocaleString("zh-CN") }
 
@@ -181,17 +179,20 @@ export function SeckillActivityDetailPage() {
               {orders.length === 0 && (
                 <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">{ordersQuery.isLoading ? "加载中…" : "暂无订单"}</TableCell></TableRow>
               )}
-              {orders.map((o) => (
-                <TableRow key={o.link_id}>
+              {orders.map((o) => {
+                const paymentStatus = Number(o.payment_status ?? 0)
+                return (
+                  <TableRow key={o.link_id}>
                   <TableCell className="font-mono text-xs">{o.order_no}</TableCell>
                   <TableCell>{o.user_id}</TableCell>
                   <TableCell>{o.quantity}</TableCell>
-                  <TableCell><Badge variant="outline">{ORDER_STATUS[o.order_status] ?? o.order_status}</Badge></TableCell>
-                  <TableCell><Badge variant="secondary">{PAYMENT_STATUS[o.payment_status] ?? o.payment_status}</Badge></TableCell>
+                  <TableCell><Badge variant="outline">{ORDER_STATUS_LABELS[o.order_status] ?? o.order_status}</Badge></TableCell>
+                  <TableCell><Badge variant="secondary">{PAYMENT_STATUS_LABELS[paymentStatus] ?? paymentStatus}</Badge></TableCell>
                   <TableCell className="text-xs text-muted-foreground">{o.close_reason || "-"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{formatUnix(o.created_at_unix)}</TableCell>
-                </TableRow>
-              ))}
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </div>

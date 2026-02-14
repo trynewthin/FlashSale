@@ -10,8 +10,7 @@ import { Label } from "@/components/ui/label"
 
 import { useOrderListQuery } from "@/hooks/user/use-order-hooks"
 import { useApiError } from "@/hooks/common/use-api-error"
-
-const ORDER_STATUS: Record<number, string> = { 1: "待支付", 2: "已支付", 3: "已审核", 4: "已发货", 5: "已收货", 6: "已关闭" }
+import { ORDER_STATUS_LABELS } from "@/features/order/status"
 
 function formatCent(cent: number) { return `¥${(cent / 100).toFixed(2)}` }
 function formatUnix(unix: number) { if (!unix) return "-"; return new Date(unix * 1000).toLocaleString("zh-CN") }
@@ -37,12 +36,12 @@ export function OrderListPage() {
         <h1 className="text-xl font-semibold">我的订单</h1>
         <div className="flex items-center gap-2">
           <Label className="text-xs">状态</Label>
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v ?? ""); setPage(1) }}>
-            <SelectTrigger className="w-24"><SelectValue placeholder="全部" /></SelectTrigger>
-            <SelectContent>
-              {Object.entries(ORDER_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-            </SelectContent>
-          </Select>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v ?? ""); setPage(1) }}>
+              <SelectTrigger className="w-24"><SelectValue placeholder="全部" /></SelectTrigger>
+              <SelectContent>
+              {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
         </div>
       </div>
 
@@ -64,7 +63,7 @@ export function OrderListPage() {
                   </div>
                 </div>
                 <div className="text-right space-y-1">
-                  <Badge variant="outline">{ORDER_STATUS[order.order_status] ?? order.order_status}</Badge>
+                  <Badge variant="outline">{ORDER_STATUS_LABELS[order.order_status] ?? order.order_status}</Badge>
                   <p className="text-sm font-semibold text-primary">{formatCent(order.total_amount_cent)}</p>
                   <p className="text-xs text-muted-foreground">x{order.quantity}</p>
                 </div>

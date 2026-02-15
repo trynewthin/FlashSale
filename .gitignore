@@ -8,21 +8,18 @@ coverage.out
 .DS_Store
 vendor/
 
-.codex
-.memory/
-AGENTS.md
+log/
 configs/local/dev.env
 configs/prod/prod.env
 go.work
 go.work.sum
-# Local memory files (not version-controlled)
+
+# Codex / 本地记忆（不纳入版本管理）
+.codex/
+.agent/
 .memory/
 .chat/
 AGENTS.md
-task_plan.md
-findings.md
-progress.md
-docs/project-memory.md
 
 # Root build artifacts
 /*.exe

@@ -20,6 +20,7 @@ type Server struct {
 	runner   *Runner
 	authKey  string
 	webFiles http.Handler
+	webRoot  fs.FS
 }
 
 // NewServer 创建服务实例。
@@ -36,12 +37,20 @@ func (s *Server) Start(addr string) error {
 	if err != nil {
 		return fmt.Errorf("load embedded web assets failed: %w", err)
 	}
+	s.webRoot = webRoot
 	s.webFiles = http.FileServer(http.FS(webRoot))
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", s.healthz)
-	mux.HandleFunc("GET /", s.indexPage)
-	mux.Handle("GET /assets/", http.StripPrefix("/", s.webFiles))
+	// 注意：这里不要使用 "GET /" 这种 method pattern。
+	// 在某些 Go 版本下对根路径 "/" 会触发 301 -> "./" 的循环重定向。
+	mux.HandleFunc("/healthz", s.healthz)
+	mux.HandleFunc("/", s.indexPage)
+	mux.Handle("/assets/", s.webFiles)
+	// 状态/日志接口：用于“无需跑任务也能查看”的只读监控面板。
+	mux.HandleFunc("GET /api/v1/status", s.withAuthAPI(s.getStatus))
+	mux.HandleFunc("GET /api/v1/service-logs/files", s.withAuthAPI(s.listServiceLogFiles))
+	mux.HandleFunc("GET /api/v1/service-logs/{file_id}/tail", s.withAuthAPI(s.getServiceLogTail))
+	mux.HandleFunc("GET /api/v1/service-logs/{file_id}/stream", s.withAuthAPI(s.streamServiceLog))
 	mux.HandleFunc("GET /api/v1/tasks", s.withAuthAPI(s.listTasks))
 	mux.HandleFunc("POST /api/v1/jobs", s.withAuthAPI(s.createJob))
 	mux.HandleFunc("GET /api/v1/jobs", s.withAuthAPI(s.listJobs))
@@ -249,11 +258,15 @@ func writeSSEEvent(w http.ResponseWriter, event string, payload any) error {
 
 func (s *Server) indexPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if s.webFiles == nil {
+	if s.webRoot == nil {
 		writeErr(w, http.StatusInternalServerError, "web assets not initialized")
 		return
 	}
-	cloned := r.Clone(r.Context())
-	cloned.URL.Path = "/index.html"
-	s.webFiles.ServeHTTP(w, cloned)
+	// 直接读取 index.html 并返回，避免 net/http FileServer 的目录重定向逻辑触发 301 循环。
+	data, err := fs.ReadFile(s.webRoot, "index.html")
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "index.html not found")
+		return
+	}
+	_, _ = w.Write(data)
 }

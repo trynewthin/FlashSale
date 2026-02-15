@@ -5,7 +5,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FlashSale Ops Control</title>
-  <link rel="stylesheet" href="/assets/styles.css" />
+  <link rel="stylesheet" href="assets/styles.css" />
 </head>
 <body>
   <main class="container">
@@ -15,6 +15,17 @@
     </header>
 
     <section id="status-bar"></section>
+    <section class="card">
+      <h3>服务状态</h3>
+      <div id="status-panel"></div>
+    </section>
+
+    <section class="card">
+      <h3>服务日志</h3>
+      <div class="muted" style="margin-bottom:8px">仅展示 log/ 下的 stdout/stderr 日志，支持 tail 与实时流。</div>
+      <div id="service-log-panel"></div>
+    </section>
+
     <section id="auth-panel" class="card"></section>
     <section id="task-runner" class="card"></section>
 
@@ -34,6 +45,6 @@
     </section>
   </main>
 
-  <script type="module" src="/assets/app.js"></script>
+  <script type="module" src="assets/app.js"></script>
 </body>
 </html>

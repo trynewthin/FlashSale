@@ -38,6 +38,8 @@ func runEnv(args []string) error {
 		return runEnvOpsDown(args[1:])
 	case "start":
 		return runEnvStart(args[1:])
+	case "restart":
+		return runEnvRestart(args[1:])
 	case "migrate-up":
 		return runEnvMigrateUp(args[1:])
 	case "migrate-down":
@@ -147,6 +149,8 @@ func runEnvOpsDown(args []string) error {
 
 func runEnvStart(args []string) error {
 	fs := flag.NewFlagSet("env start", flag.ContinueOnError)
+	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	composeFile := fs.String("compose-file", "deploy/compose/docker-compose.yml", "compose 文件路径")
 	observability := fs.Bool("observability", false, "启用可观测 profile")
 	skipMigrate := fs.Bool("skip-migrate", false, "跳过迁移")
 	skipSmoke := fs.Bool("skip-smoke", false, "跳过 smoke")
@@ -154,21 +158,50 @@ func runEnvStart(args []string) error {
 		return err
 	}
 	if err := runEnvUp([]string{
+		"--env-file=" + *envFile,
+		"--compose-file=" + *composeFile,
 		"--observability=" + fmt.Sprintf("%v", *observability),
 	}); err != nil {
 		return err
 	}
 	if !*skipMigrate {
-		if err := runEnvMigrateUp(nil); err != nil {
+		if err := runEnvMigrateUp([]string{"--env-file=" + *envFile}); err != nil {
 			return err
 		}
 	}
 	if !*skipSmoke {
-		if err := runEnvSmoke(nil); err != nil {
+		if err := runEnvSmoke([]string{"--env-file=" + *envFile}); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func runEnvRestart(args []string) error {
+	fs := flag.NewFlagSet("env restart", flag.ContinueOnError)
+	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	composeFile := fs.String("compose-file", "deploy/compose/docker-compose.yml", "compose 文件路径")
+	removeVolumes := fs.Bool("remove-volumes", false, "删除 volumes（会清空 mysql/redis 数据）")
+	observability := fs.Bool("observability", false, "启用可观测 profile")
+	skipMigrate := fs.Bool("skip-migrate", false, "跳过迁移")
+	skipSmoke := fs.Bool("skip-smoke", false, "跳过 smoke")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := runEnvDown([]string{
+		"--env-file=" + *envFile,
+		"--compose-file=" + *composeFile,
+		"--remove-volumes=" + fmt.Sprintf("%v", *removeVolumes),
+	}); err != nil {
+		return err
+	}
+	return runEnvStart([]string{
+		"--env-file=" + *envFile,
+		"--compose-file=" + *composeFile,
+		"--observability=" + fmt.Sprintf("%v", *observability),
+		"--skip-migrate=" + fmt.Sprintf("%v", *skipMigrate),
+		"--skip-smoke=" + fmt.Sprintf("%v", *skipSmoke),
+	})
 }
 
 func runEnvMigrateUp(args []string) error {
@@ -329,7 +362,8 @@ func printEnvUsage() {
   fs env down [--remove-volumes]
   fs env ops-up
   fs env ops-down
-  fs env start [--observability] [--skip-migrate] [--skip-smoke]
+  fs env start [--env-file configs/local/dev.env] [--compose-file deploy/compose/docker-compose.yml] [--observability] [--skip-migrate] [--skip-smoke]
+  fs env restart [--env-file configs/local/dev.env] [--compose-file deploy/compose/docker-compose.yml] [--remove-volumes] [--observability] [--skip-migrate] [--skip-smoke]
   fs env migrate-up
   fs env migrate-down [--steps 1 | --all]
   fs env smoke [--env-file configs/local/dev.env]` + "\n")

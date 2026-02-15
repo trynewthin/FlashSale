@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"flashsale/cmd/fs/internal/devenv"
+	"flashsale/cmd/fs/internal/logdir"
 	"flashsale/cmd/fs/internal/platform"
 )
 
@@ -37,6 +38,8 @@ func runRuntime(args []string) error {
 		return runRuntimeStartBackend(args[1:])
 	case "stop-backend":
 		return runRuntimeStopBackend(args[1:])
+	case "restart-backend":
+		return runRuntimeRestartBackend(args[1:])
 	case "start-frontend":
 		return runRuntimeStartFrontend(args[1:])
 	case "stop-frontend":
@@ -84,7 +87,7 @@ func runRuntimeStartBackend(args []string) error {
 		}
 	}
 
-	logDir := filepath.Join(repoRoot, ".memory", "runlogs", "services")
+	logDir := logdir.ServicesDir(repoRoot)
 	_ = os.MkdirAll(logDir, 0o755)
 
 	services := []struct {
@@ -138,7 +141,8 @@ func runRuntimeStartBackend(args []string) error {
 
 func runRuntimeStopBackend(args []string) error {
 	fs := flag.NewFlagSet("runtime stop-backend", flag.ContinueOnError)
-	pidFile := fs.String("pid-file", ".memory/runlogs/services/backend.pids.json", "pid 文件")
+	pidFile := fs.String("pid-file", "log/services/backend.pids.json", "pid 文件")
+	killByPort := fs.Bool("kill-by-port", true, "按端口兜底清理残留监听进程")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -152,8 +156,40 @@ func runRuntimeStopBackend(args []string) error {
 		_ = platform.KillProcess(item.ListenPID)
 		_ = platform.KillProcess(item.LauncherPID)
 	}
+	if *killByPort {
+		// 兜底清理：当 start-backend 中途失败时，pid 文件可能未落盘，
+		// 或者旧进程未按预期退出，导致端口残留，后续启动会出现 bind: address already in use。
+		ports := []int{8081, 8082, 8083, 8084, 8085, 8086, 8087}
+		for _, port := range ports {
+			_ = platform.KillProcess(findProcessByPort(port))
+		}
+	}
 	fmt.Println("[runtime.stop-backend] stop requested")
 	return nil
+}
+
+func runRuntimeRestartBackend(args []string) error {
+	fs := flag.NewFlagSet("runtime restart-backend", flag.ContinueOnError)
+	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	portReadyTimeout := fs.Int("port-ready-timeout-sec", 90, "端口就绪超时秒")
+	bootstrapAdmin := fs.Bool("bootstrap-admin", true, "启用超级管理员初始化")
+	bootstrapUsername := fs.String("bootstrap-username", "admin_root", "超级管理员用户名")
+	bootstrapPassword := fs.String("bootstrap-password", "Admin12345", "超级管理员密码")
+	bootstrapDisplayName := fs.String("bootstrap-display-name", "Super Admin", "超级管理员显示名")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	// 先尽力清理旧进程（含按端口兜底），再启动。
+	_ = runRuntimeStopBackend([]string{"--kill-by-port=true"})
+	return runRuntimeStartBackend([]string{
+		"--env-file=" + *envFile,
+		"--kill-existing=false",
+		"--port-ready-timeout-sec=" + fmt.Sprintf("%d", *portReadyTimeout),
+		"--bootstrap-admin=" + fmt.Sprintf("%v", *bootstrapAdmin),
+		"--bootstrap-username=" + *bootstrapUsername,
+		"--bootstrap-password=" + *bootstrapPassword,
+		"--bootstrap-display-name=" + *bootstrapDisplayName,
+	})
 }
 
 func runRuntimeStartFrontend(args []string) error {
@@ -176,7 +212,7 @@ func runRuntimeStartFrontend(args []string) error {
 	if err != nil {
 		return err
 	}
-	logDir := filepath.Join(repoRoot, ".memory", "runlogs", "frontends")
+	logDir := logdir.FrontendsDir(repoRoot)
 	_ = os.MkdirAll(logDir, 0o755)
 
 	startOne := func(name, dir string, port int) (processPID, error) {
@@ -237,7 +273,7 @@ func resolveFrontendRunner() (runner string, devArgs []string, err error) {
 
 func runRuntimeStopFrontend(args []string) error {
 	fs := flag.NewFlagSet("runtime stop-frontend", flag.ContinueOnError)
-	pidFile := fs.String("pid-file", ".memory/runlogs/frontends/frontend.pids.json", "pid 文件")
+	pidFile := fs.String("pid-file", "log/frontends/frontend.pids.json", "pid 文件")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -282,7 +318,7 @@ func runRuntimeStartOpsControl(args []string) error {
 		_ = runRuntimeStopOpsControl([]string{"--port", fmt.Sprintf("%d", port)})
 	}
 
-	logDir := filepath.Join(repoRoot, ".memory", "runlogs", "services")
+	logDir := logdir.ServicesDir(repoRoot)
 	_ = os.MkdirAll(logDir, 0o755)
 	cmd, err := platform.StartBackground(
 		repoRoot,
@@ -314,7 +350,7 @@ func runRuntimeStartOpsControl(args []string) error {
 func runRuntimeStopOpsControl(args []string) error {
 	fs := flag.NewFlagSet("runtime stop-ops-control", flag.ContinueOnError)
 	port := fs.Int("port", 18080, "端口")
-	pidFile := fs.String("pid-file", ".memory/runlogs/services/ops-control.pids.json", "pid 文件")
+	pidFile := fs.String("pid-file", "log/services/ops-control.pids.json", "pid 文件")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -415,6 +451,7 @@ func printRuntimeUsage() {
 	fmt.Print(`fs runtime 用法:
   fs runtime start-backend
   fs runtime stop-backend
+  fs runtime restart-backend
   fs runtime start-frontend [--install-deps]
   fs runtime stop-frontend
   fs runtime start-ops-control [--addr 0.0.0.0:18080]

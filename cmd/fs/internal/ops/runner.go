@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"flashsale/cmd/fs/internal/logdir"
+
 	"github.com/google/uuid"
 )
 
@@ -108,7 +110,7 @@ const (
 // NewRunner 创建任务执行器。
 func NewRunner(repoRoot string, tasks map[string]TaskDef) *Runner {
 	selfBinary, _ := os.Executable()
-	logRoot := filepath.Join(repoRoot, ".memory", "runlogs", "ops-jobs")
+	logRoot := logdir.OpsJobsDir(repoRoot)
 	_ = os.MkdirAll(logRoot, 0o755)
 	return &Runner{
 		repoRoot:   repoRoot,

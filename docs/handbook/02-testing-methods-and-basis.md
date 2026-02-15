@@ -49,7 +49,9 @@ flowchart TD
 
 ## 5. 测试结果沉淀建议
 
-- 将压测输出统一使用 `-output json`，并落地到 `.memory/runlogs`。
+- 将压测输出统一使用 `-output json`。
+- 在 ops-control 中运行时，输出会被任务日志捕获并按小时归档到 `log/ops-jobs/<job_id>/<yyyyMMddHH>.log`。
+- 本地 CLI 运行时，如需沉淀机读报告，建议重定向到 `log/data/`（例如 `... -output json > log/data/perf.xxx.json`）。
 - 每次优化后保留“基线 vs 新结果”的关键指标对比：
   - `rps`
   - `latency_p95_ms`

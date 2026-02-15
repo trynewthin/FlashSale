@@ -214,8 +214,12 @@ func runEnvMigrateUp(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
-		return err
+	// 允许在容器内仅通过 environment 提供连接参数：--env-file=- 表示跳过加载 env 文件。
+	// 这样可以避免把敏感 env 文件烘焙进镜像，同时也便于 docker-compose 的一次性 migrate job。
+	if strings.TrimSpace(*envFile) != "-" {
+		if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
+			return err
+		}
 	}
 	return applyMigrations(repoRoot, true, 1, false)
 }
@@ -235,8 +239,11 @@ func runEnvMigrateDown(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
-		return err
+	// 允许在容器内仅通过 environment 提供连接参数：--env-file=- 表示跳过加载 env 文件。
+	if strings.TrimSpace(*envFile) != "-" {
+		if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
+			return err
+		}
 	}
 	return applyMigrations(repoRoot, false, *steps, *all)
 }
@@ -294,8 +301,11 @@ func runEnvSmoke(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
-		return err
+	// 允许在容器内仅通过 environment 提供连接参数：--env-file=- 表示跳过加载 env 文件。
+	if strings.TrimSpace(*envFile) != "-" {
+		if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
+			return err
+		}
 	}
 	if err := ensureSmokeEnv(); err != nil {
 		return err

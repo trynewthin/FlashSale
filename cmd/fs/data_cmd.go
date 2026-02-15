@@ -56,8 +56,12 @@ func runDataClear(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
-		return err
+	// 允许在容器/服务器上仅通过 environment 提供连接参数：--env-file=- 表示跳过加载 env 文件。
+	// 这能避免依赖本地 configs/local/dev.env（该文件默认不入库），也避免把敏感 env 文件写进镜像层。
+	if strings.TrimSpace(*envFile) != "-" {
+		if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
+			return err
+		}
 	}
 	return clearData(context.Background(), *clearAdmin, *keepInfraTables, *skipRedisFlush)
 }
@@ -88,8 +92,11 @@ func runDataSeedOverwrite(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
-		return err
+	// 允许在容器/服务器上仅通过 environment 提供连接参数：--env-file=- 表示跳过加载 env 文件。
+	if strings.TrimSpace(*envFile) != "-" {
+		if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
+			return err
+		}
 	}
 
 	// 约定：部署环境不使用 .memory 作为运行输出目录；这里兜底修正到 log/data。

@@ -1,0 +1,340 @@
+name: flashsale-app
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: flashsale-app-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${FLASH_MYSQL_ROOT_PASSWORD:-flashsale_root_dev}
+      TZ: Asia/Shanghai
+    ports:
+      - "${FLASH_MYSQL_PORT:-13306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  mysql-init-user:
+    image: mysql:8.4
+    container_name: flashsale-app-mysql-init-user
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_ROOT_PASSWORD: ${FLASH_MYSQL_ROOT_PASSWORD:-flashsale_root_dev}
+      MYSQL_APP_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      MYSQL_APP_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+    command:
+      - /bin/bash
+      - -ec
+      - |
+        mysql -hmysql -uroot -p"$$MYSQL_ROOT_PASSWORD" -e "
+        CREATE USER IF NOT EXISTS '$$MYSQL_APP_USER'@'%' IDENTIFIED BY '$$MYSQL_APP_PASSWORD';
+        GRANT ALL PRIVILEGES ON flash_user.* TO '$$MYSQL_APP_USER'@'%';
+        GRANT ALL PRIVILEGES ON flash_admin.* TO '$$MYSQL_APP_USER'@'%';
+        GRANT ALL PRIVILEGES ON flash_product.* TO '$$MYSQL_APP_USER'@'%';
+        GRANT ALL PRIVILEGES ON flash_order.* TO '$$MYSQL_APP_USER'@'%';
+        GRANT ALL PRIVILEGES ON flash_seckill.* TO '$$MYSQL_APP_USER'@'%';
+        FLUSH PRIVILEGES;
+        "
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: flashsale-app-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${FLASH_REDIS_PORT:-16379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: flashsale-app-kafka
+    restart: unless-stopped
+    ports:
+      - "${FLASH_KAFKA_PORT:-39092}:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:${FLASH_KAFKA_PORT:-39092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: flashsale-app-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -ec
+      - |
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic order.create --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic order.create.dlq --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stock.compensate --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.traffic.raw --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.traffic.dlq --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.order.state --partitions 3 --replication-factor 1
+
+  backend-image:
+    # 仅用于复用 build 缓存，不实际启动
+    image: flashsale-backend:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    profiles: ["build"]
+
+  migrate:
+    image: flashsale-backend:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    depends_on:
+      mysql-init-user:
+        condition: service_completed_successfully
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+    command: ["/app/bin/fs", "env", "migrate-up", "--env-file", "-"]
+
+  grpc-lb:
+    image: nginx:1.27-alpine
+    container_name: flashsale-app-grpc-lb
+    restart: unless-stopped
+    depends_on:
+      seckill-rpc:
+        condition: service_started
+    volumes:
+      - ../nginx/grpc-lb.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 18086"]
+      interval: 5s
+      timeout: 2s
+      retries: 30
+
+  user-rpc:
+    image: flashsale-backend:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_REDIS_ADDR: redis:6379
+      FLASHSALE_KAFKA_BROKERS: kafka:9092
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/user-rpc -f /app/apps/user/rpc/etc/user.yaml >>/app/log/services/user-rpc.log 2>&1"]
+    volumes:
+      - ../../log:/app/log
+
+  product-rpc:
+    image: flashsale-backend:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_REDIS_ADDR: redis:6379
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/product-rpc -f /app/apps/product/rpc/etc/product.yaml >>/app/log/services/product-rpc.log 2>&1"]
+    volumes:
+      - ../../log:/app/log
+
+  admin-rpc:
+    image: flashsale-backend:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/admin-rpc -f /app/apps/admin/rpc/etc/admin.yaml >>/app/log/services/admin-rpc.log 2>&1"]
+    volumes:
+      - ../../log:/app/log
+
+  order-rpc:
+    image: flashsale-backend:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_KAFKA_BROKERS: kafka:9092
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/order-rpc -f /app/apps/order/rpc/etc/order.docker.yaml >>/app/log/services/order-rpc.log 2>&1"]
+    volumes:
+      - ../../log:/app/log
+
+  seckill-rpc:
+    image: flashsale-backend:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_REDIS_ADDR: redis:6379
+      FLASHSALE_KAFKA_BROKERS: kafka:9092
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/seckill-rpc -f /app/apps/seckill/rpc/etc/seckill.docker.yaml >>/app/log/services/seckill-rpc.log 2>&1"]
+    volumes:
+      - ../../log:/app/log
+
+  user-gateway:
+    image: flashsale-backend:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      user-rpc:
+        condition: service_started
+      product-rpc:
+        condition: service_started
+      order-rpc:
+        condition: service_started
+      grpc-lb:
+        condition: service_healthy
+    environment:
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_REDIS_ADDR: redis:6379
+      FLASHSALE_KAFKA_BROKERS: kafka:9092
+    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/user-gateway -f /app/apps/gateway/user/etc/user-gateway.docker.yaml >>/app/log/services/user-gateway.log 2>&1"]
+    volumes:
+      - ../../log:/app/log
+
+  admin-gateway:
+    image: flashsale-backend:local
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      user-rpc:
+        condition: service_started
+      admin-rpc:
+        condition: service_started
+      product-rpc:
+        condition: service_started
+      order-rpc:
+        condition: service_started
+      grpc-lb:
+        condition: service_healthy
+    environment:
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_REDIS_ADDR: redis:6379
+      FLASHSALE_KAFKA_BROKERS: kafka:9092
+    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/admin-gateway -f /app/apps/gateway/admin/etc/admin-gateway.docker.yaml >>/app/log/services/admin-gateway.log 2>&1"]
+    volumes:
+      - ../../log:/app/log
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: flashsale-app-nginx
+    restart: unless-stopped
+    ports:
+      - "${FLASH_NGINX_HTTP_PORT:-18000}:80"
+    volumes:
+      - ../nginx/nginx.app.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      user-gateway:
+        condition: service_started
+      admin-gateway:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  mysql_data:
+  redis_data:

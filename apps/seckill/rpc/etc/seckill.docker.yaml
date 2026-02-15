@@ -1,0 +1,30 @@
+Name: seckill-rpc
+ListenOn: 0.0.0.0:8086
+Timeout: 8000
+BaseConfigPath: configs/local/dev.yaml
+SnowflakeNode: 6
+
+ProductRPC:
+  Target: product-rpc:8084
+
+OrderRPC:
+  Target: order-rpc:8085
+  Timeout: 4000
+
+ActivityItemCacheTTLMs: 1500
+ReservePurchaseTimeoutMs: 5000
+ReserveDBUserLimitCheck: false
+OrderCreateRPCTimeoutMs: 4200
+OrderCreateMaxInFlight: 448
+OrderCreateAcquireTimeoutMs: 240
+OrderLinkWriteOnPurchase: false
+OrderLinkSyncFallback: false
+OrderLinkAsyncWorkers: 12
+OrderLinkAsyncQueueSize: 8192
+OrderLinkWriteTimeoutMs: 800
+TrafficAsyncWorkers: 16
+TrafficAsyncQueueSize: 32768
+TrafficWriteTimeoutMs: 300
+TrafficPublishTimeoutMs: 300
+PerfLogIntervalSec: 30
+

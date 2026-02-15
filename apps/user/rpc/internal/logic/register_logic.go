@@ -72,6 +72,9 @@ func (l *RegisterLogic) Register(in *pb.RegisterReq) (*pb.AuthResp, error) {
 		if repository.IsDuplicateEntry(err) {
 			return nil, errorx.New(errorx.CodeAuthPhoneAlreadyRegistered, "手机号已注册")
 		}
+		// 记录底层数据库错误，便于排查部署环境或迁移差异导致的写入失败。
+		// 注意：这里不要打印密码明文或密码哈希，避免日志泄漏敏感信息。
+		l.Logger.Errorf("创建用户失败 phone=%s err=%v", phone, err)
 		return nil, errorx.Wrap(errorx.CodeDBError, "创建用户失败", err)
 	}
 

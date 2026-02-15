@@ -3,7 +3,10 @@ const STORAGE_KEY = "flashsale_ops_key";
 
 export class OpsApiClient {
   constructor(baseUrl = "") {
-    this.baseUrl = baseUrl;
+    this.baseUrl = String(baseUrl || "");
+    if (this.baseUrl && !this.baseUrl.endsWith("/")) {
+      this.baseUrl += "/";
+    }
     this.accessKey = (localStorage.getItem(STORAGE_KEY) || "").trim();
   }
 
@@ -21,17 +24,17 @@ export class OpsApiClient {
   }
 
   async listTasks() {
-    const data = await this.fetchJSON("/api/v1/tasks");
+    const data = await this.fetchJSON("api/v1/tasks");
     return data.tasks || [];
   }
 
   async listJobs(limit = 30) {
-    const data = await this.fetchJSON(`/api/v1/jobs?limit=${encodeURIComponent(String(limit))}`);
+    const data = await this.fetchJSON(`api/v1/jobs?limit=${encodeURIComponent(String(limit))}`);
     return data.jobs || [];
   }
 
   async createJob(task, args) {
-    const data = await this.fetchJSON("/api/v1/jobs", {
+    const data = await this.fetchJSON("api/v1/jobs", {
       method: "POST",
       body: JSON.stringify({ task, args }),
     });
@@ -39,15 +42,48 @@ export class OpsApiClient {
   }
 
   async getJobLog(jobId) {
-    const data = await this.fetchJSON(`/api/v1/jobs/${encodeURIComponent(jobId)}/log`);
+    const data = await this.fetchJSON(`api/v1/jobs/${encodeURIComponent(jobId)}/log`);
     return data.log || "";
+  }
+
+  async getStatus() {
+    const data = await this.fetchJSON("api/v1/status");
+    return data.status || null;
+  }
+
+  async listServiceLogFiles() {
+    const data = await this.fetchJSON("api/v1/service-logs/files");
+    return data.files || [];
+  }
+
+  async getServiceLogTail(fileId, lines = 200) {
+    const data = await this.fetchJSON(
+      `api/v1/service-logs/${encodeURIComponent(fileId)}/tail?lines=${encodeURIComponent(String(lines))}`
+    );
+    return data;
+  }
+
+  buildServiceLogStreamUrl(fileId, { fromEnd = true } = {}) {
+    const key = this.getAccessKey();
+    const queryParts = [];
+    if (key) {
+      queryParts.push(`key=${encodeURIComponent(key)}`);
+    }
+    queryParts.push(`from_end=${encodeURIComponent(fromEnd ? "true" : "false")}`);
+    const query = queryParts.length ? `?${queryParts.join("&")}` : "";
+    return this.buildUrl(`api/v1/service-logs/${encodeURIComponent(fileId)}/stream${query}`);
   }
 
   // buildLogStreamUrl 生成 SSE 日志流地址，兼容 query 方式传递密钥。
   buildLogStreamUrl(jobId) {
     const key = this.getAccessKey();
     const query = key ? `?key=${encodeURIComponent(key)}` : "";
-    return `${this.baseUrl}/api/v1/jobs/${encodeURIComponent(jobId)}/stream${query}`;
+    return this.buildUrl(`api/v1/jobs/${encodeURIComponent(jobId)}/stream${query}`);
+  }
+
+  buildUrl(path) {
+    const clean = String(path || "").replace(/^\/+/, "");
+    return `${this.baseUrl}${clean}`;
   }
 
   // fetchJSON 统一处理 code/message/data 包装响应。
@@ -61,7 +97,7 @@ export class OpsApiClient {
     if (init.body && !headers["Content-Type"]) {
       headers["Content-Type"] = "application/json";
     }
-    const resp = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
+    const resp = await fetch(this.buildUrl(path), { ...init, headers });
     const payload = await resp.json();
     if (payload.code !== "OK") {
       throw new Error(payload.message || "request failed");

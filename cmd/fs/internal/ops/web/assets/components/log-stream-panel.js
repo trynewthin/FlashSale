@@ -23,6 +23,11 @@ export function createLogStreamPanel(container) {
     textarea.scrollTop = textarea.scrollHeight;
   }
 
+  function appendText(text) {
+    textarea.value += `${text || ""}`;
+    textarea.scrollTop = textarea.scrollHeight;
+  }
+
   function stopStream() {
     if (eventSource) {
       try {
@@ -40,7 +45,9 @@ export function createLogStreamPanel(container) {
     eventSource.addEventListener("log", (event) => {
       try {
         const payload = JSON.parse(event.data || "{}");
-        if (payload.line) {
+        if (payload.chunk) {
+          appendText(payload.chunk);
+        } else if (payload.line) {
           appendLine(payload.line);
         }
       } catch (_err) {
@@ -58,6 +65,7 @@ export function createLogStreamPanel(container) {
   return {
     setText,
     appendLine,
+    appendText,
     startStream,
     stopStream,
   };

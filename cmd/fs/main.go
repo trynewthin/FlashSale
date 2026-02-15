@@ -78,6 +78,7 @@ func runOpsServer(args []string) error {
 	repoRoot := fs.String("repo-root", ".", "仓库根目录")
 	authKey := fs.String("auth-key", "", "访问密钥（优先于 --auth-key-env）")
 	authKeyEnv := fs.String("auth-key-env", "FLASHSALE_OPS_ACCESS_KEY", "密钥环境变量名")
+	defaultEnvFile := fs.String("default-env-file", "", "默认 env 文件（为空则自动探测 server.env/dev.env）")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -86,8 +87,28 @@ func runOpsServer(args []string) error {
 	if err != nil {
 		return err
 	}
+	// 选择默认 env-file：服务器优先 server.env，本地优先 dev.env。
+	chosenEnv := strings.TrimSpace(*defaultEnvFile)
+	if chosenEnv == "" {
+		candidates := []string{
+			filepath.Join(rootAbs, "configs", "prod", "server.env"),
+			filepath.Join(rootAbs, "configs", "local", "dev.env"),
+		}
+		for _, p := range candidates {
+			if _, err := os.Stat(p); err == nil {
+				// 传入 tasks 的是相对 repoRoot 的路径。
+				rel, relErr := filepath.Rel(rootAbs, p)
+				if relErr == nil {
+					chosenEnv = filepath.ToSlash(rel)
+				}
+				break
+			}
+		}
+	}
 	key := resolveSecret(*authKey, *authKeyEnv)
-	runner := ops.NewRunner(rootAbs, ops.DefaultTasks())
+	runner := ops.NewRunner(rootAbs, ops.DefaultTasksWithOptions(ops.TasksOptions{
+		DefaultEnvFile: chosenEnv,
+	}))
 	server := ops.NewServer(runner, key)
 	if key == "" {
 		fmt.Printf("ops-control listening on %s (repo=%s, auth=disabled)\n", *addr, rootAbs)

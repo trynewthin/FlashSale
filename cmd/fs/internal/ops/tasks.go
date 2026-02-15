@@ -3,32 +3,74 @@ package ops
 
 import "sort"
 
+// TasksOptions 定义白名单任务的默认行为参数。
+// 说明：ops-control 运行在不同环境时（本地 dev / 服务器 prod），需要把 env-file 作为“默认上下文”注入到任务里，
+// 这样 Web 点击执行时无需每次手动填写参数。
+type TasksOptions struct {
+	// DefaultEnvFile 是默认环境变量文件路径（相对 repoRoot）。
+	// 例如：configs/local/dev.env 或 configs/prod/server.env
+	DefaultEnvFile string
+}
+
 // DefaultTasks 返回内置白名单任务。
 func DefaultTasks() map[string]TaskDef {
+	return DefaultTasksWithOptions(TasksOptions{
+		DefaultEnvFile: "configs/local/dev.env",
+	})
+}
+
+// DefaultTasksWithOptions 返回带可配置默认参数的白名单任务。
+func DefaultTasksWithOptions(opts TasksOptions) map[string]TaskDef {
+	envFileArg := ""
+	if opts.DefaultEnvFile != "" {
+		envFileArg = "--env-file=" + opts.DefaultEnvFile
+	}
+	withEnv := func(args ...string) []string {
+		if envFileArg == "" {
+			return append([]string{}, args...)
+		}
+		out := make([]string, 0, 1+len(args))
+		out = append(out, envFileArg)
+		out = append(out, args...)
+		return out
+	}
+
 	return map[string]TaskDef{
 		"env.start": {
 			ID:          "env.start",
 			Name:        "启动 Docker 环境",
 			Description: "启动 MySQL/Redis/Kafka 并执行迁移与 smoke。",
 			Command:     []string{"self", "env", "start"},
+			DefaultArgs: withEnv(),
 		},
 		"env.stop": {
 			ID:          "env.stop",
 			Name:        "停止 Docker 环境",
 			Description: "停止基础容器环境。",
 			Command:     []string{"self", "env", "down"},
+			DefaultArgs: withEnv(),
+		},
+		"env.restart": {
+			ID:          "env.restart",
+			Name:        "重启 Docker 环境",
+			Description: "停止后再启动基础容器环境（可选清理 volumes）。",
+			Command:     []string{"self", "env", "restart"},
+			DefaultArgs: withEnv(),
+			Dangerous:   true,
 		},
 		"env.migrate_up": {
 			ID:          "env.migrate_up",
 			Name:        "执行迁移 up",
 			Description: "执行所有数据库迁移。",
 			Command:     []string{"self", "env", "migrate-up"},
+			DefaultArgs: withEnv(),
 		},
 		"env.migrate_down": {
 			ID:          "env.migrate_down",
 			Name:        "执行迁移 down",
 			Description: "回滚最近一批迁移。",
 			Command:     []string{"self", "env", "migrate-down"},
+			DefaultArgs: withEnv(),
 			Dangerous:   true,
 		},
 		"data.seed_overwrite": {
@@ -36,7 +78,7 @@ func DefaultTasks() map[string]TaskDef {
 			Name:        "覆写填充数据",
 			Description: "清空业务数据并重建演示数据。",
 			Command:     []string{"self", "data", "seed-overwrite"},
-			DefaultArgs: []string{"--force"},
+			DefaultArgs: withEnv("--force"),
 			Dangerous:   true,
 		},
 		"data.clear": {
@@ -44,7 +86,7 @@ func DefaultTasks() map[string]TaskDef {
 			Name:        "清理数据",
 			Description: "清理业务数据（默认保留管理员账号/角色）。",
 			Command:     []string{"self", "data", "clear"},
-			DefaultArgs: []string{"--force"},
+			DefaultArgs: withEnv("--force"),
 			Dangerous:   true,
 		},
 		"runtime.start_backend": {
@@ -52,12 +94,20 @@ func DefaultTasks() map[string]TaskDef {
 			Name:        "启动后端服务",
 			Description: "启动 user/product/order/seckill/admin rpc 与双网关。",
 			Command:     []string{"self", "runtime", "start-backend"},
+			DefaultArgs: withEnv(),
 		},
 		"runtime.stop_backend": {
 			ID:          "runtime.stop_backend",
 			Name:        "停止后端服务",
 			Description: "停止后端服务进程。",
 			Command:     []string{"self", "runtime", "stop-backend"},
+		},
+		"runtime.restart_backend": {
+			ID:          "runtime.restart_backend",
+			Name:        "重启后端服务",
+			Description: "停止后端服务并按端口兜底清理，再重新启动。",
+			Command:     []string{"self", "runtime", "restart-backend"},
+			DefaultArgs: withEnv(),
 		},
 		"runtime.start_frontend": {
 			ID:          "runtime.start_frontend",
@@ -76,6 +126,7 @@ func DefaultTasks() map[string]TaskDef {
 			Name:        "启动 Ops Control",
 			Description: "启动独立运维控制台。",
 			Command:     []string{"self", "runtime", "start-ops-control"},
+			DefaultArgs: withEnv(),
 		},
 		"runtime.stop_ops_control": {
 			ID:          "runtime.stop_ops_control",
@@ -88,35 +139,35 @@ func DefaultTasks() map[string]TaskDef {
 			Name:        "秒杀购买压测(闭环)",
 			Description: "执行 purchase-stress 压测。",
 			Command:     []string{"self", "perf", "purchase-stress"},
-			DefaultArgs: []string{"-concurrency", "200", "-requests", "4000", "-timeout", "7s", "-output", "json"},
+			DefaultArgs: withEnv("-concurrency", "200", "-requests", "4000", "-timeout", "7s", "-output", "json"),
 		},
 		"perf.idempotency": {
 			ID:          "perf.idempotency",
 			Name:        "秒杀幂等压测",
 			Description: "执行 idempotency 压测。",
 			Command:     []string{"self", "perf", "idempotency"},
-			DefaultArgs: []string{"-concurrency", "50", "-requests", "200", "-expect-max-success", "1", "-output", "json"},
+			DefaultArgs: withEnv("-concurrency", "50", "-requests", "200", "-expect-max-success", "1", "-output", "json"),
 		},
 		"perf.track_stress": {
 			ID:          "perf.track_stress",
 			Name:        "秒杀埋点压测(闭环)",
 			Description: "执行 track-stress 压测。",
 			Command:     []string{"self", "perf", "track-stress"},
-			DefaultArgs: []string{"-concurrency", "300", "-requests", "6000", "-timeout", "4s", "-output", "json"},
+			DefaultArgs: withEnv("-concurrency", "300", "-requests", "6000", "-timeout", "4s", "-output", "json"),
 		},
 		"perf.purchase_open": {
 			ID:          "perf.purchase_open",
 			Name:        "秒杀购买压测(开环)",
 			Description: "执行 purchase-open 固定到达率压测。",
 			Command:     []string{"self", "perf", "purchase-open"},
-			DefaultArgs: []string{"-rate", "120", "-open-duration", "30s", "-concurrency", "300", "-timeout", "7s", "-output", "json"},
+			DefaultArgs: withEnv("-rate", "120", "-open-duration", "30s", "-concurrency", "300", "-timeout", "7s", "-output", "json"),
 		},
 		"perf.track_open": {
 			ID:          "perf.track_open",
 			Name:        "秒杀埋点压测(开环)",
 			Description: "执行 track-open 固定到达率压测。",
 			Command:     []string{"self", "perf", "track-open"},
-			DefaultArgs: []string{"-rate", "1000", "-open-duration", "30s", "-concurrency", "400", "-timeout", "4s", "-output", "json"},
+			DefaultArgs: withEnv("-rate", "1000", "-open-duration", "30s", "-concurrency", "400", "-timeout", "4s", "-output", "json"),
 		},
 	}
 }

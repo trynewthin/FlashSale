@@ -77,7 +77,7 @@ func runDataSeedOverwrite(args []string) error {
 	seckillReservedStock := fs.Int64("seckill-reserved-stock", 5000, "秒杀预占库存")
 	seckillPriceCent := fs.Int64("seckill-price-cent", 9900, "秒杀价格(分)")
 	seckillDurationMinutes := fs.Int64("seckill-duration-minutes", 120, "秒杀持续分钟")
-	outputDir := fs.String("output-dir", ".memory/runlogs", "输出目录")
+	outputDir := fs.String("output-dir", "log/data", "输出目录")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -90,6 +90,16 @@ func runDataSeedOverwrite(args []string) error {
 	}
 	if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
 		return err
+	}
+
+	// 约定：部署环境不使用 .memory 作为运行输出目录；这里兜底修正到 log/data。
+	{
+		absOut := filepath.Clean(devenv.ResolvePath(repoRoot, strings.TrimSpace(*outputDir)))
+		absMem := filepath.Clean(filepath.Join(repoRoot, ".memory"))
+		sep := string(filepath.Separator)
+		if absOut == absMem || strings.HasPrefix(absOut, absMem+sep) {
+			*outputDir = "log/data"
+		}
 	}
 
 	if err := clearData(context.Background(), true, false, false); err != nil {

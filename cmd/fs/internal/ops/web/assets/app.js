@@ -7,6 +7,8 @@ import { createTaskRunnerForm } from "./components/task-runner-form.js";
 import { createTaskTable } from "./components/task-table.js";
 import { createJobTable } from "./components/job-table.js";
 import { createLogStreamPanel } from "./components/log-stream-panel.js";
+import { createStatusPanel } from "./components/status-panel.js";
+import { createServiceLogPanel } from "./components/service-log-panel.js";
 
 const api = new OpsApiClient("");
 const store = createStore({
@@ -16,6 +18,15 @@ const store = createStore({
 });
 
 const statusBar = createStatusBar(document.getElementById("status-bar"));
+const statusPanel = createStatusPanel(document.getElementById("status-panel"), {
+  onRefresh: async () => {
+    await reloadStatus();
+  },
+});
+const serviceLogPanel = createServiceLogPanel(document.getElementById("service-log-panel"), {
+  api,
+  statusBar,
+});
 const taskTable = createTaskTable(document.getElementById("task-table"));
 const jobTable = createJobTable(document.getElementById("job-table"), {
   onViewLog: async (jobId) => {
@@ -75,8 +86,20 @@ async function reloadJobs() {
   store.setState({ jobs });
 }
 
+async function reloadStatus() {
+  try {
+    statusPanel.setLoading();
+    const status = await api.getStatus();
+    statusPanel.render(status);
+  } catch (error) {
+    statusPanel.setError(error.message);
+  }
+}
+
 async function reloadAll() {
   statusBar.clear();
+  await reloadStatus();
+  await serviceLogPanel.refreshFiles();
   await reloadTasks();
   await reloadJobs();
   const { currentJobId } = store.getState();
@@ -104,6 +127,10 @@ setInterval(async () => {
     statusBar.showError(error.message);
   }
 }, 3000);
+
+setInterval(async () => {
+  await reloadStatus();
+}, 5000);
 
 reloadAll().catch((error) => {
   statusBar.showError(error.message);

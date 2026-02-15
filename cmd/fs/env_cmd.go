@@ -252,6 +252,7 @@ func buildMigrateDSN(host string, port int, user, pass, db string) string {
 
 func runEnvSmoke(args []string) error {
 	fs := flag.NewFlagSet("env smoke", flag.ContinueOnError)
+	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
 	configPath := fs.String("config", "configs/local/dev.yaml", "smoke 配置文件")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -260,7 +261,7 @@ func runEnvSmoke(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := devenv.Load(devenv.ResolvePath(repoRoot, "configs/local/dev.env")); err != nil {
+	if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
 		return err
 	}
 	if err := ensureSmokeEnv(); err != nil {
@@ -331,5 +332,5 @@ func printEnvUsage() {
   fs env start [--observability] [--skip-migrate] [--skip-smoke]
   fs env migrate-up
   fs env migrate-down [--steps 1 | --all]
-  fs env smoke` + "\n")
+  fs env smoke [--env-file configs/local/dev.env]` + "\n")
 }

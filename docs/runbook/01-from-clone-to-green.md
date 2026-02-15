@@ -68,7 +68,7 @@ go run ./cmd/fs data seed-overwrite --force
 
 - 清理业务数据
 - 重建超级管理员、种子用户、商品、活动、订单
-- 输出结果到 `.memory/runlogs/seed-overwrite.result.json`
+- 输出结果到 `log/data/seed-overwrite.result.json`
 
 ## 8. 启动两个前端
 

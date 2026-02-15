@@ -34,7 +34,7 @@
 
 1. 先降开环 `-rate`，确认系统在稳定区间。
 2. 调整 HTTP 连接池参数：`max-idle-conns`、`max-idle-conns-per-host`、`max-conns-per-host`。
-3. 检查后端是否触发限流或超时（查看 `.memory/runlogs/services`）。
+3. 检查后端是否触发限流或超时（查看 `log/services`）。
 
 ## 4. 管理端无权限（403）
 

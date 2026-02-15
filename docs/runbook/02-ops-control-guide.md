@@ -56,10 +56,10 @@ go run ./cmd/fs ops logs --job <job_id> --key-env FLASHSALE_OPS_ACCESS_KEY
 
 ## 5. 日志与运行记录
 
-- 服务日志：`.memory/runlogs/services/*.log`
-- 前端日志：`.memory/runlogs/frontends/*.log`
-- 任务日志：`.memory/runlogs/ops-jobs/<yyyyMMddHH>/<job_id>.log`
-- 种子数据结果：`.memory/runlogs/seed-overwrite.result.json`
+- 服务日志：`log/services/*.log`（stdout/stderr/pid）
+- 前端日志：`log/frontends/*.log`
+- 任务日志：`log/ops-jobs/<job_id>/<yyyyMMddHH>.log`（按小时归档）
+- 种子数据结果：`log/data/seed-overwrite.result.json`
 
 ## 6. 远程访问建议（非生产演示环境）
 

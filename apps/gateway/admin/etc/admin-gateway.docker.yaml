@@ -1,6 +1,13 @@
 Name: admin-gateway
 ListenOn: 0.0.0.0:8083
+Mode: pro
 BaseConfigPath: configs/local/dev.yaml
+
+Telemetry:
+  Name: admin-gateway
+  Endpoint: jaeger:4317
+  Sampler: 1.0
+  Batcher: otlpgrpc
 
 UserRPC:
   Etcd:

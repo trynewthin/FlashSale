@@ -14,7 +14,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ../mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      test: [ "CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}" ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -47,13 +47,13 @@ services:
     image: redis:7.2-alpine
     container_name: flashsale-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: [ "redis-server", "--appendonly", "yes" ]
     ports:
       - "${FLASH_REDIS_PORT:-16379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 3s
       retries: 12
@@ -80,7 +80,7 @@ services:
       KAFKA_NUM_PARTITIONS: 3
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      test: [ "CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1" ]
       interval: 10s
       timeout: 10s
       retries: 12
@@ -102,12 +102,12 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:1.57
     container_name: flashsale-jaeger
-    profiles: ["observability"]
+    profiles: [ "observability" ]
     ports:
       - "${FLASH_JAEGER_UI_PORT:-16686}:16686"
       - "${FLASH_OTEL_PORT:-4317}:4317"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:16686"]
+      test: [ "CMD", "wget", "-qO-", "http://localhost:16686" ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -115,21 +115,18 @@ services:
   prometheus:
     image: prom/prometheus:v2.53.1
     container_name: flashsale-prometheus
-    profiles: ["observability"]
+    profiles: [ "observability" ]
     ports:
       - "${FLASH_PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
       - --config.file=/etc/prometheus/prometheus.yml
-    depends_on:
-      jaeger:
-        condition: service_started
 
   grafana:
     image: grafana/grafana:10.4.5
     container_name: flashsale-grafana
-    profiles: ["observability"]
+    profiles: [ "observability" ]
     ports:
       - "${FLASH_GRAFANA_PORT:-3000}:3000"
     environment:
@@ -137,6 +134,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${FLASH_GRAFANA_ADMIN_PASSWORD:-admin}
     volumes:
       - ../grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ../grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       prometheus:
         condition: service_started
@@ -153,7 +152,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-healthz"]
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/nginx-healthz" ]
       interval: 10s
       timeout: 3s
       retries: 12

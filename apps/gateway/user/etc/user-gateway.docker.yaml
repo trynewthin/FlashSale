@@ -1,6 +1,13 @@
 Name: user-gateway
 ListenOn: 0.0.0.0:8082
+Mode: pro
 BaseConfigPath: configs/local/dev.yaml
+
+Telemetry:
+  Name: user-gateway
+  Endpoint: jaeger:4317
+  Sampler: 1.0
+  Batcher: otlpgrpc
 
 UserRPC:
   Etcd:

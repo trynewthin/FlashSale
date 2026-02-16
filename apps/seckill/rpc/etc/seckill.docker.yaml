@@ -1,8 +1,15 @@
 Name: seckill-rpc
 ListenOn: 0.0.0.0:8086
+Mode: pro
 Timeout: 8000
 BaseConfigPath: configs/local/dev.yaml
 SnowflakeNode: 6
+
+Telemetry:
+  Name: seckill.rpc
+  Endpoint: jaeger:4317
+  Sampler: 1.0
+  Batcher: otlpgrpc
 
 Etcd:
   Hosts:

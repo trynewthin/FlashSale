@@ -1,7 +1,14 @@
 Name: order-rpc
 ListenOn: 0.0.0.0:8085
+Mode: pro
 Timeout: 8000
 BaseConfigPath: configs/local/dev.yaml
+
+Telemetry:
+  Name: order.rpc
+  Endpoint: jaeger:4317
+  Sampler: 1.0
+  Batcher: otlpgrpc
 
 Etcd:
   Hosts:

@@ -1,7 +1,14 @@
 Name: admin-rpc
 ListenOn: 0.0.0.0:8087
+Mode: pro
 BaseConfigPath: configs/local/dev.yaml
 SnowflakeNode: 7
+
+Telemetry:
+  Name: admin.rpc
+  Endpoint: jaeger:4317
+  Sampler: 1.0
+  Batcher: otlpgrpc
 
 Etcd:
   Hosts:

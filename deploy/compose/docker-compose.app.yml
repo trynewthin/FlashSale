@@ -173,6 +173,11 @@ services:
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
     command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/user-rpc -f /app/apps/user/rpc/etc/user.docker.yaml >>/app/log/services/user-rpc.log 2>&1" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     volumes:
       - ../../log:/app/log
 
@@ -198,6 +203,11 @@ services:
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
     command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/product-rpc -f /app/apps/product/rpc/etc/product.docker.yaml >>/app/log/services/product-rpc.log 2>&1" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     volumes:
       - ../../log:/app/log
 
@@ -220,6 +230,11 @@ services:
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
     command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/admin-rpc -f /app/apps/admin/rpc/etc/admin.docker.yaml >>/app/log/services/admin-rpc.log 2>&1" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     volumes:
       - ../../log:/app/log
 
@@ -245,6 +260,11 @@ services:
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
     command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/order-rpc -f /app/apps/order/rpc/etc/order.docker.yaml >>/app/log/services/order-rpc.log 2>&1" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     volumes:
       - ../../log:/app/log
 
@@ -273,6 +293,11 @@ services:
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
     command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/seckill-rpc -f /app/apps/seckill/rpc/etc/seckill.docker.yaml >>/app/log/services/seckill-rpc.log 2>&1" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     volumes:
       - ../../log:/app/log
 
@@ -297,6 +322,11 @@ services:
       FLASHSALE_REDIS_ADDR: redis:6379
       FLASHSALE_KAFKA_BROKERS: kafka:9092
     command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/user-gateway -f /app/apps/gateway/user/etc/user-gateway.docker.yaml >>/app/log/services/user-gateway.log 2>&1" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     volumes:
       - ../../log:/app/log
 
@@ -321,6 +351,11 @@ services:
       FLASHSALE_REDIS_ADDR: redis:6379
       FLASHSALE_KAFKA_BROKERS: kafka:9092
     command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/admin-gateway -f /app/apps/gateway/admin/etc/admin-gateway.docker.yaml >>/app/log/services/admin-gateway.log 2>&1" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     volumes:
       - ../../log:/app/log
 
@@ -332,18 +367,64 @@ services:
       - "${FLASH_NGINX_HTTP_PORT:-18000}:80"
     volumes:
       - ../nginx/nginx.app.conf:/etc/nginx/nginx.conf:ro
+      - nginx_logs:/var/log/nginx
     depends_on:
       user-gateway:
-        condition: service_started
+        condition: service_healthy
       admin-gateway:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/nginx-healthz" ]
       interval: 10s
       timeout: 3s
       retries: 12
 
+  # ─── 可观测性（可选 profile）───
+  # 启动方式：docker compose -f ... --profile observability up -d
+  # 注意：需要与主服务一起启动，prometheus 才能采集到 service name
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: flashsale-app-jaeger
+    profiles: [ "observability" ]
+    ports:
+      - "${FLASH_JAEGER_UI_PORT:-16686}:16686"
+      - "${FLASH_OTEL_PORT:-4317}:4317"
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:16686" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  prometheus:
+    image: prom/prometheus:v2.53.1
+    container_name: flashsale-app-prometheus
+    profiles: [ "observability" ]
+    ports:
+      - "${FLASH_PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:10.4.5
+    container_name: flashsale-app-grafana
+    profiles: [ "observability" ]
+    ports:
+      - "${FLASH_GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${FLASH_GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${FLASH_GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ../grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ../grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+
 volumes:
   mysql_data:
   redis_data:
   etcd_data:
+  nginx_logs:

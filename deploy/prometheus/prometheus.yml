@@ -2,6 +2,43 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: flashsale-metrics
+  # 宿主机进程模式（docker-compose.yml + 后端进程在宿主机）
+  - job_name: flashsale-host
     static_configs:
       - targets: ["host.docker.internal:9100"]
+
+  # 容器化模式（docker-compose.app.yml）：go-zero DevServer 默认在 6060 暴露 /metrics
+  - job_name: flashsale-user-rpc
+    static_configs:
+      - targets: ["user-rpc:6060"]
+    metrics_path: /metrics
+
+  - job_name: flashsale-product-rpc
+    static_configs:
+      - targets: ["product-rpc:6060"]
+    metrics_path: /metrics
+
+  - job_name: flashsale-order-rpc
+    static_configs:
+      - targets: ["order-rpc:6060"]
+    metrics_path: /metrics
+
+  - job_name: flashsale-seckill-rpc
+    static_configs:
+      - targets: ["seckill-rpc:6060"]
+    metrics_path: /metrics
+
+  - job_name: flashsale-admin-rpc
+    static_configs:
+      - targets: ["admin-rpc:6060"]
+    metrics_path: /metrics
+
+  - job_name: flashsale-user-gateway
+    static_configs:
+      - targets: ["user-gateway:6060"]
+    metrics_path: /metrics
+
+  - job_name: flashsale-admin-gateway
+    static_configs:
+      - targets: ["admin-gateway:6060"]
+    metrics_path: /metrics

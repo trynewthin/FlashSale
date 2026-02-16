@@ -1,0 +1,246 @@
+{
+    "annotations": {
+        "list": []
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 1,
+    "id": null,
+    "links": [],
+    "panels": [
+        {
+            "title": "RPC 请求速率 (req/s)",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "fillOpacity": 10,
+                        "lineWidth": 2
+                    },
+                    "unit": "reqps"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(rpc_server_requests_duration_ms_count[1m])) by (job)",
+                    "legendFormat": "{{job}}",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "title": "RPC P99 延迟 (ms)",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "fillOpacity": 10,
+                        "lineWidth": 2
+                    },
+                    "unit": "ms"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.99, sum(rate(rpc_server_requests_duration_ms_bucket[1m])) by (le, job))",
+                    "legendFormat": "{{job}} p99",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "title": "Go 协程数",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 8
+            },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "fillOpacity": 10,
+                        "lineWidth": 2
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "go_goroutines",
+                    "legendFormat": "{{job}}",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "title": "Go 内存使用 (Heap In Use)",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 8
+            },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "fillOpacity": 10,
+                        "lineWidth": 2
+                    },
+                    "unit": "bytes"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "go_memstats_heap_inuse_bytes",
+                    "legendFormat": "{{job}}",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "title": "RPC 错误率",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 16
+            },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "fillOpacity": 10,
+                        "lineWidth": 2
+                    },
+                    "unit": "percentunit"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(rpc_server_requests_code_total{code!=\"OK\"}[1m])) by (job) / sum(rate(rpc_server_requests_code_total[1m])) by (job)",
+                    "legendFormat": "{{job}} error%",
+                    "refId": "A"
+                }
+            ]
+        },
+        {
+            "title": "进程 CPU 使用",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 16
+            },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "fillOpacity": 10,
+                        "lineWidth": 2
+                    },
+                    "unit": "percentunit"
+                },
+                "overrides": []
+            },
+            "targets": [
+                {
+                    "expr": "rate(process_cpu_seconds_total[1m])",
+                    "legendFormat": "{{job}}",
+                    "refId": "A"
+                }
+            ]
+        }
+    ],
+    "schemaVersion": 39,
+    "tags": [
+        "flashsale",
+        "microservices",
+        "go-zero"
+    ],
+    "templating": {
+        "list": [
+            {
+                "current": {
+                    "selected": false,
+                    "text": "Prometheus",
+                    "value": "Prometheus"
+                },
+                "hide": 0,
+                "includeAll": false,
+                "name": "DS_PROMETHEUS",
+                "options": [],
+                "query": "prometheus",
+                "type": "datasource"
+            }
+        ]
+    },
+    "time": {
+        "from": "now-30m",
+        "to": "now"
+    },
+    "title": "FlashSale Microservices Overview",
+    "uid": "flashsale-overview",
+    "version": 1
+}

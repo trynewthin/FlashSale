@@ -71,6 +71,7 @@ type runConfig struct {
 
 // reportPayload 是压测机读输出，用于脚本门禁判定和报告沉淀。
 type reportPayload struct {
+	Kind        string         `json:"kind,omitempty"`
 	GeneratedAt string         `json:"generated_at"`
 	Config      reportConfig   `json:"config"`
 	Summary     summaryPayload `json:"summary"`
@@ -266,7 +267,7 @@ func loadTokens(cfg runConfig) ([]string, error) {
 
 func runScenario(client *http.Client, cfg runConfig, tokens []string) []requestResult {
 	if cfg.isOpenModel() {
-		return runOpenScenario(client, cfg, tokens)
+		return runOpenScenario(client, cfg, tokens, cfg.Output == outputJSON)
 	}
 	return runClosedScenario(client, cfg, tokens)
 }
@@ -308,7 +309,7 @@ func runClosedScenario(client *http.Client, cfg runConfig, tokens []string) []re
 var errOpenModelDropped = errors.New("open model request dropped by local inflight limiter")
 
 // runOpenScenario 以固定速率投递请求，模拟开环到达率模型。
-func runOpenScenario(client *http.Client, cfg runConfig, tokens []string) []requestResult {
+func runOpenScenario(client *http.Client, cfg runConfig, tokens []string, emitProgress bool) []requestResult {
 	capHint := cfg.Concurrency * 4
 	if capHint < 128 {
 		capHint = 128
@@ -321,6 +322,7 @@ func runOpenScenario(client *http.Client, cfg runConfig, tokens []string) []requ
 	out := make(chan requestResult, capHint)
 	jobs := make(chan int, cfg.Concurrency)
 	collectDone := make(chan struct{})
+	startedAt := time.Now()
 	var collectMu sync.Mutex
 	go func() {
 		for r := range out {
@@ -330,6 +332,31 @@ func runOpenScenario(client *http.Client, cfg runConfig, tokens []string) []requ
 		}
 		close(collectDone)
 	}()
+	progressStop := make(chan struct{})
+	progressDone := make(chan struct{})
+	if emitProgress {
+		progressTicker := time.NewTicker(1 * time.Second)
+		go func() {
+			defer close(progressDone)
+			defer progressTicker.Stop()
+			for {
+				select {
+				case <-progressStop:
+					return
+				case <-progressTicker.C:
+					collectMu.Lock()
+					snapshot := append([]requestResult(nil), results...)
+					collectMu.Unlock()
+					if len(snapshot) == 0 {
+						continue
+					}
+					printProgressJSON(cfg, summarize(snapshot, time.Since(startedAt)))
+				}
+			}
+		}()
+	} else {
+		close(progressDone)
+	}
 
 	workerCount := cfg.Concurrency
 	if workerCount < 1 {
@@ -371,6 +398,8 @@ loop:
 	wg.Wait()
 	close(out)
 	<-collectDone
+	close(progressStop)
+	<-progressDone
 	return results
 }
 
@@ -625,7 +654,16 @@ func printSummary(cfg runConfig, s summary) {
 }
 
 func printSummaryJSON(cfg runConfig, s summary) {
+	printSummaryJSONWithKind(cfg, s, "")
+}
+
+func printProgressJSON(cfg runConfig, s summary) {
+	printSummaryJSONWithKind(cfg, s, "progress")
+}
+
+func printSummaryJSONWithKind(cfg runConfig, s summary, kind string) {
 	payload := reportPayload{
+		Kind:        strings.TrimSpace(kind),
 		GeneratedAt: time.Now().Format(time.RFC3339),
 		Config: reportConfig{
 			Scenario:       cfg.Scenario,

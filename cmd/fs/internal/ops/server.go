@@ -48,11 +48,15 @@ func (s *Server) Start(addr string) error {
 	mux.Handle("/assets/", s.webFiles)
 	// 状态/日志接口：用于“无需跑任务也能查看”的只读监控面板。
 	mux.HandleFunc("GET /api/v1/status", s.withAuthAPI(s.getStatus))
+	mux.HandleFunc("GET /api/v1/containers/status", s.withAuthAPI(s.getContainersStatus))
+	mux.HandleFunc("POST /api/v1/containers/{container_id}/action", s.withAuthAPI(s.containerAction))
+	mux.HandleFunc("POST /api/v1/services/{service}/scale", s.withAuthAPI(s.scaleService))
 	mux.HandleFunc("GET /api/v1/service-logs/files", s.withAuthAPI(s.listServiceLogFiles))
 	mux.HandleFunc("GET /api/v1/service-logs/{file_id}/tail", s.withAuthAPI(s.getServiceLogTail))
 	mux.HandleFunc("GET /api/v1/service-logs/{file_id}/stream", s.withAuthAPI(s.streamServiceLog))
 	mux.HandleFunc("GET /api/v1/tasks", s.withAuthAPI(s.listTasks))
 	mux.HandleFunc("POST /api/v1/jobs", s.withAuthAPI(s.createJob))
+	mux.HandleFunc("POST /api/v1/perf/jobs", s.withAuthAPI(s.createPerfJob))
 	mux.HandleFunc("GET /api/v1/jobs", s.withAuthAPI(s.listJobs))
 	mux.HandleFunc("GET /api/v1/jobs/{job_id}", s.withAuthAPI(s.getJob))
 	mux.HandleFunc("GET /api/v1/jobs/{job_id}/log", s.withAuthAPI(s.getJobLog))
@@ -133,6 +137,13 @@ type createJobReq struct {
 	Args []string `json:"args"`
 }
 
+// createPerfJobReq 定义结构化压测任务创建请求。
+type createPerfJobReq struct {
+	Task             string            `json:"task"`
+	Fields           map[string]string `json:"fields"`
+	AdvancedArgsText string            `json:"advanced_args_text"`
+}
+
 func (s *Server) createJob(w http.ResponseWriter, r *http.Request) {
 	var req createJobReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -145,6 +156,30 @@ func (s *Server) createJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	detail, err := s.runner.StartJob(req.Task, req.Args)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeOK(w, map[string]any{"job": detail})
+}
+
+func (s *Server) createPerfJob(w http.ResponseWriter, r *http.Request) {
+	var req createPerfJobReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "请求体非法")
+		return
+	}
+	req.Task = strings.TrimSpace(req.Task)
+	if req.Task == "" {
+		writeErr(w, http.StatusBadRequest, "task 不能为空")
+		return
+	}
+	args, err := buildPerfJobArgs(req.Task, req.Fields, req.AdvancedArgsText)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	detail, err := s.runner.StartJob(req.Task, args)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return

@@ -58,6 +58,8 @@ func runOps(args []string) error {
 	switch args[0] {
 	case "server":
 		return runOpsServer(args[1:])
+	case "sync-web":
+		return runOpsSyncWeb(args[1:])
 	case "tasks":
 		return runOpsTasks(args[1:])
 	case "run":
@@ -221,6 +223,7 @@ func printUsage() {
 
 ops 子命令:
   ops server    启动 ops-control（Web + API）
+  ops sync-web  同步 frontend/ops/dist 到内嵌 web 目录
   ops tasks     列出白名单任务
   ops run       触发任务
   ops jobs      查看任务列表
@@ -231,6 +234,7 @@ ops 子命令:
 func printOpsUsage() {
 	fmt.Print(`fs ops 用法:
   fs ops server --addr 0.0.0.0:18080 --repo-root . --auth-key-env FLASHSALE_OPS_ACCESS_KEY
+  fs ops sync-web --dist-dir frontend/ops/dist --web-dir cmd/fs/internal/ops/web
   fs ops tasks --server http://127.0.0.1:18080 --key-env FLASHSALE_OPS_ACCESS_KEY
   fs ops run --server http://127.0.0.1:18080 --task env.start --key-env FLASHSALE_OPS_ACCESS_KEY
   fs ops jobs --limit 20

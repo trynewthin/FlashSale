@@ -14,7 +14,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ../mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      test: [ "CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}" ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -47,13 +47,13 @@ services:
     image: redis:7.2-alpine
     container_name: flashsale-app-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: [ "redis-server", "--appendonly", "yes" ]
     ports:
       - "${FLASH_REDIS_PORT:-16379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 3s
       retries: 12
@@ -80,7 +80,7 @@ services:
       KAFKA_NUM_PARTITIONS: 3
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      test: [ "CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1" ]
       interval: 10s
       timeout: 10s
       retries: 12
@@ -102,13 +102,34 @@ services:
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.traffic.dlq --partitions 3 --replication-factor 1
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.order.state --partitions 3 --replication-factor 1
 
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    container_name: flashsale-app-etcd
+    restart: unless-stopped
+    command:
+      - etcd
+      - --name=flashsale-etcd
+      - --data-dir=/etcd-data
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+    ports:
+      - "${FLASH_ETCD_PORT:-12379}:2379"
+    volumes:
+      - etcd_data:/etcd-data
+    healthcheck:
+      test: [ "CMD", "etcdctl", "endpoint", "health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   backend-image:
     # 仅用于复用 build 缓存，不实际启动
     image: flashsale-backend:local
     build:
       context: ../..
       dockerfile: deploy/docker/backend.Dockerfile
-    profiles: ["build"]
+    profiles: [ "build" ]
 
   migrate:
     image: flashsale-backend:local
@@ -123,22 +144,9 @@ services:
       FLASHSALE_MYSQL_PORT: 3306
       FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
       FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
-    command: ["/app/bin/fs", "env", "migrate-up", "--env-file", "-"]
+    command: [ "/app/bin/fs", "env", "migrate-up", "--env-file", "-" ]
 
-  grpc-lb:
-    image: nginx:1.27-alpine
-    container_name: flashsale-app-grpc-lb
-    restart: unless-stopped
-    depends_on:
-      seckill-rpc:
-        condition: service_started
-    volumes:
-      - ../nginx/grpc-lb.conf:/etc/nginx/nginx.conf:ro
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z 127.0.0.1 18086"]
-      interval: 5s
-      timeout: 2s
-      retries: 30
+  # [已移除] grpc-lb: etcd 接入后由 go-zero 客户端直接做服务发现与负载均衡，不再需要 Nginx stream LB。
 
   user-rpc:
     image: flashsale-backend:local
@@ -153,6 +161,8 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+      etcd:
+        condition: service_healthy
     environment:
       FLASHSALE_MYSQL_HOST: mysql
       FLASHSALE_MYSQL_PORT: 3306
@@ -162,7 +172,7 @@ services:
       FLASHSALE_KAFKA_BROKERS: kafka:9092
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
-    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/user-rpc -f /app/apps/user/rpc/etc/user.yaml >>/app/log/services/user-rpc.log 2>&1"]
+    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/user-rpc -f /app/apps/user/rpc/etc/user.docker.yaml >>/app/log/services/user-rpc.log 2>&1" ]
     volumes:
       - ../../log:/app/log
 
@@ -177,6 +187,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      etcd:
+        condition: service_healthy
     environment:
       FLASHSALE_MYSQL_HOST: mysql
       FLASHSALE_MYSQL_PORT: 3306
@@ -185,7 +197,7 @@ services:
       FLASHSALE_REDIS_ADDR: redis:6379
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
-    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/product-rpc -f /app/apps/product/rpc/etc/product.yaml >>/app/log/services/product-rpc.log 2>&1"]
+    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/product-rpc -f /app/apps/product/rpc/etc/product.docker.yaml >>/app/log/services/product-rpc.log 2>&1" ]
     volumes:
       - ../../log:/app/log
 
@@ -198,6 +210,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      etcd:
+        condition: service_healthy
     environment:
       FLASHSALE_MYSQL_HOST: mysql
       FLASHSALE_MYSQL_PORT: 3306
@@ -205,7 +219,7 @@ services:
       FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
-    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/admin-rpc -f /app/apps/admin/rpc/etc/admin.yaml >>/app/log/services/admin-rpc.log 2>&1"]
+    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/admin-rpc -f /app/apps/admin/rpc/etc/admin.docker.yaml >>/app/log/services/admin-rpc.log 2>&1" ]
     volumes:
       - ../../log:/app/log
 
@@ -220,6 +234,8 @@ services:
         condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
+      etcd:
+        condition: service_healthy
     environment:
       FLASHSALE_MYSQL_HOST: mysql
       FLASHSALE_MYSQL_PORT: 3306
@@ -228,7 +244,7 @@ services:
       FLASHSALE_KAFKA_BROKERS: kafka:9092
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
-    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/order-rpc -f /app/apps/order/rpc/etc/order.docker.yaml >>/app/log/services/order-rpc.log 2>&1"]
+    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/order-rpc -f /app/apps/order/rpc/etc/order.docker.yaml >>/app/log/services/order-rpc.log 2>&1" ]
     volumes:
       - ../../log:/app/log
 
@@ -245,6 +261,8 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+      etcd:
+        condition: service_healthy
     environment:
       FLASHSALE_MYSQL_HOST: mysql
       FLASHSALE_MYSQL_PORT: 3306
@@ -254,7 +272,7 @@ services:
       FLASHSALE_KAFKA_BROKERS: kafka:9092
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
-    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/seckill-rpc -f /app/apps/seckill/rpc/etc/seckill.docker.yaml >>/app/log/services/seckill-rpc.log 2>&1"]
+    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/seckill-rpc -f /app/apps/seckill/rpc/etc/seckill.docker.yaml >>/app/log/services/seckill-rpc.log 2>&1" ]
     volumes:
       - ../../log:/app/log
 
@@ -265,14 +283,10 @@ services:
       dockerfile: deploy/docker/backend.Dockerfile
     restart: unless-stopped
     depends_on:
-      user-rpc:
-        condition: service_started
-      product-rpc:
-        condition: service_started
-      order-rpc:
-        condition: service_started
-      grpc-lb:
+      etcd:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
@@ -282,7 +296,7 @@ services:
       FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
       FLASHSALE_REDIS_ADDR: redis:6379
       FLASHSALE_KAFKA_BROKERS: kafka:9092
-    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/user-gateway -f /app/apps/gateway/user/etc/user-gateway.docker.yaml >>/app/log/services/user-gateway.log 2>&1"]
+    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/user-gateway -f /app/apps/gateway/user/etc/user-gateway.docker.yaml >>/app/log/services/user-gateway.log 2>&1" ]
     volumes:
       - ../../log:/app/log
 
@@ -293,16 +307,10 @@ services:
       dockerfile: deploy/docker/backend.Dockerfile
     restart: unless-stopped
     depends_on:
-      user-rpc:
-        condition: service_started
-      admin-rpc:
-        condition: service_started
-      product-rpc:
-        condition: service_started
-      order-rpc:
-        condition: service_started
-      grpc-lb:
+      etcd:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
@@ -312,7 +320,7 @@ services:
       FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
       FLASHSALE_REDIS_ADDR: redis:6379
       FLASHSALE_KAFKA_BROKERS: kafka:9092
-    command: ["/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/admin-gateway -f /app/apps/gateway/admin/etc/admin-gateway.docker.yaml >>/app/log/services/admin-gateway.log 2>&1"]
+    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/admin-gateway -f /app/apps/gateway/admin/etc/admin-gateway.docker.yaml >>/app/log/services/admin-gateway.log 2>&1" ]
     volumes:
       - ../../log:/app/log
 
@@ -330,7 +338,7 @@ services:
       admin-gateway:
         condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-healthz"]
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/nginx-healthz" ]
       interval: 10s
       timeout: 3s
       retries: 12
@@ -338,3 +346,4 @@ services:
 volumes:
   mysql_data:
   redis_data:
+  etcd_data:

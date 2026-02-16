@@ -3,19 +3,29 @@ ListenOn: 0.0.0.0:8082
 BaseConfigPath: configs/local/dev.yaml
 
 UserRPC:
-  Target: user-rpc:8081
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: user.rpc
 
 ProductRPC:
-  Target: product-rpc:8084
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: product.rpc
 
 OrderRPC:
-  Target: order-rpc:8085
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: order.rpc
 
-# 通过 gRPC LB 访问秒杀服务，支持 seckill-rpc 多实例扩容。
 SeckillRPC:
-  Target: grpc-lb:18086
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: seckill.rpc
   Timeout: 8000
 
 SeckillPurchaseRPCTimeoutMs: 8000
 SeckillTrackEventRPCTimeoutMs: 4000
-

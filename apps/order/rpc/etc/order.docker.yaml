@@ -3,8 +3,16 @@ ListenOn: 0.0.0.0:8085
 Timeout: 8000
 BaseConfigPath: configs/local/dev.yaml
 
+Etcd:
+  Hosts:
+    - etcd:2379
+  Key: order.rpc
+
 ProductRPC:
-  Target: product-rpc:8084
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: product.rpc
 
 SeckillCreateMaxInFlight: 448
 SeckillCreateAcquireTimeoutMs: 240
@@ -12,4 +20,3 @@ SeckillOrderEventEnabled: true
 SeckillOrderEventAsyncWorkers: 16
 SeckillOrderEventAsyncQueueSize: 16384
 SeckillOrderEventPublishTimeoutMs: 200
-

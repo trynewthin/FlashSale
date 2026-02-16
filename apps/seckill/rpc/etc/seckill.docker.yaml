@@ -4,11 +4,22 @@ Timeout: 8000
 BaseConfigPath: configs/local/dev.yaml
 SnowflakeNode: 6
 
+Etcd:
+  Hosts:
+    - etcd:2379
+  Key: seckill.rpc
+
 ProductRPC:
-  Target: product-rpc:8084
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: product.rpc
 
 OrderRPC:
-  Target: order-rpc:8085
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: order.rpc
   Timeout: 4000
 
 ActivityItemCacheTTLMs: 1500
@@ -27,4 +38,3 @@ TrafficAsyncQueueSize: 32768
 TrafficWriteTimeoutMs: 300
 TrafficPublishTimeoutMs: 300
 PerfLogIntervalSec: 30
-

@@ -1,0 +1,9 @@
+Name: product.rpc
+ListenOn: 0.0.0.0:8084
+BaseConfigPath: configs/local/dev.yaml
+SnowflakeNode: 2
+
+Etcd:
+  Hosts:
+    - etcd:2379
+  Key: product.rpc

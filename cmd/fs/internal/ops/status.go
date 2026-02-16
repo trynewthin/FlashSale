@@ -24,6 +24,9 @@ type StatusSnapshot struct {
 	NowUnix int64 `json:"now_unix"`
 
 	RepoRoot string `json:"repo_root"`
+	// DeploymentMode 表示当前检查口径：
+	// host_process=本机直连进程模式；docker_app=容器化部署模式。
+	DeploymentMode string `json:"deployment_mode"`
 
 	Git struct {
 		Branch string `json:"branch"`
@@ -87,23 +90,20 @@ func buildStatusSnapshot(repoRoot string) StatusSnapshot {
 		out.Git.Dirty = true
 	}
 
-	out.Ports = []PortStatus{
-		{Name: "user-gateway", Addr: "127.0.0.1:8082", OK: isPortOpen("127.0.0.1:8082", 250*time.Millisecond)},
-		{Name: "admin-gateway", Addr: "127.0.0.1:8083", OK: isPortOpen("127.0.0.1:8083", 250*time.Millisecond)},
-		{Name: "user-rpc", Addr: "127.0.0.1:8081", OK: isPortOpen("127.0.0.1:8081", 250*time.Millisecond)},
-		{Name: "product-rpc", Addr: "127.0.0.1:8084", OK: isPortOpen("127.0.0.1:8084", 250*time.Millisecond)},
-		{Name: "order-rpc", Addr: "127.0.0.1:8085", OK: isPortOpen("127.0.0.1:8085", 250*time.Millisecond)},
-		{Name: "seckill-rpc", Addr: "127.0.0.1:8086", OK: isPortOpen("127.0.0.1:8086", 250*time.Millisecond)},
-		{Name: "admin-rpc", Addr: "127.0.0.1:8087", OK: isPortOpen("127.0.0.1:8087", 250*time.Millisecond)},
-	}
+	// docker 状态先采集，用于推断当前部署模式。
+	dockerOK, dockerErr, dockerRaw, dockerContainers := collectDockerStatus(repoRoot)
+	out.Docker.OK = dockerOK
+	out.Docker.Error = dockerErr
+	out.Docker.Raw = dockerRaw
+	out.Docker.Containers = dockerContainers
 
-	out.HTTP = []HTTPStatus{
-		checkHTTP("user-gateway/healthz", "http://127.0.0.1:8082/healthz"),
-		checkHTTP("admin-gateway/healthz", "http://127.0.0.1:8083/healthz"),
-		checkHTTP("nginx-healthz", fmt.Sprintf("http://127.0.0.1:%d/nginx-healthz", nginxHTTPPort())),
-		checkHTTP("proxy user /healthz", fmt.Sprintf("http://127.0.0.1:%d/healthz", nginxHTTPPort())),
-		checkHTTP("proxy admin /admin-healthz", fmt.Sprintf("http://127.0.0.1:%d/admin-healthz", nginxHTTPPort())),
-		checkHTTP("ops-control/healthz", "http://127.0.0.1:18080/healthz"),
+	out.DeploymentMode = detectDeploymentMode(dockerContainers)
+	if out.DeploymentMode == deploymentModeDockerApp {
+		out.Ports = dockerAppPortChecks(dockerContainers)
+		out.HTTP = dockerAppHTTPChecks()
+	} else {
+		out.Ports = hostProcessPortChecks()
+		out.HTTP = hostProcessHTTPChecks()
 	}
 
 	seedCandidates := []string{
@@ -127,15 +127,96 @@ func buildStatusSnapshot(repoRoot string) StatusSnapshot {
 		}
 	}
 
+	return out
+}
+
+const (
+	deploymentModeHostProcess = "host_process"
+	deploymentModeDockerApp   = "docker_app"
+)
+
+func hostProcessPortChecks() []PortStatus {
+	return []PortStatus{
+		{Name: "user-gateway", Addr: "127.0.0.1:8082", OK: isPortOpen("127.0.0.1:8082", 250*time.Millisecond)},
+		{Name: "admin-gateway", Addr: "127.0.0.1:8083", OK: isPortOpen("127.0.0.1:8083", 250*time.Millisecond)},
+		{Name: "user-rpc", Addr: "127.0.0.1:8081", OK: isPortOpen("127.0.0.1:8081", 250*time.Millisecond)},
+		{Name: "product-rpc", Addr: "127.0.0.1:8084", OK: isPortOpen("127.0.0.1:8084", 250*time.Millisecond)},
+		{Name: "order-rpc", Addr: "127.0.0.1:8085", OK: isPortOpen("127.0.0.1:8085", 250*time.Millisecond)},
+		{Name: "seckill-rpc", Addr: "127.0.0.1:8086", OK: isPortOpen("127.0.0.1:8086", 250*time.Millisecond)},
+		{Name: "admin-rpc", Addr: "127.0.0.1:8087", OK: isPortOpen("127.0.0.1:8087", 250*time.Millisecond)},
+	}
+}
+
+func hostProcessHTTPChecks() []HTTPStatus {
+	return []HTTPStatus{
+		checkHTTP("user-gateway/healthz", "http://127.0.0.1:8082/healthz"),
+		checkHTTP("admin-gateway/healthz", "http://127.0.0.1:8083/healthz"),
+		checkHTTP("nginx-healthz", fmt.Sprintf("http://127.0.0.1:%d/nginx-healthz", nginxHTTPPort())),
+		checkHTTP("proxy user /healthz", fmt.Sprintf("http://127.0.0.1:%d/healthz", nginxHTTPPort())),
+		checkHTTP("proxy admin /admin-healthz", fmt.Sprintf("http://127.0.0.1:%d/admin-healthz", nginxHTTPPort())),
+		checkHTTP("ops-control/healthz", "http://127.0.0.1:18080/healthz"),
+	}
+}
+
+func dockerAppPortChecks(containers []DockerContainer) []PortStatus {
+	return []PortStatus{
+		{Name: "user-gateway", Addr: "container:user-gateway", OK: containerGroupRunning(containers, "-user-gateway-")},
+		{Name: "admin-gateway", Addr: "container:admin-gateway", OK: containerGroupRunning(containers, "-admin-gateway-")},
+		{Name: "user-rpc", Addr: "container:user-rpc", OK: containerGroupRunning(containers, "-user-rpc-")},
+		{Name: "product-rpc", Addr: "container:product-rpc", OK: containerGroupRunning(containers, "-product-rpc-")},
+		{Name: "order-rpc", Addr: "container:order-rpc", OK: containerGroupRunning(containers, "-order-rpc-")},
+		{Name: "seckill-rpc", Addr: "container:seckill-rpc", OK: containerGroupRunning(containers, "-seckill-rpc-")},
+		{Name: "admin-rpc", Addr: "container:admin-rpc", OK: containerGroupRunning(containers, "-admin-rpc-")},
+	}
+}
+
+func dockerAppHTTPChecks() []HTTPStatus {
+	return []HTTPStatus{
+		checkHTTP("nginx-healthz", fmt.Sprintf("http://127.0.0.1:%d/nginx-healthz", nginxHTTPPort())),
+		checkHTTP("proxy user /healthz", fmt.Sprintf("http://127.0.0.1:%d/healthz", nginxHTTPPort())),
+		checkHTTP("proxy admin /admin-healthz", fmt.Sprintf("http://127.0.0.1:%d/admin-healthz", nginxHTTPPort())),
+		checkHTTP("ops-control/healthz", "http://127.0.0.1:18080/healthz"),
+	}
+}
+
+func detectDeploymentMode(containers []DockerContainer) string {
+	// 只要检测到 app 级别容器（网关 + rpc）在跑，就切换到 docker_app 口径。
+	hasGateway := containerGroupRunning(containers, "-user-gateway-") || containerGroupRunning(containers, "-admin-gateway-")
+	hasRPC := containerGroupRunning(containers, "-user-rpc-") ||
+		containerGroupRunning(containers, "-product-rpc-") ||
+		containerGroupRunning(containers, "-order-rpc-") ||
+		containerGroupRunning(containers, "-seckill-rpc-") ||
+		containerGroupRunning(containers, "-admin-rpc-")
+	if hasGateway && hasRPC {
+		return deploymentModeDockerApp
+	}
+	return deploymentModeHostProcess
+}
+
+func containerGroupRunning(containers []DockerContainer, nameToken string) bool {
+	nameToken = strings.ToLower(strings.TrimSpace(nameToken))
+	if nameToken == "" {
+		return false
+	}
+	for _, c := range containers {
+		if !strings.Contains(strings.ToLower(c.Name), nameToken) {
+			continue
+		}
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(c.Status)), "up") {
+			return true
+		}
+	}
+	return false
+}
+
+func collectDockerStatus(repoRoot string) (ok bool, errMsg string, raw string, containers []DockerContainer) {
 	// docker 状态（允许失败：例如未安装 docker，或权限不足）。
 	dockerOut := runCmd(repoRoot, 3*time.Second, "docker", "ps", "--format", "{{.Names}}|{{.Status}}|{{.Ports}}")
-	if strings.Contains(strings.ToLower(dockerOut), "not found") || strings.Contains(strings.ToLower(dockerOut), "permission") {
-		out.Docker.OK = false
-		out.Docker.Error = strings.TrimSpace(dockerOut)
-		return out
+	lower := strings.ToLower(dockerOut)
+	if strings.Contains(lower, "not found") || strings.Contains(lower, "permission") || strings.Contains(lower, "is not recognized") {
+		return false, strings.TrimSpace(dockerOut), strings.TrimSpace(dockerOut), nil
 	}
-	out.Docker.OK = true
-	out.Docker.Raw = strings.TrimSpace(dockerOut)
+	raw = strings.TrimSpace(dockerOut)
 	for _, line := range strings.Split(dockerOut, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -145,13 +226,13 @@ func buildStatusSnapshot(repoRoot string) StatusSnapshot {
 		if len(parts) != 3 {
 			continue
 		}
-		out.Docker.Containers = append(out.Docker.Containers, DockerContainer{
+		containers = append(containers, DockerContainer{
 			Name:   strings.TrimSpace(parts[0]),
 			Status: strings.TrimSpace(parts[1]),
 			Ports:  strings.TrimSpace(parts[2]),
 		})
 	}
-	return out
+	return true, "", raw, containers
 }
 
 func isPortOpen(addr string, timeout time.Duration) bool {

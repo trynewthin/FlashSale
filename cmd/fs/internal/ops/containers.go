@@ -37,6 +37,8 @@ type ServiceRuntime struct {
 	Name            string   `json:"name"`
 	Role            string   `json:"role"`
 	Scalable        bool     `json:"scalable"`
+	Optional        bool     `json:"optional"`
+	Absent          bool     `json:"absent"`
 	Replicas        int      `json:"replicas"`
 	RunningReplicas int      `json:"running_replicas"`
 	DependsOn       []string `json:"depends_on"`
@@ -64,6 +66,7 @@ type serviceDef struct {
 	Name      string
 	Role      string
 	Scalable  bool
+	Optional  bool
 	DependsOn []string
 }
 
@@ -193,6 +196,8 @@ func buildContainerRuntimeSnapshot(repoRoot string) ContainerRuntimeSnapshot {
 			Name:            cp.Name,
 			Role:            cp.Role,
 			Scalable:        cp.Scalable,
+			Optional:        cp.Optional,
+			Absent:          true, // 先标记为 absent，后面有容器时会清除
 			Replicas:        0,
 			RunningReplicas: 0,
 			DependsOn:       append([]string{}, cp.DependsOn...),
@@ -213,6 +218,7 @@ func buildContainerRuntimeSnapshot(repoRoot string) ContainerRuntimeSnapshot {
 				DependsOn:       nil,
 			}
 		}
+		serviceMap[svc].Absent = false // 有实际容器，清除 absent
 		serviceMap[svc].Replicas++
 		if c.Running {
 			serviceMap[svc].RunningReplicas++
@@ -256,8 +262,10 @@ func roleOrder(role string) int {
 		return 3
 	case "infra":
 		return 4
-	case "job":
+	case "observability":
 		return 5
+	case "job":
+		return 6
 	default:
 		return 9
 	}
@@ -271,8 +279,10 @@ func inferServiceRole(name string) string {
 		return "rpc"
 	case name == "nginx":
 		return "ingress"
-	case name == "mysql" || name == "redis" || name == "kafka":
+	case name == "mysql" || name == "redis" || name == "kafka" || name == "etcd":
 		return "infra"
+	case name == "jaeger" || name == "prometheus" || name == "grafana":
+		return "observability"
 	default:
 		return "other"
 	}
@@ -308,22 +318,32 @@ func buildServiceEdges(catalog map[string]serviceDef) []ServiceEdge {
 
 func defaultServiceCatalog() map[string]serviceDef {
 	list := []serviceDef{
+		// ingress
 		{Name: "nginx", Role: "ingress", Scalable: false, DependsOn: []string{"user-gateway", "admin-gateway"}},
-		{Name: "grpc-lb", Role: "ingress", Scalable: false, DependsOn: []string{"seckill-rpc"}},
 
+		// gateway
 		{Name: "user-gateway", Role: "gateway", Scalable: true, DependsOn: []string{"user-rpc", "product-rpc", "order-rpc", "seckill-rpc"}},
 		{Name: "admin-gateway", Role: "gateway", Scalable: true, DependsOn: []string{"user-rpc", "admin-rpc", "product-rpc", "order-rpc", "seckill-rpc"}},
 
-		{Name: "user-rpc", Role: "rpc", Scalable: true, DependsOn: []string{"mysql", "redis"}},
-		{Name: "admin-rpc", Role: "rpc", Scalable: true, DependsOn: []string{"mysql", "redis"}},
-		{Name: "product-rpc", Role: "rpc", Scalable: true, DependsOn: []string{"mysql", "redis"}},
-		{Name: "order-rpc", Role: "rpc", Scalable: true, DependsOn: []string{"mysql", "redis", "kafka"}},
-		{Name: "seckill-rpc", Role: "rpc", Scalable: true, DependsOn: []string{"mysql", "redis", "kafka", "product-rpc", "order-rpc"}},
+		// rpc
+		{Name: "user-rpc", Role: "rpc", Scalable: true, DependsOn: []string{"mysql", "redis", "etcd"}},
+		{Name: "admin-rpc", Role: "rpc", Scalable: true, DependsOn: []string{"mysql", "etcd"}},
+		{Name: "product-rpc", Role: "rpc", Scalable: true, DependsOn: []string{"mysql", "redis", "etcd"}},
+		{Name: "order-rpc", Role: "rpc", Scalable: true, DependsOn: []string{"mysql", "redis", "kafka", "etcd"}},
+		{Name: "seckill-rpc", Role: "rpc", Scalable: true, DependsOn: []string{"mysql", "redis", "kafka", "etcd", "product-rpc", "order-rpc"}},
 
+		// infra
 		{Name: "mysql", Role: "infra", Scalable: false, DependsOn: nil},
 		{Name: "redis", Role: "infra", Scalable: false, DependsOn: nil},
 		{Name: "kafka", Role: "infra", Scalable: false, DependsOn: nil},
+		{Name: "etcd", Role: "infra", Scalable: false, DependsOn: nil},
 
+		// observability（可选，仅 --profile observability 时存在）
+		{Name: "jaeger", Role: "observability", Scalable: false, Optional: true, DependsOn: nil},
+		{Name: "prometheus", Role: "observability", Scalable: false, Optional: true, DependsOn: nil},
+		{Name: "grafana", Role: "observability", Scalable: false, Optional: true, DependsOn: []string{"prometheus"}},
+
+		// job
 		{Name: "mysql-init-user", Role: "job", Scalable: false, DependsOn: []string{"mysql"}},
 		{Name: "kafka-init", Role: "job", Scalable: false, DependsOn: []string{"kafka"}},
 		{Name: "migrate", Role: "job", Scalable: false, DependsOn: []string{"mysql"}},

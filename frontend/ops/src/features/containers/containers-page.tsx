@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { opsApi } from "@/api/modules/ops"
-import type { ContainerRuntimeSnapshot } from "@/api/types"
+import type { ContainerRuntimeSnapshot, EtcdRegistrySnapshot } from "@/api/types"
 import { useOpsApiError } from "@/hooks/use-ops-api-error"
 import { useOpsUIStore } from "@/store/ops-ui-store"
 import { ReplicaLogSheet } from "@/features/containers/replica-log-sheet"
@@ -46,6 +46,27 @@ export function ContainersPageFeature() {
     return () => window.clearInterval(timer)
   }, [refresh])
 
+  // etcd 注册表（独立请求，不阻塞主流程）
+  const [etcdSnap, setEtcdSnap] = useState<EtcdRegistrySnapshot | null>(null)
+  const refreshEtcd = useCallback(() => {
+    opsApi.getEtcdServices().then(setEtcdSnap).catch(() => { })
+  }, [])
+  useEffect(() => {
+    refreshEtcd()
+    const timer = window.setInterval(refreshEtcd, 5000)
+    return () => window.clearInterval(timer)
+  }, [refreshEtcd])
+
+  // 构建 serviceKey → 注册实例数 映射
+  const etcdInstanceMap = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!etcdSnap?.services) return map
+    for (const svc of etcdSnap.services) {
+      map.set(svc.service_key, svc.instances.length)
+    }
+    return map
+  }, [etcdSnap])
+
   const runContainerAction = async (containerName: string, action: "start" | "stop" | "restart") => {
     const key = `${containerName}:${action}`
     try {
@@ -67,6 +88,7 @@ export function ContainersPageFeature() {
       await opsApi.scaleService(service, replicas)
       showNotice("success", `服务 ${service} 已扩缩容到 ${replicas}`)
       await refresh()
+      refreshEtcd()
     } catch (error) {
       showApiError(error, `服务扩缩容失败：${service}`)
     } finally {
@@ -78,6 +100,7 @@ export function ContainersPageFeature() {
     <div className="relative h-full min-h-[720px] overflow-hidden bg-slate-50">
       <ServiceTopologyCanvas
         snapshot={snapshot}
+        etcdInstanceMap={etcdInstanceMap}
         focusService={focusService}
         actioningKey={actioningKey}
         onActionContainer={(containerName, action) => void runContainerAction(containerName, action)}

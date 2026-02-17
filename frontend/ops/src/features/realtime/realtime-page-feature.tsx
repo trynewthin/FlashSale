@@ -17,6 +17,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { RealtimeTestLauncher } from "@/features/realtime/realtime-test-launcher"
 import { RealtimeTestPanel } from "@/features/realtime/realtime-test-panel"
 import { RealtimeUnifiedChart } from "@/features/realtime/realtime-unified-chart"
+import { RealtimePerfChart } from "@/features/realtime/realtime-perf-chart"
 import { mergeRealtimeSamplesWithPerfPoints, parsePerfMetricPointsFromLog } from "@/features/realtime/perf-report-parser"
 import { useRealtimeMonitor } from "@/features/realtime/use-realtime-monitor"
 import { useRealtimeTestRunner } from "@/features/realtime/use-realtime-test-runner"
@@ -111,6 +112,7 @@ export function RealtimePageFeature() {
           </div>
         </div>
         <RealtimeUnifiedChart samples={chartSamples} />
+        <RealtimePerfChart samples={chartSamples} />
       </div>
 
       <div className="grid gap-4">

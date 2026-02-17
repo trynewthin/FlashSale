@@ -109,6 +109,8 @@ export interface ServiceRuntime {
   name: string
   role: string
   scalable: boolean
+  optional: boolean
+  absent: boolean
   replicas: number
   running_replicas: number
   depends_on: string[]
@@ -135,4 +137,60 @@ export interface ContainerRuntimeSnapshot {
   containers: ContainerState[]
   edges: ServiceEdge[]
   error?: string
+}
+
+export interface ObservabilityLink {
+  name: string
+  url: string
+  available: boolean
+}
+
+export interface ObservabilityLinks {
+  jaeger: ObservabilityLink
+  prometheus: ObservabilityLink
+  grafana: ObservabilityLink
+}
+
+export interface EtcdServiceInstance {
+  key: string
+  addr: string
+}
+
+export interface EtcdService {
+  service_key: string
+  instances: EtcdServiceInstance[]
+}
+
+export interface EtcdRegistrySnapshot {
+  available: boolean
+  endpoint: string
+  services: EtcdService[]
+  error?: string
+}
+
+// Prometheus 指标代理
+export interface MetricCatalogItem {
+  name: string
+  unit: string
+  desc: string
+  format: "scalar" | "vector" | "matrix"
+}
+
+// Prometheus 原始响应结构 (简化)
+export interface PromResult {
+  metric: Record<string, string>
+  value?: [number, string]      // instant query: [timestamp, value]
+  values?: [number, string][]   // range query: [[ts, val], ...]
+}
+
+export interface PromQueryResult {
+  status: string
+  data: {
+    resultType: string
+    result: PromResult[]
+  }
+}
+
+export interface MetricsSnapshotResponse {
+  snapshot: Record<string, PromQueryResult | { error: string }>
 }

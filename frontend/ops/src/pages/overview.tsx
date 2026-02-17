@@ -1,8 +1,8 @@
-import { RefreshCcw } from "lucide-react"
+import { ExternalLink, RefreshCcw } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { opsApi } from "@/api/modules/ops"
-import type { StatusSnapshot } from "@/api/types"
+import type { ObservabilityLink, ObservabilityLinks, StatusSnapshot } from "@/api/types"
 import { useOpsApiError } from "@/hooks/use-ops-api-error"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,39 @@ function modeLabel(mode?: string): string {
     return "Host 进程模式"
   }
   return "未知模式"
+}
+
+function ObsLinkButton({ link }: { link: ObservabilityLink }) {
+  if (!link.url) {
+    return (
+      <Button variant="outline" size="sm" disabled className="gap-1.5 opacity-50">
+        <ExternalLink className="size-3.5" />
+        {link.name}
+        <Badge variant="secondary" className="ml-1 text-[10px]">未配置</Badge>
+      </Button>
+    )
+  }
+  if (link.available) {
+    return (
+      <a
+        href={link.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground transition-colors"
+      >
+        <ExternalLink className="size-3.5" />
+        {link.name}
+        <Badge variant="secondary" className="ml-1 text-[10px]">可用</Badge>
+      </a>
+    )
+  }
+  return (
+    <Button variant="secondary" size="sm" disabled className="gap-1.5">
+      <ExternalLink className="size-3.5" />
+      {link.name}
+      <Badge variant="destructive" className="ml-1 text-[10px]">离线</Badge>
+    </Button>
+  )
 }
 
 // OverviewPage 展示服务状态快照。
@@ -49,6 +82,12 @@ export function OverviewPage() {
     return () => window.clearInterval(timer)
   }, [refresh])
 
+  // 可观测性工具入口
+  const [obsLinks, setObsLinks] = useState<ObservabilityLinks | null>(null)
+  useEffect(() => {
+    opsApi.getObservabilityLinks().then(setObsLinks).catch(() => { })
+  }, [])
+
   const dockerContainers = useMemo(() => status?.docker.containers || [], [status])
 
   return (
@@ -74,6 +113,24 @@ export function OverviewPage() {
           <div className="text-xs text-muted-foreground">Seed 文件：{status?.files.seed_result_path || "-"}</div>
         </CardContent>
       </Card>
+
+      {obsLinks && (
+        <Card>
+          <CardHeader>
+            <CardTitle>可观测性入口</CardTitle>
+            <CardDescription>由后端动态推断的可观测性工具链接。</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {([obsLinks.jaeger, obsLinks.prometheus, obsLinks.grafana] as ObservabilityLink[]).map(
+                (link) => (
+                  <ObsLinkButton key={link.name} link={link} />
+                )
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>

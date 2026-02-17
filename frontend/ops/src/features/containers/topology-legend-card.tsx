@@ -60,6 +60,9 @@ export function TopologyLegendCard({ snapshot, loading, onRefresh }: TopologyLeg
             <i className="inline-block h-3 w-3 rounded-sm border bg-amber-50" />基础设施
           </span>
           <span className="inline-flex items-center gap-1 rounded border px-1">
+            <i className="inline-block h-3 w-3 rounded-sm border bg-violet-50" />可观测性
+          </span>
+          <span className="inline-flex items-center gap-1 rounded border px-1">
             <i className="inline-block h-3 w-3 rounded-sm border bg-zinc-100" />任务
           </span>
         </div>

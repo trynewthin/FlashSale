@@ -50,8 +50,13 @@ export function useRealtimeMonitor(): UseRealtimeMonitorResult {
         if (manual) {
           setLoading(true)
         }
-        const [status, containers] = await Promise.all([opsApi.getStatus(), opsApi.getContainersStatus()])
-        appendSample(buildRealtimeSample(status, containers))
+        const REALTIME_METRIC_NAMES = ["rpc_request_rate", "rpc_error_rate", "rpc_p99_latency"]
+        const [status, containers, metricsResult] = await Promise.all([
+          opsApi.getStatus(),
+          opsApi.getContainersStatus(),
+          opsApi.getMetricsSnapshot(REALTIME_METRIC_NAMES).catch(() => null),
+        ])
+        appendSample(buildRealtimeSample(status, containers, metricsResult?.snapshot))
         hasLoadedRef.current = true
       } catch (error) {
         const now = Date.now()

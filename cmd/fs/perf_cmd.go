@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -34,10 +35,18 @@ func runPerf(args []string) error {
 	// 兼容两种调用顺序：
 	// 1) fs perf --env-file xxx purchase-open ...
 	// 2) fs perf purchase-open --env-file xxx ...（ops 任务默认是这种）
-	envFile, rest, err := extractPerfEnvFileArg(args, "configs/local/dev.env")
+	global, rest, err := extractPerfGlobalArgs(args)
 	if err != nil {
 		return err
 	}
+	envFile := global.EnvFile
+	if global.AdminBaseURL != "" {
+		_ = os.Setenv("FLASHSALE_ADMIN_BASE_URL", global.AdminBaseURL)
+	}
+	if global.UserBaseURL != "" {
+		_ = os.Setenv("FLASHSALE_USER_BASE_URL", global.UserBaseURL)
+	}
+
 	if len(rest) == 0 {
 		printPerfUsage()
 		return nil
@@ -92,6 +101,13 @@ func runPerf(args []string) error {
 		}
 	}
 
+	// 优先使用预编译的 seckillload 二进制（容器环境无 Go），回退到 go run（开发环境）。
+	seckillloadBin := findSeckillloadBinary()
+	if seckillloadBin != "" {
+		cmdArgs := []string{"-scenario", scenario}
+		cmdArgs = append(cmdArgs, perfArgs...)
+		return platform.Run(context.Background(), repoRoot, seckillloadBin, cmdArgs...)
+	}
 	cmdArgs := []string{"run", "./cmd/perf/seckillload", "-scenario", scenario}
 	cmdArgs = append(cmdArgs, perfArgs...)
 	return platform.Run(context.Background(), repoRoot, "go", cmdArgs...)
@@ -156,11 +172,16 @@ func parsePositiveInt(raw, name string) (int, error) {
 	return value, nil
 }
 
-// extractPerfEnvFileArg 从参数中提取 env-file，并返回剔除后的参数列表。
-func extractPerfEnvFileArg(args []string, fallback string) (string, []string, error) {
-	envFile := strings.TrimSpace(fallback)
-	if envFile == "" {
-		envFile = "configs/local/dev.env"
+type perfGlobalArgs struct {
+	EnvFile      string
+	AdminBaseURL string
+	UserBaseURL  string
+}
+
+// extractPerfGlobalArgs 从参数中提取全局控制参数，并返回剔除后的参数列表。
+func extractPerfGlobalArgs(args []string) (perfGlobalArgs, []string, error) {
+	global := perfGlobalArgs{
+		EnvFile: "configs/local/dev.env",
 	}
 	cleanArgs := make([]string, 0, len(args))
 	for index := 0; index < len(args); index++ {
@@ -168,31 +189,38 @@ func extractPerfEnvFileArg(args []string, fallback string) (string, []string, er
 		switch {
 		case token == "--env-file" || token == "-env-file":
 			if index+1 >= len(args) {
-				return "", nil, fmt.Errorf("missing value for %s", token)
+				return global, nil, fmt.Errorf("missing value for %s", token)
 			}
-			value := strings.TrimSpace(args[index+1])
-			if value == "" {
-				return "", nil, fmt.Errorf("empty value for %s", token)
-			}
-			envFile = value
+			global.EnvFile = strings.TrimSpace(args[index+1])
 			index += 1
 		case strings.HasPrefix(token, "--env-file="):
-			value := strings.TrimSpace(strings.TrimPrefix(token, "--env-file="))
-			if value == "" {
-				return "", nil, fmt.Errorf("empty value for --env-file")
-			}
-			envFile = value
+			global.EnvFile = strings.TrimSpace(strings.TrimPrefix(token, "--env-file="))
 		case strings.HasPrefix(token, "-env-file="):
-			value := strings.TrimSpace(strings.TrimPrefix(token, "-env-file="))
-			if value == "" {
-				return "", nil, fmt.Errorf("empty value for -env-file")
+			global.EnvFile = strings.TrimSpace(strings.TrimPrefix(token, "-env-file="))
+
+		case token == "--admin-base-url":
+			if index+1 >= len(args) {
+				return global, nil, fmt.Errorf("missing value for --admin-base-url")
 			}
-			envFile = value
+			global.AdminBaseURL = strings.TrimSpace(args[index+1])
+			index += 1
+		case strings.HasPrefix(token, "--admin-base-url="):
+			global.AdminBaseURL = strings.TrimSpace(strings.TrimPrefix(token, "--admin-base-url="))
+
+		case token == "--user-base-url":
+			if index+1 >= len(args) {
+				return global, nil, fmt.Errorf("missing value for --user-base-url")
+			}
+			global.UserBaseURL = strings.TrimSpace(args[index+1])
+			index += 1
+		case strings.HasPrefix(token, "--user-base-url="):
+			global.UserBaseURL = strings.TrimSpace(strings.TrimPrefix(token, "--user-base-url="))
+
 		default:
 			cleanArgs = append(cleanArgs, args[index])
 		}
 	}
-	return envFile, cleanArgs, nil
+	return global, cleanArgs, nil
 }
 
 // ensurePerfBaseURL 在未显式配置 FLASHSALE_BASE_URL 时，自动选择可用网关入口。
@@ -200,6 +228,12 @@ func ensurePerfBaseURL() {
 	if strings.TrimSpace(os.Getenv("FLASHSALE_BASE_URL")) != "" {
 		return
 	}
+	// 优先使用显式指定的 UserBaseURL（如来自 --user-base-url 参数）。
+	if u := strings.TrimSpace(os.Getenv("FLASHSALE_USER_BASE_URL")); u != "" {
+		_ = os.Setenv("FLASHSALE_BASE_URL", u)
+		return
+	}
+
 	candidates := []string{
 		"http://127.0.0.1:18000", // docker_app 默认代理入口
 		"http://127.0.0.1:8082",  // host_process 用户网关入口
@@ -306,4 +340,25 @@ func printPerfUsage() {
   - prepare 会按顺序执行：env smoke -> data seed-overwrite -> 预检确认，确保压测前置条件可用。
   - 自动优先读取 log/data 中的 activity/item/token 默认值（兼容旧的 .memory/runlogs）。
   - 其余参数与 cmd/perf/seckillload 完全一致，可直接透传。` + "\n")
+}
+
+// findSeckillloadBinary 查找预编译的 seckillload 二进制。
+// 搜索顺序：当前 fs 二进制同目录 -> /app/bin/ -> $PATH。
+func findSeckillloadBinary() string {
+	// 1. 与当前 fs 可执行文件同目录
+	if exe, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(exe), "seckillload")
+		if info, statErr := os.Stat(candidate); statErr == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+	// 2. 容器标准位置
+	if info, err := os.Stat("/app/bin/seckillload"); err == nil && !info.IsDir() {
+		return "/app/bin/seckillload"
+	}
+	// 3. PATH 中查找
+	if p, err := exec.LookPath("seckillload"); err == nil {
+		return p
+	}
+	return ""
 }

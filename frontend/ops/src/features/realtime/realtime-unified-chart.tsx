@@ -1,10 +1,26 @@
-import { useEffect, useMemo, useState } from "react"
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { useMemo, useState, useCallback } from "react"
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { RealtimeSample } from "@/features/realtime/types"
 import { cn } from "@/lib/utils"
+
+// ─── 指标定义 ───
 
 type MetricAxis = "percent" | "count"
 type ChartMetricKey =
@@ -37,16 +53,16 @@ interface MetricGroupDef {
 }
 
 const METRICS: MetricDef[] = [
-  { key: "portRate", label: "端口可用率", color: "#0ea5e9", axis: "percent", unit: "%" },
-  { key: "httpRate", label: "HTTP 健康率", color: "#10b981", axis: "percent", unit: "%" },
-  { key: "replicaRate", label: "副本运行率", color: "#f97316", axis: "percent", unit: "%" },
-  { key: "runningContainers", label: "运行容器数", color: "#6366f1", axis: "count", unit: "" },
-  { key: "totalContainers", label: "总容器数", color: "#94a3b8", axis: "count", unit: "" },
-  { key: "runningReplicas", label: "运行副本数", color: "#16a34a", axis: "count", unit: "" },
-  { key: "totalReplicas", label: "总副本数", color: "#cbd5e1", axis: "count", unit: "" },
-  { key: "promQps", label: "服务端 RPC QPS", color: "#7c3aed", axis: "count", unit: " req/s" },
-  { key: "promP99LatencyMs", label: "服务端 RPC P99", color: "#db2777", axis: "count", unit: " ms" },
-  { key: "promErrorRate", label: "服务端错误率", color: "#ef4444", axis: "percent", unit: "%" },
+  { key: "portRate", label: "端口可用率", color: "var(--chart-1)", axis: "percent", unit: "%" },
+  { key: "httpRate", label: "HTTP 健康率", color: "var(--chart-2)", axis: "percent", unit: "%" },
+  { key: "replicaRate", label: "副本运行率", color: "var(--chart-8)", axis: "percent", unit: "%" },
+  { key: "runningContainers", label: "运行容器数", color: "var(--chart-4)", axis: "count", unit: "" },
+  { key: "totalContainers", label: "总容器数", color: "var(--chart-10)", axis: "count", unit: "" },
+  { key: "runningReplicas", label: "运行副本数", color: "var(--chart-6)", axis: "count", unit: "" },
+  { key: "totalReplicas", label: "总副本数", color: "var(--chart-9)", axis: "count", unit: "" },
+  { key: "promQps", label: "服务端 RPC QPS", color: "var(--chart-3)", axis: "count", unit: " req/s" },
+  { key: "promP99LatencyMs", label: "服务端 RPC P99", color: "var(--chart-7)", axis: "count", unit: " ms" },
+  { key: "promErrorRate", label: "服务端错误率", color: "var(--chart-5)", axis: "percent", unit: "%" },
 ]
 
 const GROUPS: MetricGroupDef[] = [
@@ -72,26 +88,18 @@ const GROUPS: MetricGroupDef[] = [
     key: "all",
     label: "全部",
     description: "展示所有维度，用于综合研判。",
-    metrics: METRICS.map((metric) => metric.key),
+    metrics: METRICS.map((m) => m.key),
   },
 ]
 
 const DEFAULT_GROUP_KEY: MetricGroupKey = "server_metrics"
 
-interface RealtimeUnifiedChartProps {
-  samples: RealtimeSample[]
-}
-
 function metricByKey(key: ChartMetricKey): MetricDef {
-  return METRICS.find((metric) => metric.key === key) ?? METRICS[0]
-}
-
-function metricByLabel(label: string): MetricDef | undefined {
-  return METRICS.find((metric) => metric.label === label)
+  return METRICS.find((m) => m.key === key) ?? METRICS[0]
 }
 
 function groupByKey(key: MetricGroupKey): MetricGroupDef {
-  return GROUPS.find((group) => group.key === key) ?? GROUPS[0]
+  return GROUPS.find((g) => g.key === key) ?? GROUPS[0]
 }
 
 function readMetricValue(sample: RealtimeSample, key: ChartMetricKey): number {
@@ -102,8 +110,9 @@ function readMetricValue(sample: RealtimeSample, key: ChartMetricKey): number {
   return 0
 }
 
-// RealtimeUnifiedChart — 系统监控图（基础设施健康 + Prometheus 服务端指标）
-export function RealtimeUnifiedChart({ samples }: RealtimeUnifiedChartProps) {
+// ─── 自定义 Hook：统一管理指标分组与可见性 ───
+
+export function useChartMetrics() {
   const [activeGroup, setActiveGroup] = useState<MetricGroupKey>(DEFAULT_GROUP_KEY)
   const [visibleKeys, setVisibleKeys] = useState<ChartMetricKey[]>(() => groupByKey(DEFAULT_GROUP_KEY).metrics)
 
@@ -113,71 +122,51 @@ export function RealtimeUnifiedChart({ samples }: RealtimeUnifiedChartProps) {
     [activeGroupDef.metrics]
   )
 
-  useEffect(() => {
-    setVisibleKeys(activeGroupDef.metrics)
-  }, [activeGroupDef])
+  const handleGroupChange = useCallback((key: MetricGroupKey) => {
+    setActiveGroup(key)
+    setVisibleKeys(groupByKey(key).metrics)
+  }, [])
 
-  const visibleMetrics = useMemo(() => {
-    if (visibleKeys.length === 0) {
-      return groupMetrics.slice(0, 1)
-    }
-    return groupMetrics.filter((metric) => visibleKeys.includes(metric.key))
-  }, [groupMetrics, visibleKeys])
-
-  const hasPercentMetric = visibleMetrics.some((metric) => metric.axis === "percent")
-  const hasCountMetric = visibleMetrics.some((metric) => metric.axis === "count")
-
-  const countMetricKeys = useMemo(
-    () => visibleMetrics.filter((metric) => metric.axis === "count").map((metric) => metric.key),
-    [visibleMetrics]
-  )
-
-  const maxCountY = useMemo(() => {
-    if (countMetricKeys.length === 0) {
-      return 1
-    }
-    const values = samples.flatMap((sample) => countMetricKeys.map((key) => readMetricValue(sample, key)))
-    const maxValue = Math.max(1, ...values)
-    return Math.ceil(maxValue * 1.2)
-  }, [samples, countMetricKeys])
-
-  const toggleMetric = (metricKey: ChartMetricKey) => {
+  const toggleMetric = useCallback((metricKey: ChartMetricKey) => {
     setVisibleKeys((prev) => {
       if (prev.includes(metricKey)) {
-        if (prev.length <= 1) {
-          return prev
-        }
-        return prev.filter((item) => item !== metricKey)
+        if (prev.length <= 1) return prev
+        return prev.filter((k) => k !== metricKey)
       }
       const nextSet = new Set(prev)
       nextSet.add(metricKey)
-      return activeGroupDef.metrics.filter((key) => nextSet.has(key))
+      // 保持在当前分组中的顺序
+      const currentGroupMetrics = groupByKey(activeGroup).metrics
+      return currentGroupMetrics.filter((k) => nextSet.has(k))
     })
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroup])
 
+  return { activeGroup, activeGroupDef, groupMetrics, visibleKeys, handleGroupChange, toggleMetric }
+}
+
+// ─── 筛选控制面板（独立组件，用于页面下方） ───
+
+interface MetricFilterPanelProps {
+  activeGroup: MetricGroupKey
+  groupMetrics: MetricDef[]
+  visibleKeys: ChartMetricKey[]
+  onGroupChange: (key: MetricGroupKey) => void
+  onToggleMetric: (key: ChartMetricKey) => void
+}
+
+export function MetricFilterPanel({
+  activeGroup,
+  groupMetrics,
+  visibleKeys,
+  onGroupChange,
+  onToggleMetric,
+}: MetricFilterPanelProps) {
   return (
-    <Card>
-      <CardHeader className="space-y-3">
-        <div className="space-y-1">
-          <CardTitle>系统监控</CardTitle>
-          <CardDescription>{activeGroupDef.description}</CardDescription>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {GROUPS.map((group) => (
-            <Button
-              key={group.key}
-              size="sm"
-              variant={activeGroup === group.key ? "secondary" : "outline"}
-              className="h-8 px-3 text-xs"
-              onClick={() => setActiveGroup(group.key)}
-            >
-              {group.label}
-            </Button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="flex h-full flex-col gap-3">
+      {/* 上方：可滚动的指标泳道 */}
+      <div className="max-h-[88px] overflow-y-auto">
+        <div className="flex flex-wrap items-center gap-1.5">
           {groupMetrics.map((metric) => {
             const enabled = visibleKeys.includes(metric.key)
             return (
@@ -185,86 +174,155 @@ export function RealtimeUnifiedChart({ samples }: RealtimeUnifiedChartProps) {
                 key={metric.key}
                 size="sm"
                 variant={enabled ? "secondary" : "outline"}
-                className={cn("h-7 px-2 text-xs", !enabled && "text-muted-foreground")}
-                onClick={() => toggleMetric(metric.key)}
+                className={cn("h-7 px-2.5 text-xs", !enabled && "text-muted-foreground")}
+                onClick={() => onToggleMetric(metric.key)}
               >
-                <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: metric.color }} />
+                <span className="mr-1.5 inline-block size-2 rounded-full" style={{ backgroundColor: metric.color }} />
                 {metric.label}
               </Button>
             )
           })}
         </div>
-      </CardHeader>
+      </div>
+      {/* 下方：指标分组选择 */}
+      <Select value={activeGroup} onValueChange={(v) => onGroupChange(v as MetricGroupKey)}>
+        <SelectTrigger className="h-8 w-full text-xs">
+          <SelectValue placeholder="选择分组" />
+        </SelectTrigger>
+        <SelectContent className="rounded-xl">
+          {GROUPS.map((g) => (
+            <SelectItem key={g.key} value={g.key} className="rounded-lg text-xs">
+              {g.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
 
-      <CardContent>
-        <div className="h-[320px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={samples}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={24} />
+// ─── 纯粹的图表组件（无 Card 包裹） ───
 
-              {hasPercentMetric ? (
-                <YAxis
-                  yAxisId="percent"
-                  orientation="left"
-                  domain={[0, 100]}
-                  tickLine={false}
-                  axisLine={false}
-                  width={40}
-                  tickFormatter={(value) => `${value}%`}
-                />
-              ) : null}
+interface RealtimeUnifiedChartProps {
+  samples: RealtimeSample[]
+  visibleKeys: ChartMetricKey[]
+  className?: string
+}
 
-              {hasCountMetric ? (
-                <YAxis
-                  yAxisId="count"
-                  orientation="right"
-                  domain={[0, maxCountY]}
-                  tickLine={false}
-                  axisLine={false}
-                  width={40}
-                />
-              ) : null}
+// RealtimeUnifiedChart — 纯 AreaChart，由父级控制布局。
+export function RealtimeUnifiedChart({ samples, visibleKeys, className }: RealtimeUnifiedChartProps) {
+  const visibleMetrics = useMemo(() => {
+    const defs = visibleKeys.map((key) => metricByKey(key))
+    return defs.length > 0 ? defs : [METRICS[0]]
+  }, [visibleKeys])
 
-              <Tooltip
-                formatter={(value, name, item) => {
-                  const rawDataKey = (item as { dataKey?: unknown } | undefined)?.dataKey
-                  const metricFromDataKey =
-                    typeof rawDataKey === "string" ? METRICS.find((metric) => metric.key === rawDataKey) : undefined
-                  const metricFromLabel = typeof name === "string" ? metricByLabel(name) : undefined
-                  const metric = metricFromDataKey ?? metricFromLabel ?? METRICS[0]
-                  if (typeof value !== "number" || Number.isNaN(value)) {
-                    return [String(value ?? "-"), metric.label]
-                  }
-                  if (metric.unit.trim() === "%") {
-                    return [`${value.toFixed(2)}%`, metric.label]
-                  }
-                  if (metric.unit.trim().length > 0) {
-                    return [`${value.toFixed(2)}${metric.unit}`, metric.label]
-                  }
-                  return [value.toFixed(0), metric.label]
-                }}
-              />
+  const hasPercentMetric = visibleMetrics.some((m) => m.axis === "percent")
+  const hasCountMetric = visibleMetrics.some((m) => m.axis === "count")
 
-              <Legend />
+  const countMetricKeys = useMemo(
+    () => visibleMetrics.filter((m) => m.axis === "count").map((m) => m.key),
+    [visibleMetrics]
+  )
 
-              {visibleMetrics.map((metric) => (
-                <Line
-                  key={metric.key}
-                  yAxisId={metric.axis}
-                  type="monotone"
-                  dataKey={metric.key}
-                  name={metric.label}
-                  stroke={metric.color}
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
+  const maxCountY = useMemo(() => {
+    if (countMetricKeys.length === 0) return 1
+    const values = samples.flatMap((sample) => countMetricKeys.map((key) => readMetricValue(sample, key)))
+    const maxValue = Math.max(1, ...values)
+    return Math.ceil(maxValue * 1.2)
+  }, [samples, countMetricKeys])
+
+  const chartConfig: ChartConfig = useMemo(() => {
+    const config: ChartConfig = {}
+    for (const metric of visibleMetrics) {
+      config[metric.key] = { label: metric.label, color: metric.color }
+    }
+    return config
+  }, [visibleMetrics])
+
+  return (
+    <ChartContainer config={chartConfig} className={cn("min-h-[200px] w-full", className)}>
+      <AreaChart data={samples}>
+        <defs>
+          {visibleMetrics.map((metric) => (
+            <linearGradient key={metric.key} id={`fill-${metric.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={`var(--color-${metric.key})`} stopOpacity={0.8} />
+              <stop offset="95%" stopColor={`var(--color-${metric.key})`} stopOpacity={0.1} />
+            </linearGradient>
+          ))}
+        </defs>
+        <CartesianGrid vertical={false} />
+        <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={24} />
+
+        {hasPercentMetric ? (
+          <YAxis
+            yAxisId="percent"
+            orientation="left"
+            domain={[0, 100]}
+            tickLine={false}
+            axisLine={false}
+            width={40}
+            tickFormatter={(v) => `${v}%`}
+          />
+        ) : null}
+
+        {hasCountMetric ? (
+          <YAxis
+            yAxisId="count"
+            orientation="right"
+            domain={[0, maxCountY]}
+            tickLine={false}
+            axisLine={false}
+            width={40}
+          />
+        ) : null}
+
+        <ChartTooltip
+          cursor={false}
+          content={
+            <ChartTooltipContent
+              labelFormatter={(value) => String(value)}
+              indicator="dot"
+              formatter={(value, _name, item) => {
+                const metric = METRICS.find((m) => m.key === item.dataKey)
+                if (!metric) return null
+                const formatted = (() => {
+                  if (typeof value !== "number" || Number.isNaN(value)) return String(value ?? "-")
+                  if (metric.unit.trim() === "%") return `${value.toFixed(2)}%`
+                  if (metric.unit.trim().length > 0) return `${value.toFixed(2)}${metric.unit}`
+                  return value.toFixed(0)
+                })()
+                return (
+                  <div className="flex w-full items-center gap-2">
+                    <span
+                      className="inline-block size-2.5 shrink-0 rounded-[2px]"
+                      style={{ backgroundColor: `var(--color-${metric.key})` }}
+                    />
+                    <span className="flex-1 text-muted-foreground">{metric.label}</span>
+                    <span className="font-mono font-medium tabular-nums text-foreground">{formatted}</span>
+                  </div>
+                )
+              }}
+            />
+          }
+        />
+
+        {visibleMetrics.map((metric) => (
+          <Area
+            key={metric.key}
+            yAxisId={metric.axis}
+            type="monotone"
+            dataKey={metric.key}
+            name={metric.label}
+            stroke={`var(--color-${metric.key})`}
+            fill={`url(#fill-${metric.key})`}
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+          />
+        ))}
+
+        <ChartLegend content={<ChartLegendContent />} />
+      </AreaChart>
+    </ChartContainer>
   )
 }

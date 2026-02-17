@@ -1,6 +1,9 @@
 Name: user.rpc
 ListenOn: 0.0.0.0:8081
 Mode: pro
+DevServer:
+  Enabled: true
+  Port: 6060
 BaseConfigPath: configs/local/dev.yaml
 SnowflakeNode: 1
 AccessTokenTTL: 24h

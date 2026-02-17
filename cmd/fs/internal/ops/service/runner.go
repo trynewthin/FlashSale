@@ -1,12 +1,14 @@
 // runner 负责任务白名单执行、状态维护与日志发布。
-package ops
+package service
 
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,12 +18,13 @@ import (
 	"time"
 
 	"flashsale/cmd/fs/internal/logdir"
+	"flashsale/cmd/fs/internal/ops/model"
 
 	"github.com/google/uuid"
 )
 
 type jobRecord struct {
-	JobDetail
+	model.JobDetail
 	log            bytes.Buffer
 	archivedBytes  int64
 	archivedByHour map[string]string
@@ -89,8 +92,8 @@ func (r *jobRecord) logText() string {
 
 // Runner 负责执行白名单任务。
 type Runner struct {
-	repoRoot   string
-	tasks      map[string]TaskDef
+	RepoRoot   string
+	tasks      map[string]model.TaskDef
 	selfBinary string
 	logRootDir string
 	maxJobs    int
@@ -108,12 +111,12 @@ const (
 )
 
 // NewRunner 创建任务执行器。
-func NewRunner(repoRoot string, tasks map[string]TaskDef) *Runner {
+func NewRunner(repoRoot string, tasks map[string]model.TaskDef) *Runner {
 	selfBinary, _ := os.Executable()
 	logRoot := logdir.OpsJobsDir(repoRoot)
 	_ = os.MkdirAll(logRoot, 0o755)
-	return &Runner{
-		repoRoot:   repoRoot,
+	r := &Runner{
+		RepoRoot:   repoRoot,
 		tasks:      tasks,
 		selfBinary: selfBinary,
 		logRootDir: logRoot,
@@ -123,21 +126,23 @@ func NewRunner(repoRoot string, tasks map[string]TaskDef) *Runner {
 		jobList:    make([]string, 0, 64),
 		subs:       make(map[string]map[string]chan string),
 	}
+	r.loadPersistedJobs()
+	return r
 }
 
 // Tasks 返回排序后的任务列表。
-func (r *Runner) Tasks() []TaskDef {
+func (r *Runner) Tasks() []model.TaskDef {
 	return SortedTasks(r.tasks)
 }
 
 // StartJob 创建并异步执行任务。
-func (r *Runner) StartJob(taskID string, extraArgs []string) (JobDetail, error) {
+func (r *Runner) StartJob(taskID string, extraArgs []string) (model.JobDetail, error) {
 	task, ok := r.tasks[taskID]
 	if !ok {
-		return JobDetail{}, fmt.Errorf("unknown task: %s", taskID)
+		return model.JobDetail{}, fmt.Errorf("unknown task: %s", taskID)
 	}
 	if err := r.validateCommand(task.Command); err != nil {
-		return JobDetail{}, err
+		return model.JobDetail{}, err
 	}
 
 	id := uuid.NewString()
@@ -145,11 +150,11 @@ func (r *Runner) StartJob(taskID string, extraArgs []string) (JobDetail, error) 
 	args := append([]string{}, task.DefaultArgs...)
 	args = append(args, extraArgs...)
 	rec := &jobRecord{
-		JobDetail: JobDetail{
-			JobSummary: JobSummary{
+		JobDetail: model.JobDetail{
+			JobSummary: model.JobSummary{
 				ID:        id,
 				TaskID:    task.ID,
-				Status:    JobQueued,
+				Status:    model.JobQueued,
 				CreatedAt: now,
 				ExitCode:  -1,
 			},
@@ -170,7 +175,7 @@ func (r *Runner) StartJob(taskID string, extraArgs []string) (JobDetail, error) 
 }
 
 // ListJobs 返回任务列表（按创建时间倒序）。
-func (r *Runner) ListJobs(limit int) []JobSummary {
+func (r *Runner) ListJobs(limit int) []model.JobSummary {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -181,7 +186,7 @@ func (r *Runner) ListJobs(limit int) []JobSummary {
 	if limit > count {
 		limit = count
 	}
-	out := make([]JobSummary, 0, limit)
+	out := make([]model.JobSummary, 0, limit)
 	for i := count - 1; i >= 0 && len(out) < limit; i-- {
 		id := r.jobList[i]
 		if rec, ok := r.jobs[id]; ok {
@@ -192,12 +197,12 @@ func (r *Runner) ListJobs(limit int) []JobSummary {
 }
 
 // GetJob 获取任务详情。
-func (r *Runner) GetJob(id string) (JobDetail, bool) {
+func (r *Runner) GetJob(id string) (model.JobDetail, bool) {
 	r.mu.RLock()
 	rec, ok := r.jobs[id]
 	r.mu.RUnlock()
 	if !ok {
-		return JobDetail{}, false
+		return model.JobDetail{}, false
 	}
 	return rec.JobDetail, true
 }
@@ -255,10 +260,10 @@ func (r *Runner) validateCommand(command []string) error {
 	return nil
 }
 
-func (r *Runner) execute(rec *jobRecord, task TaskDef) {
+func (r *Runner) execute(rec *jobRecord, task model.TaskDef) {
 	start := time.Now()
 	r.updateJob(rec.ID, func(j *jobRecord) {
-		j.Status = JobRunning
+		j.Status = model.JobRunning
 		j.StartedAt = start
 	})
 	r.appendJobLog(rec.ID, fmt.Sprintf("[%s] started", start.Format(time.RFC3339)))
@@ -307,11 +312,13 @@ func (r *Runner) execute(rec *jobRecord, task TaskDef) {
 
 	end := time.Now()
 	r.updateJob(rec.ID, func(j *jobRecord) {
-		j.Status = JobSuccess
+		j.Status = model.JobSuccess
 		j.ExitCode = exitCode
 		j.FinishedAt = end
 	})
 	r.appendJobLog(rec.ID, fmt.Sprintf("[%s] finished success exit=%d", end.Format(time.RFC3339), exitCode))
+	r.persistJobMeta(rec)
+	r.closeJobSubs(rec.ID)
 }
 
 func (r *Runner) pipeToLog(jobID string, stream io.Reader, source string) {
@@ -330,11 +337,30 @@ func (r *Runner) pipeToLog(jobID string, stream io.Reader, source string) {
 func (r *Runner) failJob(jobID string, exitCode int, err error) {
 	end := time.Now()
 	r.updateJob(jobID, func(j *jobRecord) {
-		j.Status = JobFailed
+		j.Status = model.JobFailed
 		j.ExitCode = exitCode
 		j.FinishedAt = end
 	})
 	r.appendJobLog(jobID, fmt.Sprintf("[%s] finished failed exit=%d err=%v", end.Format(time.RFC3339), exitCode, err))
+
+	r.mu.RLock()
+	rec := r.jobs[jobID]
+	r.mu.RUnlock()
+	if rec != nil {
+		r.persistJobMeta(rec)
+	}
+	r.closeJobSubs(jobID)
+}
+
+// closeJobSubs 关闭 job 的所有 SSE subscriber channel，立即通知 SSE handler。
+func (r *Runner) closeJobSubs(jobID string) {
+	r.mu.Lock()
+	subs := r.subs[jobID]
+	delete(r.subs, jobID)
+	r.mu.Unlock()
+	for _, ch := range subs {
+		close(ch)
+	}
 }
 
 func (r *Runner) updateJob(jobID string, fn func(*jobRecord)) {
@@ -389,13 +415,12 @@ func (r *Runner) trimJobsLocked() {
 			r.jobList = r.jobList[1:]
 			continue
 		}
-		if rec.Status == JobQueued || rec.Status == JobRunning {
+		if rec.Status == model.JobQueued || rec.Status == model.JobRunning {
 			break
 		}
 		r.jobList = r.jobList[1:]
 		delete(r.jobs, oldestID)
 		if subs, ok := r.subs[oldestID]; ok {
-			// 仅移除订阅映射，避免与并发发送产生“向已关闭通道发送”的竞态。
 			_ = subs
 			delete(r.subs, oldestID)
 		}
@@ -421,7 +446,7 @@ func (r *Runner) writeArchivedChunk(jobID string, ts time.Time, chunk []byte) (h
 	return hourKey, path, nil
 }
 
-func (r *Runner) newTaskCommand(task TaskDef, extraArgs []string) (*exec.Cmd, error) {
+func (r *Runner) newTaskCommand(task model.TaskDef, extraArgs []string) (*exec.Cmd, error) {
 	if len(task.Command) == 0 {
 		return nil, errors.New("task command is empty")
 	}
@@ -434,19 +459,19 @@ func (r *Runner) newTaskCommand(task TaskDef, extraArgs []string) (*exec.Cmd, er
 	}
 
 	cmd := exec.Command(command, args...)
-	cmd.Dir = r.repoRoot
+	cmd.Dir = r.RepoRoot
 	return cmd, nil
 }
 
 // TopFailingJobs 返回最近失败任务，便于首页展示。
-func (r *Runner) TopFailingJobs(limit int) []JobSummary {
+func (r *Runner) TopFailingJobs(limit int) []model.JobSummary {
 	if limit <= 0 {
 		limit = 5
 	}
 	items := r.ListJobs(200)
-	fails := make([]JobSummary, 0, limit)
+	fails := make([]model.JobSummary, 0, limit)
 	for _, item := range items {
-		if item.Status == JobFailed {
+		if item.Status == model.JobFailed {
 			fails = append(fails, item)
 		}
 		if len(fails) >= limit {
@@ -457,4 +482,102 @@ func (r *Runner) TopFailingJobs(limit int) []JobSummary {
 		return fails[i].CreatedAt.After(fails[j].CreatedAt)
 	})
 	return fails
+}
+
+// ─── Job 持久化 ───
+
+const jobMetaFile = "meta.json"
+
+// persistJobMeta 将已完成的 job 元数据和剩余日志写入磁盘。
+func (r *Runner) persistJobMeta(rec *jobRecord) {
+	dir := filepath.Join(r.logRootDir, rec.ID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return
+	}
+	data, err := json.Marshal(rec.JobDetail)
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(dir, jobMetaFile), data, 0o644)
+
+	// flush 内存中剩余的日志到 final.log
+	rec.mu.Lock()
+	remaining := rec.log.Bytes()
+	rec.mu.Unlock()
+	if len(remaining) > 0 {
+		finalPath := filepath.Join(dir, "final.log")
+		_ = os.WriteFile(finalPath, remaining, 0o644)
+	}
+}
+
+// loadPersistedJobs 在启动时扫描磁盘，恢复已完成的历史 job。
+func (r *Runner) loadPersistedJobs() {
+	entries, err := os.ReadDir(r.logRootDir)
+	if err != nil {
+		return
+	}
+
+	type loadedJob struct {
+		detail model.JobDetail
+	}
+
+	var loaded []loadedJob
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		metaPath := filepath.Join(r.logRootDir, entry.Name(), jobMetaFile)
+		raw, err := os.ReadFile(metaPath)
+		if err != nil {
+			continue
+		}
+		var detail model.JobDetail
+		if err := json.Unmarshal(raw, &detail); err != nil {
+			continue
+		}
+		loaded = append(loaded, loadedJob{detail: detail})
+	}
+
+	// 按 CreatedAt 排序
+	sort.Slice(loaded, func(i, j int) bool {
+		return loaded[i].detail.CreatedAt.Before(loaded[j].detail.CreatedAt)
+	})
+
+	restored := 0
+	for _, item := range loaded {
+		id := item.detail.ID
+		if _, exists := r.jobs[id]; exists {
+			continue
+		}
+		// 加载日志：hourly 归档 + final.log（内存 buffer）
+		rec := &jobRecord{JobDetail: item.detail}
+		logDir := filepath.Join(r.logRootDir, id)
+		logFiles, _ := filepath.Glob(filepath.Join(logDir, "*.log"))
+		sort.Strings(logFiles)
+		for _, lf := range logFiles {
+			base := filepath.Base(lf)
+			if base == "final.log" {
+				// final.log → 加载到内存 buffer
+				data, err := os.ReadFile(lf)
+				if err == nil {
+					rec.log.Write(data)
+				}
+				continue
+			}
+			// hourly 归档 → addArchive
+			info, err := os.Stat(lf)
+			if err != nil {
+				continue
+			}
+			hour := strings.TrimSuffix(base, ".log")
+			rec.addArchive(hour, lf, info.Size())
+		}
+		r.jobs[id] = rec
+		r.jobList = append(r.jobList, id)
+		restored++
+	}
+
+	if restored > 0 {
+		log.Printf("[ops-runner] restored %d persisted jobs from %s", restored, r.logRootDir)
+	}
 }

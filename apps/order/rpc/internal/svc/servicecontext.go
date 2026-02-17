@@ -19,7 +19,9 @@ import (
 	"flashsale/pkg/base/kafkax"
 	baselog "flashsale/pkg/base/logx"
 	"flashsale/pkg/base/mysqlx"
+	"flashsale/pkg/base/snowflakex"
 	basetracing "flashsale/pkg/base/tracing"
+
 	"github.com/bwmarrin/snowflake"
 	"github.com/zeromicro/go-zero/zrpc"
 	"go.uber.org/zap"
@@ -161,7 +163,7 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 	if nodeID <= 0 {
 		nodeID = defaultSnowflakeNode
 	}
-	node, err := snowflake.NewNode(nodeID)
+	node, err := snowflakex.NewNode(nodeID)
 	if err != nil {
 		return nil, fmt.Errorf("new snowflake node: %w", err)
 	}

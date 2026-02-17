@@ -19,6 +19,7 @@ const serviceNameMap: Record<string, string> = {
   "mysql-init-user": "MySQL 初始化任务",
   "kafka-init": "Kafka 初始化任务",
   migrate: "数据库迁移任务",
+  "ops-control": "运维控制服务",
 }
 
 export type RuntimeStatusTone = "running" | "partial" | "stopped" | "absent"

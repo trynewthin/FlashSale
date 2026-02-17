@@ -172,14 +172,12 @@ services:
       FLASHSALE_KAFKA_BROKERS: kafka:9092
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
-    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/user-rpc -f /app/apps/user/rpc/etc/user.docker.yaml >>/app/log/services/user-rpc.log 2>&1" ]
+    command: [ "/app/bin/user-rpc", "-f", "/app/apps/user/rpc/etc/user.docker.yaml" ]
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
       interval: 10s
       timeout: 3s
       retries: 12
-    volumes:
-      - ../../log:/app/log
 
   product-rpc:
     image: flashsale-backend:local
@@ -202,14 +200,12 @@ services:
       FLASHSALE_REDIS_ADDR: redis:6379
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
-    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/product-rpc -f /app/apps/product/rpc/etc/product.docker.yaml >>/app/log/services/product-rpc.log 2>&1" ]
+    command: [ "/app/bin/product-rpc", "-f", "/app/apps/product/rpc/etc/product.docker.yaml" ]
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
       interval: 10s
       timeout: 3s
       retries: 12
-    volumes:
-      - ../../log:/app/log
 
   admin-rpc:
     image: flashsale-backend:local
@@ -229,14 +225,12 @@ services:
       FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
-    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/admin-rpc -f /app/apps/admin/rpc/etc/admin.docker.yaml >>/app/log/services/admin-rpc.log 2>&1" ]
+    command: [ "/app/bin/admin-rpc", "-f", "/app/apps/admin/rpc/etc/admin.docker.yaml" ]
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
       interval: 10s
       timeout: 3s
       retries: 12
-    volumes:
-      - ../../log:/app/log
 
   order-rpc:
     image: flashsale-backend:local
@@ -259,14 +253,12 @@ services:
       FLASHSALE_KAFKA_BROKERS: kafka:9092
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
-    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/order-rpc -f /app/apps/order/rpc/etc/order.docker.yaml >>/app/log/services/order-rpc.log 2>&1" ]
+    command: [ "/app/bin/order-rpc", "-f", "/app/apps/order/rpc/etc/order.docker.yaml" ]
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
       interval: 10s
       timeout: 3s
       retries: 12
-    volumes:
-      - ../../log:/app/log
 
   seckill-rpc:
     image: flashsale-backend:local
@@ -292,14 +284,12 @@ services:
       FLASHSALE_KAFKA_BROKERS: kafka:9092
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
-    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/seckill-rpc -f /app/apps/seckill/rpc/etc/seckill.docker.yaml >>/app/log/services/seckill-rpc.log 2>&1" ]
+    command: [ "/app/bin/seckill-rpc", "-f", "/app/apps/seckill/rpc/etc/seckill.docker.yaml" ]
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
       interval: 10s
       timeout: 3s
       retries: 12
-    volumes:
-      - ../../log:/app/log
 
   user-gateway:
     image: flashsale-backend:local
@@ -321,14 +311,12 @@ services:
       FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
       FLASHSALE_REDIS_ADDR: redis:6379
       FLASHSALE_KAFKA_BROKERS: kafka:9092
-    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/user-gateway -f /app/apps/gateway/user/etc/user-gateway.docker.yaml >>/app/log/services/user-gateway.log 2>&1" ]
+    command: [ "/app/bin/user-gateway", "-f", "/app/apps/gateway/user/etc/user-gateway.docker.yaml" ]
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:8082/healthz || exit 1" ]
       interval: 10s
       timeout: 3s
       retries: 12
-    volumes:
-      - ../../log:/app/log
 
   admin-gateway:
     image: flashsale-backend:local
@@ -350,14 +338,12 @@ services:
       FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
       FLASHSALE_REDIS_ADDR: redis:6379
       FLASHSALE_KAFKA_BROKERS: kafka:9092
-    command: [ "/bin/sh", "-ec", "mkdir -p /app/log/services; exec /app/bin/admin-gateway -f /app/apps/gateway/admin/etc/admin-gateway.docker.yaml >>/app/log/services/admin-gateway.log 2>&1" ]
+    command: [ "/app/bin/admin-gateway", "-f", "/app/apps/gateway/admin/etc/admin-gateway.docker.yaml" ]
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:8083/healthz || exit 1" ]
       interval: 10s
       timeout: 3s
       retries: 12
-    volumes:
-      - ../../log:/app/log
 
   nginx:
     image: nginx:1.27-alpine
@@ -375,6 +361,42 @@ services:
         condition: service_healthy
     healthcheck:
       test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/nginx-healthz" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  ops-control:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/ops.Dockerfile
+    container_name: flashsale-app-ops-control
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+    ports:
+      - "${FLASH_OPS_PORT:-9100}:9100"
+    environment:
+      FLASHSALE_ETCD_ENDPOINT: etcd:2379
+      FLASHSALE_PROMETHEUS_ENDPOINT: http://prometheus:9090
+      FLASHSALE_APP_COMPOSE_FILE: /app/deploy/compose/docker-compose.app.yml
+      FLASHSALE_APP_ENV_FILE: /app/configs/local/docker-app.env
+    command:
+      - --addr=0.0.0.0:9100
+      - --repo-root=/app
+      - --default-env-file=configs/local/docker-app.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../../log:/app/log
+      - ../../configs:/app/configs:ro
+      - ../../deploy/compose:/app/deploy/compose:ro
+      - ../../deploy/nginx:/app/deploy/nginx:ro
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:9100/healthz" ]
       interval: 10s
       timeout: 3s
       retries: 12

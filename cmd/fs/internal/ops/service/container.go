@@ -1,11 +1,8 @@
-// containers 提供容器编排相关只读与控制接口（状态、容器动作、服务扩缩容）。
-package ops
+package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,190 +11,54 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"flashsale/cmd/fs/internal/ops/model"
 )
 
-type ContainerRuntimeSnapshot struct {
-	GeneratedAtUnix int64            `json:"generated_at_unix"`
-	DeploymentMode  string           `json:"deployment_mode"`
-	Compose         ComposeContext   `json:"compose"`
-	Services        []ServiceRuntime `json:"services"`
-	Containers      []ContainerState `json:"containers"`
-	Edges           []ServiceEdge    `json:"edges"`
-	Error           string           `json:"error,omitempty"`
-}
-
-type ComposeContext struct {
-	ComposeFile string `json:"compose_file"`
-	EnvFile     string `json:"env_file"`
-	Project     string `json:"project"`
-	Detected    bool   `json:"detected"`
-}
-
-type ServiceRuntime struct {
-	Name            string   `json:"name"`
-	Role            string   `json:"role"`
-	Scalable        bool     `json:"scalable"`
-	Optional        bool     `json:"optional"`
-	Absent          bool     `json:"absent"`
-	Replicas        int      `json:"replicas"`
-	RunningReplicas int      `json:"running_replicas"`
-	DependsOn       []string `json:"depends_on"`
-}
-
-type ContainerState struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Service string `json:"service"`
-	Project string `json:"project"`
-	Image   string `json:"image"`
-	Status  string `json:"status"`
-	Health  string `json:"health"`
-	Ports   string `json:"ports"`
-	Running bool   `json:"running"`
-}
-
-type ServiceEdge struct {
-	From string `json:"from"`
-	To   string `json:"to"`
-	Type string `json:"type"`
-}
-
-type serviceDef struct {
-	Name      string
-	Role      string
-	Scalable  bool
-	Optional  bool
-	DependsOn []string
-}
+// ─── 验证正则 ───
 
 var (
-	containerNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
-	serviceNamePattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
+	ContainerNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+	ServiceNamePattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 )
 
-func (s *Server) getContainersStatus(w http.ResponseWriter, _ *http.Request) {
-	snap := buildContainerRuntimeSnapshot(s.runner.repoRoot)
-	writeOK(w, map[string]any{"status": snap})
-}
-
-type containerActionReq struct {
-	Action string `json:"action"`
-}
-
-func (s *Server) containerAction(w http.ResponseWriter, r *http.Request) {
-	containerID := strings.TrimSpace(r.PathValue("container_id"))
-	if !containerNamePattern.MatchString(containerID) {
-		writeErr(w, http.StatusBadRequest, "container_id 非法")
-		return
-	}
-	var req containerActionReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "请求体非法")
-		return
-	}
-	action := strings.ToLower(strings.TrimSpace(req.Action))
-	if action != "start" && action != "stop" && action != "restart" {
-		writeErr(w, http.StatusBadRequest, "action 仅支持 start/stop/restart")
-		return
-	}
-	out, err := runCmdWithErr(s.runner.repoRoot, 30*time.Second, "docker", action, containerID)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, strings.TrimSpace(out))
-		return
-	}
-	writeOK(w, map[string]any{
-		"container_id": containerID,
-		"action":       action,
-		"output":       strings.TrimSpace(out),
-	})
-}
-
-type serviceScaleReq struct {
-	Replicas int `json:"replicas"`
-}
-
-func (s *Server) scaleService(w http.ResponseWriter, r *http.Request) {
-	service := strings.TrimSpace(strings.ToLower(r.PathValue("service")))
-	if !serviceNamePattern.MatchString(service) {
-		writeErr(w, http.StatusBadRequest, "service 非法")
-		return
-	}
-	var req serviceScaleReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "请求体非法")
-		return
-	}
-	if req.Replicas < 0 || req.Replicas > 20 {
-		writeErr(w, http.StatusBadRequest, "replicas 范围必须在 0..20")
-		return
-	}
-
-	catalog := defaultServiceCatalog()
-	def, ok := catalog[service]
-	if !ok {
-		writeErr(w, http.StatusNotFound, "服务不存在")
-		return
-	}
-	if !def.Scalable {
-		writeErr(w, http.StatusBadRequest, "该服务不支持扩缩容")
-		return
-	}
-
-	composeCtx := detectComposeContext(s.runner.repoRoot)
-	if strings.TrimSpace(composeCtx.ComposeFile) == "" {
-		writeErr(w, http.StatusBadRequest, "未检测到 compose 文件")
-		return
-	}
-	args := composeCommandArgs(composeCtx,
-		"up", "-d", "--scale", fmt.Sprintf("%s=%d", service, req.Replicas), service)
-	out, err := runCmdWithErr(s.runner.repoRoot, 90*time.Second, "docker", args...)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, strings.TrimSpace(out))
-		return
-	}
-	writeOK(w, map[string]any{
-		"service":  service,
-		"replicas": req.Replicas,
-		"output":   strings.TrimSpace(out),
-	})
-}
-
-func buildContainerRuntimeSnapshot(repoRoot string) ContainerRuntimeSnapshot {
-	out := ContainerRuntimeSnapshot{
+// BuildContainerRuntimeSnapshot 构建容器编排的完整快照。
+func BuildContainerRuntimeSnapshot(repoRoot string) model.ContainerRuntimeSnapshot {
+	out := model.ContainerRuntimeSnapshot{
 		GeneratedAtUnix: time.Now().Unix(),
-		Compose:         detectComposeContext(repoRoot),
+		Compose:         DetectComposeContext(repoRoot),
 	}
 
-	containers, listErr := listDockerContainers(repoRoot)
+	containers, listErr := ListDockerContainers(repoRoot)
 	if listErr != nil {
 		out.Error = listErr.Error()
 	}
 	if project := strings.TrimSpace(out.Compose.Project); project != "" {
-		containers = filterContainersByProject(containers, project)
+		containers = FilterContainersByProject(containers, project)
 	}
 	out.Containers = containers
 
-	// 与状态页的部署模式保持一致，确保口径统一。
-	dockerContainers := make([]DockerContainer, 0, len(containers))
+	// 与状态页的部署模式保持一致。
+	dockerContainers := make([]model.DockerContainer, 0, len(containers))
 	for _, c := range containers {
-		dockerContainers = append(dockerContainers, DockerContainer{
+		dockerContainers = append(dockerContainers, model.DockerContainer{
 			Name:   c.Name,
 			Status: c.Status,
 			Ports:  c.Ports,
 		})
 	}
-	out.DeploymentMode = detectDeploymentMode(dockerContainers)
+	out.DeploymentMode = DetectDeploymentMode(dockerContainers)
 
-	serviceMap := map[string]*ServiceRuntime{}
-	catalog := defaultServiceCatalog()
+	serviceMap := map[string]*model.ServiceRuntime{}
+	catalog := DefaultServiceCatalog()
 	for _, def := range catalog {
 		cp := def
-		serviceMap[cp.Name] = &ServiceRuntime{
+		serviceMap[cp.Name] = &model.ServiceRuntime{
 			Name:            cp.Name,
 			Role:            cp.Role,
 			Scalable:        cp.Scalable,
 			Optional:        cp.Optional,
-			Absent:          true, // 先标记为 absent，后面有容器时会清除
+			Absent:          true,
 			Replicas:        0,
 			RunningReplicas: 0,
 			DependsOn:       append([]string{}, cp.DependsOn...),
@@ -209,41 +70,42 @@ func buildContainerRuntimeSnapshot(repoRoot string) ContainerRuntimeSnapshot {
 			svc = "unknown"
 		}
 		if _, ok := serviceMap[svc]; !ok {
-			serviceMap[svc] = &ServiceRuntime{
+			serviceMap[svc] = &model.ServiceRuntime{
 				Name:            svc,
-				Role:            inferServiceRole(svc),
+				Role:            InferServiceRole(svc),
 				Scalable:        false,
 				Replicas:        0,
 				RunningReplicas: 0,
-				DependsOn:       nil,
+				DependsOn:       []string{},
 			}
 		}
-		serviceMap[svc].Absent = false // 有实际容器，清除 absent
+		serviceMap[svc].Absent = false
 		serviceMap[svc].Replicas++
 		if c.Running {
 			serviceMap[svc].RunningReplicas++
 		}
 	}
 
-	out.Services = make([]ServiceRuntime, 0, len(serviceMap))
+	out.Services = make([]model.ServiceRuntime, 0, len(serviceMap))
 	for _, item := range serviceMap {
 		out.Services = append(out.Services, *item)
 	}
 	sort.Slice(out.Services, func(i, j int) bool {
-		ri := roleOrder(out.Services[i].Role)
-		rj := roleOrder(out.Services[j].Role)
+		ri := RoleOrder(out.Services[i].Role)
+		rj := RoleOrder(out.Services[j].Role)
 		if ri != rj {
 			return ri < rj
 		}
 		return out.Services[i].Name < out.Services[j].Name
 	})
-	out.Edges = buildServiceEdges(catalog)
+	out.Edges = BuildServiceEdges(catalog)
 
 	return out
 }
 
-func filterContainersByProject(containers []ContainerState, project string) []ContainerState {
-	filtered := make([]ContainerState, 0, len(containers))
+// FilterContainersByProject 按 compose project 过滤容器。
+func FilterContainersByProject(containers []model.ContainerState, project string) []model.ContainerState {
+	filtered := make([]model.ContainerState, 0, len(containers))
 	for _, item := range containers {
 		if strings.TrimSpace(item.Project) == project {
 			filtered = append(filtered, item)
@@ -252,7 +114,8 @@ func filterContainersByProject(containers []ContainerState, project string) []Co
 	return filtered
 }
 
-func roleOrder(role string) int {
+// RoleOrder 返回角色排序权重。
+func RoleOrder(role string) int {
 	switch role {
 	case "ingress":
 		return 1
@@ -271,7 +134,8 @@ func roleOrder(role string) int {
 	}
 }
 
-func inferServiceRole(name string) string {
+// InferServiceRole 从服务名推断角色。
+func InferServiceRole(name string) string {
 	switch {
 	case strings.Contains(name, "gateway"):
 		return "gateway"
@@ -281,6 +145,8 @@ func inferServiceRole(name string) string {
 		return "ingress"
 	case name == "mysql" || name == "redis" || name == "kafka" || name == "etcd":
 		return "infra"
+	case name == "ops-control":
+		return "gateway"
 	case name == "jaeger" || name == "prometheus" || name == "grafana":
 		return "observability"
 	default:
@@ -288,8 +154,9 @@ func inferServiceRole(name string) string {
 	}
 }
 
-func buildServiceEdges(catalog map[string]serviceDef) []ServiceEdge {
-	edges := make([]ServiceEdge, 0)
+// BuildServiceEdges 根据服务目录生成依赖边。
+func BuildServiceEdges(catalog map[string]model.ServiceDef) []model.ServiceEdge {
+	edges := make([]model.ServiceEdge, 0)
 	seen := map[string]struct{}{}
 	addEdge := func(from, to, typ string) {
 		key := from + "|" + to + "|" + typ
@@ -297,7 +164,7 @@ func buildServiceEdges(catalog map[string]serviceDef) []ServiceEdge {
 			return
 		}
 		seen[key] = struct{}{}
-		edges = append(edges, ServiceEdge{From: from, To: to, Type: typ})
+		edges = append(edges, model.ServiceEdge{From: from, To: to, Type: typ})
 	}
 	for _, def := range catalog {
 		for _, dep := range def.DependsOn {
@@ -316,8 +183,9 @@ func buildServiceEdges(catalog map[string]serviceDef) []ServiceEdge {
 	return edges
 }
 
-func defaultServiceCatalog() map[string]serviceDef {
-	list := []serviceDef{
+// DefaultServiceCatalog 返回默认的服务目录。
+func DefaultServiceCatalog() map[string]model.ServiceDef {
+	list := []model.ServiceDef{
 		// ingress
 		{Name: "nginx", Role: "ingress", Scalable: false, DependsOn: []string{"user-gateway", "admin-gateway"}},
 
@@ -333,30 +201,49 @@ func defaultServiceCatalog() map[string]serviceDef {
 		{Name: "seckill-rpc", Role: "rpc", Scalable: true, DependsOn: []string{"mysql", "redis", "kafka", "etcd", "product-rpc", "order-rpc"}},
 
 		// infra
-		{Name: "mysql", Role: "infra", Scalable: false, DependsOn: nil},
-		{Name: "redis", Role: "infra", Scalable: false, DependsOn: nil},
-		{Name: "kafka", Role: "infra", Scalable: false, DependsOn: nil},
-		{Name: "etcd", Role: "infra", Scalable: false, DependsOn: nil},
+		{Name: "mysql", Role: "infra", Scalable: false, DependsOn: []string{}},
+		{Name: "redis", Role: "infra", Scalable: false, DependsOn: []string{}},
+		{Name: "kafka", Role: "infra", Scalable: false, DependsOn: []string{}},
+		{Name: "etcd", Role: "infra", Scalable: false, DependsOn: []string{}},
 
-		// observability（可选，仅 --profile observability 时存在）
-		{Name: "jaeger", Role: "observability", Scalable: false, Optional: true, DependsOn: nil},
-		{Name: "prometheus", Role: "observability", Scalable: false, Optional: true, DependsOn: nil},
+		// observability
+		{Name: "jaeger", Role: "observability", Scalable: false, Optional: true, DependsOn: []string{}},
+		{Name: "prometheus", Role: "observability", Scalable: false, Optional: true, DependsOn: []string{}},
 		{Name: "grafana", Role: "observability", Scalable: false, Optional: true, DependsOn: []string{"prometheus"}},
+
+		// ops
+		{Name: "ops-control", Role: "gateway", Scalable: false, DependsOn: []string{"mysql", "redis", "etcd"}},
 
 		// job
 		{Name: "mysql-init-user", Role: "job", Scalable: false, DependsOn: []string{"mysql"}},
 		{Name: "kafka-init", Role: "job", Scalable: false, DependsOn: []string{"kafka"}},
 		{Name: "migrate", Role: "job", Scalable: false, DependsOn: []string{"mysql"}},
 	}
-	out := make(map[string]serviceDef, len(list))
+	out := make(map[string]model.ServiceDef, len(list))
 	for _, item := range list {
 		out[item.Name] = item
 	}
 	return out
 }
 
-func detectComposeContext(repoRoot string) ComposeContext {
-	ctx := ComposeContext{}
+// ─── Docker 命令 ───
+
+// ContainerAction 执行容器动作（start/stop/restart）。
+func ContainerAction(repoRoot, containerID, action string) (string, error) {
+	return RunCmdWithErr(repoRoot, 30*time.Second, "docker", action, containerID)
+}
+
+// ScaleService 对指定服务执行扩缩容。
+// --no-recreate：仅创建/销毁副本，不因其他服务配置变更而级联 Recreate 已有容器。
+func ScaleService(repoRoot string, composeCtx model.ComposeContext, service string, replicas int) (string, error) {
+	args := ComposeCommandArgs(composeCtx,
+		"up", "-d", "--no-recreate", "--scale", fmt.Sprintf("%s=%d", service, replicas), service)
+	return RunCmdWithErr(repoRoot, 90*time.Second, "docker", args...)
+}
+
+// DetectComposeContext 检测 Docker Compose 文件上下文。
+func DetectComposeContext(repoRoot string) model.ComposeContext {
+	ctx := model.ComposeContext{}
 	composeCandidates := []string{
 		strings.TrimSpace(os.Getenv("FLASHSALE_APP_COMPOSE_FILE")),
 		filepath.Join("deploy", "compose", "docker-compose.app.yml"),
@@ -421,7 +308,8 @@ func detectComposeProjectFromFile(composeFile string) string {
 	return ""
 }
 
-func composeCommandArgs(composeCtx ComposeContext, tail ...string) []string {
+// ComposeCommandArgs 构建 docker compose 命令参数。
+func ComposeCommandArgs(composeCtx model.ComposeContext, tail ...string) []string {
 	args := []string{"compose"}
 	if strings.TrimSpace(composeCtx.EnvFile) != "" {
 		args = append(args, "--env-file", composeCtx.EnvFile)
@@ -433,14 +321,15 @@ func composeCommandArgs(composeCtx ComposeContext, tail ...string) []string {
 	return args
 }
 
-func listDockerContainers(repoRoot string) ([]ContainerState, error) {
-	out, err := runCmdWithErr(repoRoot, 8*time.Second, "docker", "ps", "-a", "--format",
+// ListDockerContainers 列出所有 Docker 容器。
+func ListDockerContainers(repoRoot string) ([]model.ContainerState, error) {
+	out, err := RunCmdWithErr(repoRoot, 8*time.Second, "docker", "ps", "-a", "--format",
 		"{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}\t{{.Label \"com.docker.compose.service\"}}\t{{.Label \"com.docker.compose.project\"}}")
 	if err != nil {
 		return nil, fmt.Errorf("读取 docker 容器失败: %w", err)
 	}
 	lines := strings.Split(out, "\n")
-	containers := make([]ContainerState, 0, len(lines))
+	containers := make([]model.ContainerState, 0, len(lines))
 	for _, raw := range lines {
 		line := strings.TrimSpace(raw)
 		if line == "" {
@@ -466,9 +355,9 @@ func listDockerContainers(repoRoot string) ([]ContainerState, error) {
 		}
 		service := strings.TrimSpace(parts[5])
 		if service == "" {
-			service = inferServiceNameFromContainer(strings.TrimSpace(parts[1]))
+			service = InferServiceNameFromContainer(strings.TrimSpace(parts[1]))
 		}
-		containers = append(containers, ContainerState{
+		containers = append(containers, model.ContainerState{
 			ID:      strings.TrimSpace(parts[0]),
 			Name:    strings.TrimSpace(parts[1]),
 			Image:   strings.TrimSpace(parts[2]),
@@ -489,10 +378,10 @@ func listDockerContainers(repoRoot string) ([]ContainerState, error) {
 	return containers, nil
 }
 
-func inferServiceNameFromContainer(name string) string {
+// InferServiceNameFromContainer 从容器名推断服务名。
+func InferServiceNameFromContainer(name string) string {
 	parts := strings.Split(strings.TrimSpace(name), "-")
 	if len(parts) >= 3 {
-		// 约定格式: <project>-<service>-<index>
 		idx, err := strconv.Atoi(parts[len(parts)-1])
 		if err == nil && idx >= 0 {
 			return strings.Join(parts[1:len(parts)-1], "-")
@@ -501,7 +390,8 @@ func inferServiceNameFromContainer(name string) string {
 	return strings.TrimSpace(name)
 }
 
-func runCmdWithErr(dir string, timeout time.Duration, name string, args ...string) (string, error) {
+// RunCmdWithErr 在指定目录执行命令，返回输出和错误。
+func RunCmdWithErr(dir string, timeout time.Duration, name string, args ...string) (string, error) {
 	ctx := context.Background()
 	if timeout > 0 {
 		var cancel context.CancelFunc

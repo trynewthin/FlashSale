@@ -10,12 +10,11 @@ import (
 	"time"
 )
 
-func TestExtractPerfEnvFileArg(t *testing.T) {
+func TestExtractPerfGlobalArgs(t *testing.T) {
 
 	testCases := []struct {
 		name        string
 		args        []string
-		fallback    string
 		wantEnvFile string
 		wantArgs    []string
 		wantErr     bool
@@ -23,42 +22,36 @@ func TestExtractPerfEnvFileArg(t *testing.T) {
 		{
 			name:        "env before subcommand with equals",
 			args:        []string{"--env-file=configs/prod/server.env", "purchase-open", "-rate", "200"},
-			fallback:    "configs/local/dev.env",
 			wantEnvFile: "configs/prod/server.env",
 			wantArgs:    []string{"purchase-open", "-rate", "200"},
 		},
 		{
 			name:        "env before subcommand split",
 			args:        []string{"--env-file", "configs/prod/server.env", "purchase-open", "-rate", "200"},
-			fallback:    "configs/local/dev.env",
 			wantEnvFile: "configs/prod/server.env",
 			wantArgs:    []string{"purchase-open", "-rate", "200"},
 		},
 		{
 			name:        "env after subcommand with equals",
 			args:        []string{"purchase-open", "--env-file=configs/prod/server.env", "-rate", "200"},
-			fallback:    "configs/local/dev.env",
 			wantEnvFile: "configs/prod/server.env",
 			wantArgs:    []string{"purchase-open", "-rate", "200"},
 		},
 		{
 			name:        "env after subcommand split",
 			args:        []string{"purchase-open", "--env-file", "configs/prod/server.env", "-rate", "200"},
-			fallback:    "configs/local/dev.env",
 			wantEnvFile: "configs/prod/server.env",
 			wantArgs:    []string{"purchase-open", "-rate", "200"},
 		},
 		{
 			name:        "single dash env style",
 			args:        []string{"purchase-open", "-env-file=configs/prod/server.env", "-rate", "200"},
-			fallback:    "configs/local/dev.env",
 			wantEnvFile: "configs/prod/server.env",
 			wantArgs:    []string{"purchase-open", "-rate", "200"},
 		},
 		{
 			name:        "missing env value should error",
 			args:        []string{"purchase-open", "--env-file"},
-			fallback:    "configs/local/dev.env",
 			wantEnvFile: "",
 			wantArgs:    nil,
 			wantErr:     true,
@@ -66,7 +59,6 @@ func TestExtractPerfEnvFileArg(t *testing.T) {
 		{
 			name:        "fallback is used",
 			args:        []string{"purchase-open", "-rate", "200"},
-			fallback:    "configs/local/dev.env",
 			wantEnvFile: "configs/local/dev.env",
 			wantArgs:    []string{"purchase-open", "-rate", "200"},
 		},
@@ -75,7 +67,7 @@ func TestExtractPerfEnvFileArg(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			gotEnvFile, gotArgs, err := extractPerfEnvFileArg(testCase.args, testCase.fallback)
+			global, gotArgs, err := extractPerfGlobalArgs(testCase.args)
 			if testCase.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got nil")
@@ -85,8 +77,8 @@ func TestExtractPerfEnvFileArg(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if gotEnvFile != testCase.wantEnvFile {
-				t.Fatalf("env file mismatch: want=%s got=%s", testCase.wantEnvFile, gotEnvFile)
+			if global.EnvFile != testCase.wantEnvFile {
+				t.Fatalf("env file mismatch: want=%s got=%s", testCase.wantEnvFile, global.EnvFile)
 			}
 			if len(gotArgs) != len(testCase.wantArgs) {
 				t.Fatalf("args length mismatch: want=%d got=%d", len(testCase.wantArgs), len(gotArgs))

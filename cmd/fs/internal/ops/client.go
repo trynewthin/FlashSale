@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"flashsale/cmd/fs/internal/ops/model"
 )
 
 // Client 是 ops-control 的 HTTP 客户端。
@@ -77,9 +79,9 @@ func (c *Client) doJSON(method, path string, body any, out any) error {
 }
 
 // ListTasks 查询任务白名单。
-func (c *Client) ListTasks() ([]TaskDef, error) {
+func (c *Client) ListTasks() ([]model.TaskDef, error) {
 	var data struct {
-		Tasks []TaskDef `json:"tasks"`
+		Tasks []model.TaskDef `json:"tasks"`
 	}
 	if err := c.doJSON(http.MethodGet, "/api/v1/tasks", nil, &data); err != nil {
 		return nil, err
@@ -88,23 +90,23 @@ func (c *Client) ListTasks() ([]TaskDef, error) {
 }
 
 // CreateJob 创建任务。
-func (c *Client) CreateJob(task string, args []string) (JobDetail, error) {
+func (c *Client) CreateJob(task string, args []string) (model.JobDetail, error) {
 	var data struct {
-		Job JobDetail `json:"job"`
+		Job model.JobDetail `json:"job"`
 	}
 	if err := c.doJSON(http.MethodPost, "/api/v1/jobs", map[string]any{
 		"task": task,
 		"args": args,
 	}, &data); err != nil {
-		return JobDetail{}, err
+		return model.JobDetail{}, err
 	}
 	return data.Job, nil
 }
 
 // ListJobs 查询任务列表。
-func (c *Client) ListJobs(limit int) ([]JobSummary, error) {
+func (c *Client) ListJobs(limit int) ([]model.JobSummary, error) {
 	var data struct {
-		Jobs []JobSummary `json:"jobs"`
+		Jobs []model.JobSummary `json:"jobs"`
 	}
 	path := fmt.Sprintf("/api/v1/jobs?limit=%d", limit)
 	if err := c.doJSON(http.MethodGet, path, nil, &data); err != nil {

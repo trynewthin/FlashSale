@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { opsApi } from "@/api/modules/ops"
 import type { JobDetail, JobSummary, SSELogLineFrame, TaskDef } from "@/api/types"
@@ -34,7 +34,7 @@ interface UseRealtimeTestRunnerResult {
   streamEnabled: boolean
   setStreamEnabled: (value: boolean) => void
   recentTestJobs: JobSummary[]
-  startTest: () => Promise<void>
+  startTest: () => Promise<boolean>
   refreshTasks: () => Promise<void>
   refreshTestJobs: () => Promise<void>
   refreshActiveJob: () => Promise<void>
@@ -207,14 +207,14 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
     setExtraArgsText(formatTaskArgs(baseExtraArgs))
   }, [selectedTask])
 
-  const startTest = useCallback(async () => {
+  const startTest = useCallback(async (): Promise<boolean> => {
     if (!selectedTaskID) {
       showNotice("error", "请选择测试项目")
-      return
+      return false
     }
     if (!selectedTask) {
       showNotice("error", "测试任务不存在，请刷新后重试")
-      return
+      return false
     }
     try {
       setCreating(true)
@@ -226,7 +226,7 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
           const errorText = validateFieldValue(field, value)
           if (errorText) {
             showNotice("error", errorText)
-            return
+            return false
           }
           if (value) {
             fields[field.flag] = value
@@ -245,8 +245,10 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
       setLauncherOpen(false)
       await refreshTestJobs()
       showNotice("success", `测试任务已启动：${job.id}`)
+      return true
     } catch (error) {
       showApiError(error, "启动测试任务失败")
+      return false
     } finally {
       setCreating(false)
     }
@@ -268,24 +270,49 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
     return opsApi.buildJobStreamURL(activeJob.id)
   }, [activeJob?.id])
 
+  // 追踪是否已收到 done 事件（任务正常结束），避免 onerror 误报
+  const doneReceivedRef = useRef(false)
+
+  // 当 activeJob 变化时重置 done 标记
+  useEffect(() => {
+    doneReceivedRef.current = false
+  }, [activeJob?.id])
+
   useEventSource({
     enabled: streamEnabled && !!activeJob?.id,
     url: activeJobStreamURL,
     handlers: {
       onEvent: (eventType, payload) => {
-        if (eventType !== "log") {
+        if (eventType === "snapshot") {
+          // 初始历史日志推送
+          const frame = payload as { log?: string }
+          if (typeof frame.log === "string" && frame.log.length > 0) {
+            setActiveLog(frame.log)
+          }
           return
         }
-        const frame = payload as SSELogLineFrame
-        if (typeof frame.chunk === "string") {
-          setActiveLog((prev) => prev + frame.chunk)
+        if (eventType === "log") {
+          const frame = payload as SSELogLineFrame
+          if (typeof frame.chunk === "string") {
+            setActiveLog((prev) => prev + frame.chunk)
+            return
+          }
+          if (typeof frame.line === "string") {
+            setActiveLog((prev) => `${prev}${prev.endsWith("\n") || prev.length === 0 ? "" : "\n"}${frame.line}\n`)
+          }
           return
         }
-        if (typeof frame.line === "string") {
-          setActiveLog((prev) => `${prev}${prev.endsWith("\n") || prev.length === 0 ? "" : "\n"}${frame.line}\n`)
+        if (eventType === "done") {
+          // 任务正常结束，优雅关闭
+          doneReceivedRef.current = true
+          setStreamEnabled(false)
+          void refreshActiveJob()
+          return
         }
       },
       onError: () => {
+        // 如果已经收到 done 事件，这是后端正常关闭连接，不需要提示
+        if (doneReceivedRef.current) return
         setStreamEnabled(false)
         showNotice("error", "测试日志流已断开，请手动重开")
       },

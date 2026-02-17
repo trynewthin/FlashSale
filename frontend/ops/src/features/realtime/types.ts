@@ -17,7 +17,10 @@ export interface RealtimeSample {
   // 压测客户端视角（仅压测进行中有值）
   qps?: number | null
   successRate?: number | null
-  errorRate?: number | null
+  /** 业务拒绝率 — 库存不足、限购冲突等正常竞争结果 */
+  rejectRate?: number | null
+  /** 系统异常率 — 非 OK 且非已知业务拒绝的 code */
+  systemErrorRate?: number | null
   p95LatencyMs?: number | null
   networkErrorRate?: number | null
   stockDeductionRate?: number | null

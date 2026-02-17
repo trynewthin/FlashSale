@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { opsApi } from "@/api/modules/ops"
 import type { ContainerRuntimeSnapshot, EtcdRegistrySnapshot } from "@/api/types"
@@ -23,12 +23,17 @@ export function ContainersPageFeature() {
     containerName: "",
   })
 
+  // 用 ref 存 focusService，避免 refresh 依赖 focusService 导致 effect 重置
+  const focusServiceRef = useRef(focusService)
+  focusServiceRef.current = focusService
+
   const refresh = useCallback(async () => {
     try {
       setLoading(true)
       const data = await opsApi.getContainersStatus()
       setSnapshot(data)
-      if (focusService && !data.services.some((item) => item.name === focusService)) {
+      const currentFocus = focusServiceRef.current
+      if (currentFocus && !data.services.some((item) => item.name === currentFocus)) {
         setFocusService("")
       }
     } catch (error) {
@@ -36,7 +41,7 @@ export function ContainersPageFeature() {
     } finally {
       setLoading(false)
     }
-  }, [focusService, showApiError])
+  }, [showApiError])
 
   useEffect(() => {
     void refresh()
@@ -67,34 +72,48 @@ export function ContainersPageFeature() {
     return map
   }, [etcdSnap])
 
-  const runContainerAction = async (containerName: string, action: "start" | "stop" | "restart") => {
-    const key = `${containerName}:${action}`
-    try {
-      setActioningKey(key)
-      await opsApi.actionContainer(containerName, action)
-      showNotice("success", `容器 ${containerName} ${action} 已执行`)
-      await refresh()
-    } catch (error) {
-      showApiError(error, `容器操作失败：${containerName}`)
-    } finally {
-      setActioningKey("")
-    }
-  }
+  // 稳定回调：使用 useCallback 避免每次 render 产生新引用
+  const onActionContainer = useCallback(
+    async (containerName: string, action: "start" | "stop" | "restart") => {
+      const key = `${containerName}:${action}`
+      try {
+        setActioningKey(key)
+        await opsApi.actionContainer(containerName, action)
+        showNotice("success", `容器 ${containerName} ${action} 已执行`)
+        await refresh()
+      } catch (error) {
+        showApiError(error, `容器操作失败：${containerName}`)
+      } finally {
+        setActioningKey("")
+      }
+    },
+    [refresh, showNotice, showApiError]
+  )
 
-  const runScale = async (service: string, replicas: number) => {
-    try {
-      const key = `scale:${service}`
-      setActioningKey(key)
-      await opsApi.scaleService(service, replicas)
-      showNotice("success", `服务 ${service} 已扩缩容到 ${replicas}`)
-      await refresh()
-      refreshEtcd()
-    } catch (error) {
-      showApiError(error, `服务扩缩容失败：${service}`)
-    } finally {
-      setActioningKey("")
-    }
-  }
+  const onScale = useCallback(
+    async (service: string, replicas: number) => {
+      try {
+        const key = `scale:${service}`
+        setActioningKey(key)
+        await opsApi.scaleService(service, replicas)
+        showNotice("success", `服务 ${service} 已扩缩容到 ${replicas}`)
+        await refresh()
+        refreshEtcd()
+      } catch (error) {
+        showApiError(error, `服务扩缩容失败：${service}`)
+      } finally {
+        setActioningKey("")
+      }
+    },
+    [refresh, refreshEtcd, showNotice, showApiError]
+  )
+
+  const onOpenReplicaLogs = useCallback(
+    (serviceName: string, containerName: string) => {
+      setLogSheet({ open: true, serviceName, containerName })
+    },
+    []
+  )
 
   return (
     <div className="relative h-full min-h-[720px] overflow-hidden bg-slate-50">
@@ -103,16 +122,10 @@ export function ContainersPageFeature() {
         etcdInstanceMap={etcdInstanceMap}
         focusService={focusService}
         actioningKey={actioningKey}
-        onActionContainer={(containerName, action) => void runContainerAction(containerName, action)}
-        onScaleUpService={(serviceName, targetReplicas) => void runScale(serviceName, targetReplicas)}
-        onScaleDownService={(serviceName, targetReplicas) => void runScale(serviceName, targetReplicas)}
-        onOpenReplicaLogs={(serviceName, containerName) =>
-          setLogSheet({
-            open: true,
-            serviceName,
-            containerName,
-          })
-        }
+        onActionContainer={onActionContainer}
+        onScaleUpService={onScale}
+        onScaleDownService={onScale}
+        onOpenReplicaLogs={onOpenReplicaLogs}
         onFocusServiceChange={setFocusService}
       />
 

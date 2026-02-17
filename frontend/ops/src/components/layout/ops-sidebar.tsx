@@ -10,6 +10,7 @@ import {
   ListChecks,
   Pencil,
   ScrollText,
+  Zap,
 } from "lucide-react"
 import { NavLink } from "react-router-dom"
 
@@ -34,6 +35,7 @@ interface OpsSidebarProps {
 const navItems = [
   { to: "/overview", label: "概览", icon: LayoutDashboard },
   { to: "/realtime", label: "实时监测", icon: Activity },
+  { to: "/perf-test", label: "压力测试", icon: Zap },
   { to: "/containers", label: "容器编排", icon: Boxes },
   { to: "/tasks", label: "任务执行", icon: ListChecks },
   { to: "/job-logs", label: "任务日志", icon: ScrollText },

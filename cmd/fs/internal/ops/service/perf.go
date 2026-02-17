@@ -1,5 +1,4 @@
-// perf_job 负责把前端提交的结构化压测配置转换为 fs perf 任务参数。
-package ops
+package service
 
 import (
 	"fmt"
@@ -79,21 +78,11 @@ var perfTaskSpecs = map[string]perfTaskSpec{
 }
 
 func numberField(flag string, required bool, min, max int64) perfFieldSpec {
-	return perfFieldSpec{
-		Flag:     flag,
-		Type:     perfFieldTypeNumber,
-		Required: required,
-		Min:      min,
-		Max:      max,
-	}
+	return perfFieldSpec{Flag: flag, Type: perfFieldTypeNumber, Required: required, Min: min, Max: max}
 }
 
 func durationField(flag string, required bool) perfFieldSpec {
-	return perfFieldSpec{
-		Flag:     flag,
-		Type:     perfFieldTypeDuration,
-		Required: required,
-	}
+	return perfFieldSpec{Flag: flag, Type: perfFieldTypeDuration, Required: required}
 }
 
 func selectField(flag string, required bool, options ...string) perfFieldSpec {
@@ -101,16 +90,11 @@ func selectField(flag string, required bool, options ...string) perfFieldSpec {
 	for _, option := range options {
 		allowed[option] = struct{}{}
 	}
-	return perfFieldSpec{
-		Flag:     flag,
-		Type:     perfFieldTypeSelect,
-		Required: required,
-		Options:  allowed,
-	}
+	return perfFieldSpec{Flag: flag, Type: perfFieldTypeSelect, Required: required, Options: allowed}
 }
 
-// buildPerfJobArgs 将结构化字段转换为 fs perf 可接受的参数数组。
-func buildPerfJobArgs(taskID string, fields map[string]string, advancedArgsText string) ([]string, error) {
+// BuildPerfJobArgs 将结构化字段转换为 fs perf 可接受的参数数组。
+func BuildPerfJobArgs(taskID string, fields map[string]string, advancedArgsText string) ([]string, error) {
 	spec, ok := perfTaskSpecs[taskID]
 	if !ok {
 		return nil, fmt.Errorf("不支持的压测任务: %s", taskID)
@@ -147,18 +131,13 @@ func normalizePerfFields(fields map[string]string) map[string]string {
 	}
 	out := make(map[string]string, len(fields))
 	for key, value := range fields {
-		name := normalizePerfFieldKey(key)
+		name := strings.TrimLeft(strings.TrimSpace(key), "-")
 		if name == "" {
 			continue
 		}
 		out[name] = strings.TrimSpace(value)
 	}
 	return out
-}
-
-func normalizePerfFieldKey(key string) string {
-	trimmed := strings.TrimSpace(key)
-	return strings.TrimLeft(trimmed, "-")
 }
 
 func validateUnknownPerfFields(spec perfTaskSpec, fields map[string]string) error {

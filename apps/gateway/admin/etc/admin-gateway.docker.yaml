@@ -1,6 +1,9 @@
 Name: admin-gateway
 ListenOn: 0.0.0.0:8083
 Mode: pro
+DevServer:
+  Enabled: true
+  Port: 6060
 BaseConfigPath: configs/local/dev.yaml
 
 Telemetry:

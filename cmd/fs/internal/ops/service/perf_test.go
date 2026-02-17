@@ -1,4 +1,4 @@
-package ops
+package service
 
 import (
 	"strings"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestBuildPerfJobArgs(t *testing.T) {
-	args, err := buildPerfJobArgs("perf.purchase_open", map[string]string{
+	args, err := BuildPerfJobArgs("perf.purchase_open", map[string]string{
 		"rate":          "160",
 		"open-duration": "45s",
 		"concurrency":   "400",
@@ -36,7 +36,7 @@ func TestBuildPerfJobArgs(t *testing.T) {
 }
 
 func TestBuildPerfJobArgsRejectUnknownField(t *testing.T) {
-	_, err := buildPerfJobArgs("perf.track_open", map[string]string{
+	_, err := BuildPerfJobArgs("perf.track_open", map[string]string{
 		"rate":        "1000",
 		"unexpected":  "x",
 		"concurrency": "300",
@@ -50,7 +50,7 @@ func TestBuildPerfJobArgsRejectUnknownField(t *testing.T) {
 }
 
 func TestBuildPerfJobArgsValidateFieldValue(t *testing.T) {
-	_, err := buildPerfJobArgs("perf.idempotency", map[string]string{
+	_, err := BuildPerfJobArgs("perf.idempotency", map[string]string{
 		"concurrency":        "50",
 		"requests":           "200",
 		"expect-max-success": "20",
@@ -62,7 +62,7 @@ func TestBuildPerfJobArgsValidateFieldValue(t *testing.T) {
 }
 
 func TestBuildPerfJobArgsRequireField(t *testing.T) {
-	_, err := buildPerfJobArgs("perf.track_stress", map[string]string{
+	_, err := BuildPerfJobArgs("perf.track_stress", map[string]string{
 		"concurrency": "300",
 		"requests":    "6000",
 		"timeout":     "4s",

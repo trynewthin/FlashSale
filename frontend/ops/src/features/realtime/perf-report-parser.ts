@@ -5,7 +5,10 @@ export interface PerfTestMetricPoint {
   label: string
   qps: number
   successRate: number
-  errorRate: number
+  /** 业务拒绝率 — 库存不足、限购冲突等正常竞争结果 */
+  rejectRate: number
+  /** 系统异常率 — 非 OK 且非已知业务拒绝的 code */
+  systemErrorRate: number
   p95LatencyMs: number
   networkErrorRate: number
   stockDeductionRate: number
@@ -14,11 +17,12 @@ export interface PerfTestMetricPoint {
 interface PerfSummaryPayload {
   generated_at?: string
   summary?: {
+    total?: number
+    success?: number
     rps?: number
     success_rate?: number
     network_error_rate?: number
     latency_p95_ms?: number
-    success?: number
     business_code?: Record<string, number>
   }
 }
@@ -44,6 +48,49 @@ function asPercent(value: unknown): number {
 
 function formatTickLabel(ts: number): string {
   return new Date(ts).toLocaleTimeString("zh-CN", { hour12: false })
+}
+
+// ─── 业务 code 分类 ───
+
+/** 已知的「正常业务拒绝」code，这些不算系统错误 */
+const KNOWN_REJECT_CODES = new Set([
+  "SECKILL_OUT_OF_STOCK",
+  "SECKILL_PURCHASE_CONFLICT",
+  "SECKILL_LIMIT_EXCEEDED",
+  "SECKILL_ACTIVITY_ENDED",
+  "SECKILL_ACTIVITY_NOT_STARTED",
+  "SECKILL_ACTIVITY_NOT_PUBLISHED",
+  "SECKILL_ACTIVITY_NOT_FOUND",
+  "SECKILL_ITEM_NOT_FOUND",
+])
+
+/** 从 business_code 字典计算各类占比 */
+function classifyBusinessCodes(
+  businessCode: Record<string, number> | undefined,
+  total: number
+): { rejectRate: number; systemErrorRate: number } {
+  if (!businessCode || total <= 0) {
+    return { rejectRate: 0, systemErrorRate: 0 }
+  }
+  let rejectCount = 0
+  let systemErrorCount = 0
+
+  for (const [code, count] of Object.entries(businessCode)) {
+    const safeCount = Math.max(0, toFiniteNumber(count))
+    if (code === "OK" || code === "<empty>") {
+      continue // 成功或空 code，跳过
+    }
+    if (KNOWN_REJECT_CODES.has(code)) {
+      rejectCount += safeCount
+    } else {
+      systemErrorCount += safeCount
+    }
+  }
+
+  return {
+    rejectRate: Math.round((rejectCount / total) * 10000) / 100,
+    systemErrorRate: Math.round((systemErrorCount / total) * 10000) / 100,
+  }
 }
 
 function calcStockDeductionRate(summary: PerfSummaryPayload["summary"]): number {
@@ -79,13 +126,17 @@ function parseOnePerfPayload(line: string): PerfTestMetricPoint | null {
   }
   const generatedAt = Date.parse(payload.generated_at || "")
   const timestamp = Number.isFinite(generatedAt) ? generatedAt : Date.now()
+  const total = Math.max(0, toFiniteNumber(payload.summary.total))
   const successRate = asPercent(payload.summary.success_rate)
+  const { rejectRate, systemErrorRate } = classifyBusinessCodes(payload.summary.business_code, total)
+
   return {
     timestamp,
     label: formatTickLabel(timestamp),
     qps: Math.max(0, toFiniteNumber(payload.summary.rps)),
     successRate,
-    errorRate: Math.max(0, Math.min(100, Math.round((100 - successRate) * 100) / 100)),
+    rejectRate,
+    systemErrorRate,
     p95LatencyMs: Math.max(0, toFiniteNumber(payload.summary.latency_p95_ms)),
     networkErrorRate: asPercent(payload.summary.network_error_rate),
     stockDeductionRate: calcStockDeductionRate(payload.summary),
@@ -120,7 +171,8 @@ export function attachPerfMetricsToSamples(samples: RealtimeSample[], points: Pe
       ...sample,
       qps: null,
       successRate: null,
-      errorRate: null,
+      rejectRate: null,
+      systemErrorRate: null,
       p95LatencyMs: null,
       networkErrorRate: null,
       stockDeductionRate: null,
@@ -143,7 +195,8 @@ export function attachPerfMetricsToSamples(samples: RealtimeSample[], points: Pe
       ...sample,
       qps: current?.qps ?? null,
       successRate: current?.successRate ?? null,
-      errorRate: current?.errorRate ?? null,
+      rejectRate: current?.rejectRate ?? null,
+      systemErrorRate: current?.systemErrorRate ?? null,
       p95LatencyMs: current?.p95LatencyMs ?? null,
       networkErrorRate: current?.networkErrorRate ?? null,
       stockDeductionRate: current?.stockDeductionRate ?? null,
@@ -177,7 +230,8 @@ export function mergeRealtimeSamplesWithPerfPoints(
     if (hit) {
       hit.qps = point.qps
       hit.successRate = point.successRate
-      hit.errorRate = point.errorRate
+      hit.rejectRate = point.rejectRate
+      hit.systemErrorRate = point.systemErrorRate
       hit.p95LatencyMs = point.p95LatencyMs
       hit.networkErrorRate = point.networkErrorRate
       hit.stockDeductionRate = point.stockDeductionRate
@@ -189,7 +243,8 @@ export function mergeRealtimeSamplesWithPerfPoints(
       label: point.label,
       qps: point.qps,
       successRate: point.successRate,
-      errorRate: point.errorRate,
+      rejectRate: point.rejectRate,
+      systemErrorRate: point.systemErrorRate,
       p95LatencyMs: point.p95LatencyMs,
       networkErrorRate: point.networkErrorRate,
       stockDeductionRate: point.stockDeductionRate,

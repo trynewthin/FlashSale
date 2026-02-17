@@ -108,10 +108,11 @@ func runOpsServer(args []string) error {
 		}
 	}
 	key := resolveSecret(*authKey, *authKeyEnv)
-	runner := ops.NewRunner(rootAbs, ops.DefaultTasksWithOptions(ops.TasksOptions{
+	server := ops.NewServer(ops.ServerOptions{
+		RepoRoot:       rootAbs,
 		DefaultEnvFile: chosenEnv,
-	}))
-	server := ops.NewServer(runner, key)
+		AuthKey:        key,
+	})
 	if key == "" {
 		fmt.Printf("ops-control listening on %s (repo=%s, auth=disabled)\n", *addr, rootAbs)
 	} else {

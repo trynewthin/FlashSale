@@ -52,6 +52,8 @@ export function useEventSource({ enabled, url, handlers }: EventSourceState) {
     }
 
     subscribeEvent("log")
+    subscribeEvent("snapshot")
+    subscribeEvent("done")
     subscribeEvent("ping")
     subscribeEvent("meta")
     subscribeEvent("error")

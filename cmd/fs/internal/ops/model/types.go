@@ -1,7 +1,10 @@
-// Package ops 提供独立运维控制台的核心模型。
-package ops
+// Package model 定义 ops-control 的纯数据模型。
+// 零外部依赖、零业务逻辑，仅包含类型、常量与简单的构造函数。
+package model
 
 import "time"
+
+// ─── 任务 & 作业 ───
 
 // TaskDef 定义可执行任务白名单。
 type TaskDef struct {

@@ -1,72 +1,46 @@
 import "@xyflow/react/dist/style.css"
 
 import dagre from "dagre"
-import { useMemo } from "react"
+import { Component, useMemo, useRef, useEffect, type ReactNode, type ErrorInfo } from "react"
 import {
   Background,
   Controls,
   MarkerType,
   MiniMap,
   ReactFlow,
+  useReactFlow,
   type Edge,
   type Node,
   type NodeTypes,
+  ReactFlowProvider,
 } from "@xyflow/react"
 
 import type { ContainerRuntimeSnapshot } from "@/api/types"
 import { runtimeStatus, serviceEtcdKey } from "@/features/containers/shared"
-import { ReplicaNodeView, ServiceGroupNodeView } from "@/features/containers/topology-nodes"
+import {
+  ServiceGroupNodeView,
+  type ReplicaItem,
+  type ServiceGroupNodeData,
+} from "@/features/containers/topology-nodes"
 
-const SERVICE_GROUP_MIN_WIDTH = 320
-const SERVICE_GROUP_HEADER_HEIGHT = 84
-const SERVICE_GROUP_PADDING = 12
-const REPLICA_NODE_WIDTH = 240
-const REPLICA_NODE_HEIGHT = 88
-const REPLICA_GAP = 10
+// ─── Layout Estimation Constants ───
+// These must approximate the rendered pixel heights for dagre layout.
 
-interface ServiceGroupLayout {
-  width: number
-  height: number
-  columns: number
-}
+const SERVICE_GROUP_MIN_WIDTH = 324
+const HEADER_EST = 68 // Area 1 (name+actions) + Area 2 (badges) + spacing
+const REPLICA_CARD_EST_H = 82 // rendered height of one replica card
+const REPLICA_GAP_EST = 6 // gap-1.5
+const REPLICA_AREA_PAD = 18 // py-2 + border/rounding buffer
+const MAX_COLUMNS = 2
+const MAX_VISIBLE_ROWS = 3
 
-interface ServiceGroupNodeData extends Record<string, unknown> {
-  serviceName: string
-  role: string
-  runningReplicas: number
-  replicas: number
-  scalable: boolean
-  scaleLoading: boolean
-  statusText: string
-  statusTone: "running" | "partial" | "stopped" | "absent"
-  etcdRegistered?: number
-  dependsOn: string[]
-  requiredBy: string[]
-  focused: boolean
-  onScaleUp: (serviceName: string, targetReplicas: number) => void
-}
-
-interface ReplicaNodeData extends Record<string, unknown> {
-  serviceName: string
-  serviceReplicas: number
-  serviceScalable: boolean
-  scaleLoading: boolean
-  containerName: string
-  replicaIndex: number
-  running: boolean
-  operable: boolean
-  health: string
-  status: string
-  actioningKey: string
-  onActionContainer: (containerName: string, action: "start" | "stop" | "restart") => void
-  onScaleDownService: (serviceName: string, targetReplicas: number) => void
-  onOpenLogs: (serviceName: string, containerName: string) => void
-}
+// ─── Node Types (stable reference outside component) ───
 
 const topologyNodeTypes: NodeTypes = {
   serviceGroup: ServiceGroupNodeView,
-  replicaNode: ReplicaNodeView,
 }
+
+// ─── Props ───
 
 interface ServiceTopologyCanvasProps {
   snapshot: ContainerRuntimeSnapshot | null
@@ -80,6 +54,8 @@ interface ServiceTopologyCanvasProps {
   onFocusServiceChange: (serviceName: string) => void
 }
 
+// ─── Helpers ───
+
 function serviceNodeID(name: string): string {
   return `service:${name}`
 }
@@ -89,39 +65,21 @@ function resolveServiceNameFromNode(node: Node): string {
   if (typeof data?.serviceName === "string") {
     return data.serviceName
   }
-  if (typeof node.parentId === "string" && node.parentId.startsWith("service:")) {
-    return node.parentId.replace("service:", "")
-  }
   return ""
 }
 
-function calcReplicaColumns(replicaCount: number): number {
-  if (replicaCount <= 1) {
-    return 1
+function calcGroupHeight(replicaCount: number): number {
+  if (replicaCount <= 0) {
+    return HEADER_EST + 20 // minimum for empty services
   }
-  if (replicaCount <= 4) {
-    return 2
-  }
-  return 3
+  const rows = Math.ceil(replicaCount / MAX_COLUMNS)
+  const visibleRows = Math.min(rows, MAX_VISIBLE_ROWS)
+  const replicaAreaHeight =
+    visibleRows * REPLICA_CARD_EST_H + Math.max(0, visibleRows - 1) * REPLICA_GAP_EST + REPLICA_AREA_PAD
+  return HEADER_EST + replicaAreaHeight
 }
 
-// buildServiceGroupLayout 根据副本数决定服务分组框尺寸，确保每个副本独立节点可见。
-function buildServiceGroupLayout(replicaCount: number): ServiceGroupLayout {
-  const safeReplicas = Math.max(0, replicaCount)
-  const columns = calcReplicaColumns(safeReplicas)
-  const rows = safeReplicas > 0 ? Math.ceil(safeReplicas / columns) : 0
-  const contentHeight =
-    rows > 0 ? rows * REPLICA_NODE_HEIGHT + (rows - 1) * REPLICA_GAP : REPLICA_NODE_HEIGHT - 24
-  const width = Math.max(
-    SERVICE_GROUP_MIN_WIDTH,
-    columns * REPLICA_NODE_WIDTH + (columns - 1) * REPLICA_GAP + SERVICE_GROUP_PADDING * 2
-  )
-  return {
-    width,
-    height: SERVICE_GROUP_HEADER_HEIGHT + contentHeight + SERVICE_GROUP_PADDING,
-    columns,
-  }
-}
+// ─── Build Flow ───
 
 function buildFlow(
   snapshot: ContainerRuntimeSnapshot | null,
@@ -133,13 +91,14 @@ function buildFlow(
   onScaleDownService: (serviceName: string, targetReplicas: number) => void,
   onOpenReplicaLogs: (serviceName: string, containerName: string) => void
 ): {
-  nodes: Node<ServiceGroupNodeData | ReplicaNodeData>[]
+  nodes: Node<ServiceGroupNodeData>[]
   edges: Edge[]
 } {
-  if (!snapshot) {
+  if (!snapshot || !snapshot.services || snapshot.services.length === 0) {
     return { nodes: [], edges: [] }
   }
 
+  // Group containers by service
   const containersByService = new Map<string, typeof snapshot.containers>()
   for (const container of snapshot.containers) {
     const list = containersByService.get(container.service) ?? []
@@ -150,7 +109,7 @@ function buildFlow(
     list.sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  const layoutByService = new Map<string, ServiceGroupLayout>()
+  // Dagre layout — only service group nodes, replicas are rendered as HTML inside
   const graph = new dagre.graphlib.Graph()
   graph.setDefaultEdgeLabel(() => ({}))
   graph.setGraph({
@@ -161,18 +120,21 @@ function buildFlow(
     marginy: 48,
   })
 
+  const sizeByService = new Map<string, { width: number; height: number }>()
   for (const service of snapshot.services) {
     const containerCount = containersByService.get(service.name)?.length ?? 0
     const replicas = Math.max(service.replicas, containerCount)
-    const layout = buildServiceGroupLayout(replicas)
-    layoutByService.set(service.name, layout)
-    graph.setNode(serviceNodeID(service.name), { width: layout.width, height: layout.height })
+    const width = SERVICE_GROUP_MIN_WIDTH
+    const height = calcGroupHeight(replicas)
+    sizeByService.set(service.name, { width, height })
+    graph.setNode(serviceNodeID(service.name), { width, height })
   }
   for (const edge of snapshot.edges) {
     graph.setEdge(serviceNodeID(edge.from), serviceNodeID(edge.to))
   }
   dagre.layout(graph)
 
+  // Focus/highlight sets
   const focusedNodeSet = new Set<string>()
   const focusedEdgeSet = new Set<string>()
   const requiredByMap = new Map<string, string[]>()
@@ -196,11 +158,33 @@ function buildFlow(
     }
   }
 
+  // Build service nodes with embedded replica data
   const serviceNodes: Node<ServiceGroupNodeData>[] = snapshot.services.map((service) => {
     const serviceID = serviceNodeID(service.name)
     const layout = graph.node(serviceID)
-    const size = layoutByService.get(service.name) ?? buildServiceGroupLayout(service.replicas)
+    const size = sizeByService.get(service.name) ?? {
+      width: SERVICE_GROUP_MIN_WIDTH,
+      height: calcGroupHeight(0),
+    }
     const status = runtimeStatus(service.running_replicas, service.replicas, service.absent)
+
+    // Build replica items inline
+    const containers = containersByService.get(service.name) ?? []
+    const targetReplicaCount = Math.max(service.replicas, containers.length)
+    const replicaItems: ReplicaItem[] = []
+    for (let index = 0; index < targetReplicaCount; index += 1) {
+      const container = containers[index]
+      const isPlaceholder = !container
+      replicaItems.push({
+        containerName: isPlaceholder ? `${service.name}-replica-${index + 1}` : container.name,
+        replicaIndex: index + 1,
+        running: isPlaceholder ? false : container.running,
+        operable: !isPlaceholder,
+        health: isPlaceholder ? "missing" : container.health,
+        status: isPlaceholder ? "未创建" : container.status,
+      })
+    }
+
     return {
       id: serviceID,
       type: "serviceGroup",
@@ -220,7 +204,12 @@ function buildFlow(
           return ek !== undefined ? (etcdInstanceMap.get(ek) ?? 0) : undefined
         })(),
         focused: focusService ? focusedNodeSet.has(service.name) : false,
+        replicaItems,
+        actioningKey,
         onScaleUp: onScaleUpService,
+        onActionContainer,
+        onScaleDownService,
+        onOpenLogs: onOpenReplicaLogs,
       },
       position: {
         x: (layout?.x ?? 0) - size.width / 2,
@@ -236,54 +225,7 @@ function buildFlow(
     }
   })
 
-  const replicaNodes: Node<ReplicaNodeData>[] = []
-  for (const service of snapshot.services) {
-    const serviceID = serviceNodeID(service.name)
-    const containers = containersByService.get(service.name) ?? []
-    const targetReplicaCount = Math.max(service.replicas, containers.length)
-    const size = layoutByService.get(service.name) ?? buildServiceGroupLayout(targetReplicaCount)
-    for (let index = 0; index < targetReplicaCount; index += 1) {
-      const container = containers[index]
-      const isPlaceholder = !container
-      const containerName = isPlaceholder ? `${service.name}-replica-${index + 1}` : container.name
-      const column = index % size.columns
-      const row = Math.floor(index / size.columns)
-      replicaNodes.push({
-        id: isPlaceholder ? `replica:virtual:${service.name}:${index + 1}` : `replica:${container.name}`,
-        type: "replicaNode",
-        parentId: serviceID,
-        extent: "parent",
-        position: {
-          x: SERVICE_GROUP_PADDING + column * (REPLICA_NODE_WIDTH + REPLICA_GAP),
-          y: SERVICE_GROUP_HEADER_HEIGHT + row * (REPLICA_NODE_HEIGHT + REPLICA_GAP),
-        },
-        style: {
-          width: REPLICA_NODE_WIDTH,
-          height: REPLICA_NODE_HEIGHT,
-        },
-        data: {
-          serviceName: service.name,
-          serviceReplicas: service.replicas,
-          serviceScalable: service.scalable,
-          scaleLoading: actioningKey === `scale:${service.name}`,
-          containerName,
-          replicaIndex: index + 1,
-          running: isPlaceholder ? false : container.running,
-          operable: !isPlaceholder,
-          health: isPlaceholder ? "missing" : container.health,
-          status: isPlaceholder ? "未创建容器实例" : container.status,
-          actioningKey,
-          onActionContainer,
-          onScaleDownService,
-          onOpenLogs: onOpenReplicaLogs,
-        },
-        draggable: false,
-        selectable: true,
-        zIndex: 2,
-      })
-    }
-  }
-
+  // Edges
   const edges: Edge[] = snapshot.edges.map((edge) => {
     const key = `${edge.from}->${edge.to}`
     const highlighted = focusService ? focusedEdgeSet.has(key) : false
@@ -302,11 +244,53 @@ function buildFlow(
     }
   })
 
-  return { nodes: [...serviceNodes, ...replicaNodes], edges }
+  return { nodes: serviceNodes, edges }
 }
 
-// ServiceTopologyCanvas 提供全画布拓扑视图，并将副本拆分为独立节点。
-export function ServiceTopologyCanvas({
+// ─── Error Boundary ───
+
+interface ErrorBoundaryState {
+  hasError: boolean
+  errorMessage: string
+}
+
+class TopologyErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { hasError: false, errorMessage: "" }
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, errorMessage: error.message }
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("[TopologyErrorBoundary]", error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-sm text-slate-500">
+          <div className="text-lg font-semibold text-slate-700">拓扑渲染异常</div>
+          <div className="max-w-md text-center text-xs">{this.state.errorMessage}</div>
+          <button
+            type="button"
+            className="rounded-md bg-slate-800 px-4 py-1.5 text-xs text-white hover:bg-slate-700"
+            onClick={() => this.setState({ hasError: false, errorMessage: "" })}
+          >
+            重新加载
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+// ─── Inner Canvas (needs ReactFlowProvider context for useReactFlow) ───
+
+function TopologyCanvasInner({
   snapshot,
   etcdInstanceMap,
   focusService,
@@ -317,6 +301,9 @@ export function ServiceTopologyCanvas({
   onOpenReplicaLogs,
   onFocusServiceChange,
 }: ServiceTopologyCanvasProps) {
+  const { fitView } = useReactFlow()
+  const didFitRef = useRef(false)
+
   const flowData = useMemo(
     () =>
       buildFlow(
@@ -341,32 +328,55 @@ export function ServiceTopologyCanvas({
     ]
   )
 
+  // 只在首次有数据时 fitView，后续更新不再 fitView（避免用户缩放被覆盖）
+  useEffect(() => {
+    if (!didFitRef.current && flowData.nodes.length > 0) {
+      // 延迟一帧等 React Flow 完成渲染
+      const raf = requestAnimationFrame(() => {
+        fitView({ padding: 0.22, minZoom: 0.42, maxZoom: 1.12, duration: 300 })
+        didFitRef.current = true
+      })
+      return () => cancelAnimationFrame(raf)
+    }
+  }, [flowData.nodes.length, fitView])
+
+  return (
+    <ReactFlow
+      nodes={flowData.nodes}
+      edges={flowData.edges}
+      nodeTypes={topologyNodeTypes}
+      fitViewOptions={{ padding: 0.22, minZoom: 0.42, maxZoom: 1.12 }}
+      minZoom={0.35}
+      maxZoom={2}
+      nodesDraggable={false}
+      nodesConnectable={false}
+      onNodeClick={(_, node) => {
+        const serviceName = resolveServiceNameFromNode(node)
+        if (!serviceName) {
+          return
+        }
+        onFocusServiceChange(focusService === serviceName ? "" : serviceName)
+      }}
+      onPaneClick={() => onFocusServiceChange("")}
+      proOptions={{ hideAttribution: true }}
+    >
+      <Background color="#d5dde8" gap={22} />
+      <MiniMap zoomable pannable />
+      <Controls />
+    </ReactFlow>
+  )
+}
+
+// ─── Canvas Component ───
+
+export function ServiceTopologyCanvas(props: ServiceTopologyCanvasProps) {
   return (
     <div className="h-full w-full">
-      <ReactFlow
-        nodes={flowData.nodes}
-        edges={flowData.edges}
-        nodeTypes={topologyNodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.22, minZoom: 0.42, maxZoom: 1.12 }}
-        minZoom={0.35}
-        maxZoom={2}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        onNodeClick={(_, node) => {
-          const serviceName = resolveServiceNameFromNode(node)
-          if (!serviceName) {
-            return
-          }
-          onFocusServiceChange(focusService === serviceName ? "" : serviceName)
-        }}
-        onPaneClick={() => onFocusServiceChange("")}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background color="#d5dde8" gap={22} />
-        <MiniMap zoomable pannable />
-        <Controls />
-      </ReactFlow>
+      <TopologyErrorBoundary>
+        <ReactFlowProvider>
+          <TopologyCanvasInner {...props} />
+        </ReactFlowProvider>
+      </TopologyErrorBoundary>
     </div>
   )
 }

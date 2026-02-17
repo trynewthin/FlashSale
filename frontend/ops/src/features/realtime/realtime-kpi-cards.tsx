@@ -57,37 +57,37 @@ export function RealtimeKPICards({ latest, previous, latestTestMetric, previousT
   ] as const
   const testCards = latestTestMetric
     ? [
-        {
-          key: "test-qps",
-          title: "测试 QPS",
-          value: latestTestMetric.qps.toFixed(2),
-          delta: deltaText(latestTestMetric.qps, previousTestMetric?.qps),
-        },
-        {
-          key: "test-success",
-          title: "测试成功率",
-          value: `${latestTestMetric.successRate.toFixed(2)}%`,
-          delta: deltaText(latestTestMetric.successRate, previousTestMetric?.successRate, "%"),
-        },
-        {
-          key: "test-error",
-          title: "测试错误率",
-          value: `${latestTestMetric.errorRate.toFixed(2)}%`,
-          delta: deltaText(latestTestMetric.errorRate, previousTestMetric?.errorRate, "%"),
-        },
-        {
-          key: "test-p95",
-          title: "测试 P95",
-          value: `${latestTestMetric.p95LatencyMs.toFixed(2)}ms`,
-          delta: deltaText(latestTestMetric.p95LatencyMs, previousTestMetric?.p95LatencyMs, "ms"),
-        },
-        {
-          key: "test-stock",
-          title: "库存扣减成功率",
-          value: `${latestTestMetric.stockDeductionRate.toFixed(2)}%`,
-          delta: deltaText(latestTestMetric.stockDeductionRate, previousTestMetric?.stockDeductionRate, "%"),
-        },
-      ]
+      {
+        key: "test-qps",
+        title: "测试 QPS",
+        value: latestTestMetric.qps.toFixed(2),
+        delta: deltaText(latestTestMetric.qps, previousTestMetric?.qps),
+      },
+      {
+        key: "test-success",
+        title: "测试成功率",
+        value: `${latestTestMetric.successRate.toFixed(2)}%`,
+        delta: deltaText(latestTestMetric.successRate, previousTestMetric?.successRate, "%"),
+      },
+      {
+        key: "test-error",
+        title: "系统异常率",
+        value: `${latestTestMetric.systemErrorRate.toFixed(2)}%`,
+        delta: deltaText(latestTestMetric.systemErrorRate, previousTestMetric?.systemErrorRate, "%"),
+      },
+      {
+        key: "test-p95",
+        title: "测试 P95",
+        value: `${latestTestMetric.p95LatencyMs.toFixed(2)}ms`,
+        delta: deltaText(latestTestMetric.p95LatencyMs, previousTestMetric?.p95LatencyMs, "ms"),
+      },
+      {
+        key: "test-stock",
+        title: "库存扣减成功率",
+        value: `${latestTestMetric.stockDeductionRate.toFixed(2)}%`,
+        delta: deltaText(latestTestMetric.stockDeductionRate, previousTestMetric?.stockDeductionRate, "%"),
+      },
+    ]
     : []
   const cards = [...infraCards, ...testCards]
 

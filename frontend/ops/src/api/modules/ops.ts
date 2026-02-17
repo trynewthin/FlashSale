@@ -155,4 +155,48 @@ export const opsApi = {
       body: JSON.stringify({ replicas }),
     })
   },
+
+  async getSamples(range_: string, step?: string): Promise<SamplesResponse> {
+    let url = `api/v1/samples?range=${range_}`
+    if (step) url += `&step=${step}`
+    return requestJSON<SamplesResponse>(url)
+  },
+
+  async getSamplesByTimeRange(startMs: number, endMs: number, step?: string): Promise<SamplesResponse> {
+    let url = `api/v1/samples?start=${startMs}&end=${endMs}`
+    if (step) url += `&step=${step}`
+    return requestJSON<SamplesResponse>(url)
+  },
+
+  async getAvailableDays(): Promise<{ days: string[] }> {
+    return requestJSON<{ days: string[] }>("api/v1/samples/days")
+  },
+}
+
+// 持久化采样点（后端字段名用 ts 代替 timestamp）
+export interface PersistedSample {
+  ts: number
+  label: string
+  portRate: number
+  httpRate: number
+  replicaRate: number
+  runningContainers: number
+  totalContainers: number
+  runningReplicas: number
+  totalReplicas: number
+  promQps?: number | null
+  promP99LatencyMs?: number | null
+  promErrorRate?: number | null
+}
+
+export interface SamplesResponse {
+  samples: PersistedSample[]
+  meta: {
+    range: string
+    step: string
+    stepMs: number
+    count: number
+    startMs: number
+    endMs: number
+  }
 }

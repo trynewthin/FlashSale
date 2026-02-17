@@ -55,6 +55,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -buildvcs=false -trimpath -o /out/fs ./cmd/fs
 
+# 压测工具：容器内无 Go 环境，需预编译
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -buildvcs=false -trimpath -o /out/seckillload ./cmd/perf/seckillload
+
 FROM alpine:3.20
 
 WORKDIR /app

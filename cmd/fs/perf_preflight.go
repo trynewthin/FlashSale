@@ -200,6 +200,9 @@ func buildPerfReadinessConfig(scenario string, perfArgs []string) (perfReadiness
 		Timeout:        envDurationWithFallback("FLASHSALE_HTTP_TIMEOUT", perfDefaultTimeout),
 	}
 	if cfg.BaseURL == "" {
+		cfg.BaseURL = strings.TrimSpace(os.Getenv("FLASHSALE_USER_BASE_URL"))
+	}
+	if cfg.BaseURL == "" {
 		cfg.BaseURL = "http://127.0.0.1:8082"
 	}
 	if cfg.Quantity <= 0 {

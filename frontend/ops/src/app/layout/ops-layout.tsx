@@ -18,7 +18,8 @@ export function OpsLayout() {
   const [keySaved, setKeySaved] = useState(false)
   const [editingKey, setEditingKey] = useState(() => initialAccessKey.length === 0)
   const [savingKey, setSavingKey] = useState(false)
-  const isContainersPage = location.pathname === "/containers"
+  const isFullHeightPage = location.pathname === "/containers" || location.pathname === "/realtime" || location.pathname === "/perf-test"
+  const isEdgeToEdgePage = location.pathname === "/containers" || location.pathname === "/perf-test"
 
   useEffect(() => {
     let cancelled = false
@@ -102,7 +103,7 @@ export function OpsLayout() {
         onSaveAccessKey={handleSaveKey}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <main className={isContainersPage ? "min-h-0 flex-1 overflow-hidden p-0" : "min-h-0 flex-1 overflow-auto p-4"}>
+        <main className={isFullHeightPage ? `min-h-0 flex-1 overflow-hidden ${isEdgeToEdgePage ? "p-0" : "p-4"}` : "min-h-0 flex-1 overflow-auto p-4"}>
           <Outlet />
         </main>
       </div>

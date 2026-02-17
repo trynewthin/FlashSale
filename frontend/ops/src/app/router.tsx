@@ -4,6 +4,7 @@ import { OpsLayout } from "@/app/layout/ops-layout"
 import { ContainersPage } from "@/pages/containers"
 import { JobLogsPage } from "@/pages/job-logs"
 import { OverviewPage } from "@/pages/overview"
+import { PerfTestPage } from "@/pages/perf-test"
 import { RealtimePage } from "@/pages/realtime"
 import { ServiceLogsPage } from "@/pages/service-logs"
 import { TasksPage } from "@/pages/tasks"
@@ -26,6 +27,7 @@ export const router = createBrowserRouter(
         { index: true, element: <Navigate to="/overview" replace /> },
         { path: "overview", element: <OverviewPage /> },
         { path: "realtime", element: <RealtimePage /> },
+        { path: "perf-test", element: <PerfTestPage /> },
         { path: "containers", element: <ContainersPage /> },
         { path: "tasks", element: <TasksPage /> },
         { path: "job-logs", element: <JobLogsPage /> },
@@ -35,3 +37,4 @@ export const router = createBrowserRouter(
   ],
   { basename: resolveBasename() }
 )
+

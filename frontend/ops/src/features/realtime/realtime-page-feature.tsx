@@ -1,175 +1,130 @@
-import { Play, ScrollText, SlidersHorizontal } from "lucide-react"
-import { useMemo, useState } from "react"
+import { Activity, Clock, Pause, Play, RefreshCcw, Trash2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { RealtimeTestLauncher } from "@/features/realtime/realtime-test-launcher"
-import { RealtimeTestPanel } from "@/features/realtime/realtime-test-panel"
-import { RealtimeUnifiedChart } from "@/features/realtime/realtime-unified-chart"
-import { RealtimePerfChart } from "@/features/realtime/realtime-perf-chart"
-import { mergeRealtimeSamplesWithPerfPoints, parsePerfMetricPointsFromLog } from "@/features/realtime/perf-report-parser"
-import { useRealtimeMonitor } from "@/features/realtime/use-realtime-monitor"
-import { useRealtimeTestRunner } from "@/features/realtime/use-realtime-test-runner"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  MetricFilterPanel,
+  RealtimeUnifiedChart,
+  useChartMetrics,
+} from "@/features/realtime/realtime-unified-chart"
+import {
+  useRealtimeMonitor,
+  TIME_WINDOWS,
+  type TimeWindow,
+} from "@/features/realtime/use-realtime-monitor"
 
-// RealtimePageFeature 重构为“上图下卡片”：上方统一图表，下方聚合操作卡片。
+// RealtimePageFeature — 两段式布局：上方图表 + 下方操作区。
 export function RealtimePageFeature() {
-  const [logSheetOpen, setLogSheetOpen] = useState(false)
   const {
     samples,
     latest,
     loading,
     running,
-    windowSeconds,
-    setWindowSeconds,
+    timeWindow,
+    setTimeWindow,
     setRunning,
     clearSamples,
     refreshNow,
   } = useRealtimeMonitor()
 
   const {
-    launcherOpen,
-    setLauncherOpen,
-    tasks,
-    selectedTaskID,
-    setSelectedTaskID,
-    selectedPreset,
-    formValues,
-    setFormValue,
-    extraArgsText,
-    setExtraArgsText,
-    creating,
-    activeJob,
-    activeLog,
-    streamEnabled,
-    setStreamEnabled,
-    recentTestJobs,
-    startTest,
-    refreshTasks,
-    refreshTestJobs,
-    refreshActiveJob,
-    switchActiveJob,
-    clearActiveLog,
-  } = useRealtimeTestRunner()
-
-  const testMetricPoints = useMemo(() => parsePerfMetricPointsFromLog(activeLog), [activeLog])
-  const chartSamples = useMemo(() => mergeRealtimeSamplesWithPerfPoints(samples, testMetricPoints), [samples, testMetricPoints])
+    activeGroup,
+    groupMetrics,
+    visibleKeys,
+    handleGroupChange,
+    toggleMetric,
+  } = useChartMetrics()
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="space-y-1">
-            <div className="text-base font-semibold">实时监测</div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={running ? "secondary" : "outline"}>{running ? "采样中" : "已暂停"}</Badge>
-            <Badge variant="outline">采样点 {samples.length}</Badge>
-            {latest ? <Badge variant="outline">最新 {latest.label}</Badge> : null}
-            <Badge variant={activeJob && activeJob.status === "running" ? "secondary" : "outline"}>
-              测试 {activeJob ? activeJob.status : "idle"}
-            </Badge>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button variant="outline" size="sm">
-                    <SlidersHorizontal className="size-4" />
-                    采样控制
-                  </Button>
-                }
-              />
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem disabled>采样控制</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setRunning(!running)}>
-                  {running ? "暂停采样" : "继续采样"}
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled={loading} onClick={() => void refreshNow()}>
-                  立即采样
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={clearSamples}>清空曲线</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem disabled>时间窗口</DropdownMenuItem>
-                <DropdownMenuRadioGroup
-                  value={String(windowSeconds)}
-                  onValueChange={(value) => setWindowSeconds(Number(value))}
-                >
-                  <DropdownMenuRadioItem value="60">最近 1 分钟</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="180">最近 3 分钟</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="300">最近 5 分钟</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-        <RealtimeUnifiedChart samples={chartSamples} />
-        <RealtimePerfChart samples={chartSamples} />
+    <div className="flex h-full flex-col gap-4">
+      {/* ─── 上方：图表区域 ─── */}
+      <div className="min-h-0 flex-1 rounded-xl border bg-card p-4">
+        <RealtimeUnifiedChart
+          samples={samples}
+          visibleKeys={visibleKeys}
+          className="h-full"
+        />
       </div>
 
-      <div className="grid gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">测试操作</CardTitle>
-            <CardDescription>统一操作面板。</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => setLauncherOpen(true)} disabled={creating}>
-              <Play className="size-4" />
-              {creating ? "启动中..." : "开始测试"}
-            </Button>
-            <Button variant="outline" onClick={() => setLogSheetOpen(true)}>
-              <ScrollText className="size-4" />
-              日志
-            </Button>
+      {/* ─── 下方：操作卡片区 ─── */}
+      <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2 xl:grid-cols-3">
+        {/* 采样控制 */}
+        <Card className="flex flex-col">
+          <CardContent className="flex flex-1 flex-col py-4">
+            {/* 状态指示 */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge variant={running ? "secondary" : "outline"} className="text-[11px]">
+                <Activity className="mr-1 size-3" />
+                {running ? "采样中" : "已暂停"}
+              </Badge>
+              {latest ? (
+                <Badge variant="outline" className="text-[11px]">
+                  <Clock className="mr-1 size-3" />
+                  {latest.label}
+                </Badge>
+              ) : null}
+              <Badge variant="outline" className="text-[11px]">{samples.length} 点</Badge>
+            </div>
+
+            <div className="mt-auto space-y-3">
+              <Separator />
+              {/* 操作区域 */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={running ? "outline" : "secondary"}
+                  onClick={() => setRunning(!running)}
+                >
+                  {running ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+                  {running ? "暂停" : "继续"}
+                </Button>
+                <Button size="sm" variant="outline" disabled={loading} onClick={() => void refreshNow()}>
+                  <RefreshCcw className="size-3.5" />
+                  刷新
+                </Button>
+                <Button size="sm" variant="outline" onClick={clearSamples}>
+                  <Trash2 className="size-3.5" />
+                  清空
+                </Button>
+                <Select value={timeWindow} onValueChange={(v) => setTimeWindow(v as TimeWindow)}>
+                  <SelectTrigger className="ml-auto h-8 w-[130px] text-xs">
+                    <SelectValue placeholder="时间窗口" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {TIME_WINDOWS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value} className="rounded-lg text-xs">
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 显示筛选 */}
+        <Card className="md:col-span-1 xl:col-span-2">
+          <CardContent className="py-4">
+            <MetricFilterPanel
+              activeGroup={activeGroup}
+              groupMetrics={groupMetrics}
+              visibleKeys={visibleKeys}
+              onGroupChange={handleGroupChange}
+              onToggleMetric={toggleMetric}
+            />
           </CardContent>
         </Card>
       </div>
-      <Sheet open={logSheetOpen} onOpenChange={setLogSheetOpen}>
-        <SheetContent side="right" className="w-[96vw] max-w-none sm:max-w-5xl">
-          <SheetHeader className="p-4 pb-2">
-            <SheetTitle>测试日志</SheetTitle>
-          </SheetHeader>
-          <div className="px-4 pb-4">
-            <RealtimeTestPanel
-              activeJob={activeJob}
-              activeLog={activeLog}
-              streamEnabled={streamEnabled}
-              recentTestJobs={recentTestJobs}
-              onToggleStream={() => setStreamEnabled(!streamEnabled)}
-              onRefreshActiveJob={() => void refreshActiveJob()}
-              onRefreshRecentJobs={() => void refreshTestJobs()}
-              onClearActiveLog={clearActiveLog}
-              onSwitchActiveJob={(jobID) => void switchActiveJob(jobID)}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <RealtimeTestLauncher
-        open={launcherOpen}
-        onOpenChange={setLauncherOpen}
-        tasks={tasks}
-        selectedTaskID={selectedTaskID}
-        selectedPreset={selectedPreset}
-        formValues={formValues}
-        extraArgsText={extraArgsText}
-        creating={creating}
-        onSelectTask={setSelectedTaskID}
-        onSetFormValue={setFormValue}
-        onChangeExtraArgs={setExtraArgsText}
-        onRefreshTasks={() => void refreshTasks()}
-        onStartTest={() => void startTest()}
-        showFloatingTrigger={false}
-      />
     </div>
   )
 }

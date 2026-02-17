@@ -266,16 +266,55 @@ func loadTokens(cfg runConfig) ([]string, error) {
 }
 
 func runScenario(client *http.Client, cfg runConfig, tokens []string) []requestResult {
+	emitProgress := cfg.Output == outputJSON
 	if cfg.isOpenModel() {
-		return runOpenScenario(client, cfg, tokens, cfg.Output == outputJSON)
+		return runOpenScenario(client, cfg, tokens, emitProgress)
 	}
-	return runClosedScenario(client, cfg, tokens)
+	return runClosedScenario(client, cfg, tokens, emitProgress)
 }
 
-func runClosedScenario(client *http.Client, cfg runConfig, tokens []string) []requestResult {
+func runClosedScenario(client *http.Client, cfg runConfig, tokens []string, emitProgress bool) []requestResult {
 	results := make([]requestResult, 0, cfg.Requests)
 	jobs := make(chan int, cfg.Requests)
 	out := make(chan requestResult, cfg.Requests)
+	collectDone := make(chan struct{})
+	startedAt := time.Now()
+	var collectMu sync.Mutex
+
+	go func() {
+		for r := range out {
+			collectMu.Lock()
+			results = append(results, r)
+			collectMu.Unlock()
+		}
+		close(collectDone)
+	}()
+
+	progressStop := make(chan struct{})
+	progressDone := make(chan struct{})
+	if emitProgress {
+		progressTicker := time.NewTicker(1 * time.Second)
+		go func() {
+			defer close(progressDone)
+			defer progressTicker.Stop()
+			for {
+				select {
+				case <-progressStop:
+					return
+				case <-progressTicker.C:
+					collectMu.Lock()
+					snapshot := append([]requestResult(nil), results...)
+					collectMu.Unlock()
+					if len(snapshot) == 0 {
+						continue
+					}
+					printProgressJSON(cfg, summarize(snapshot, time.Since(startedAt)))
+				}
+			}
+		}()
+	} else {
+		close(progressDone)
+	}
 
 	var wg sync.WaitGroup
 	workerCount := cfg.Concurrency
@@ -298,10 +337,9 @@ func runClosedScenario(client *http.Client, cfg runConfig, tokens []string) []re
 	close(jobs)
 	wg.Wait()
 	close(out)
-
-	for r := range out {
-		results = append(results, r)
-	}
+	<-collectDone
+	close(progressStop)
+	<-progressDone
 	return results
 }
 

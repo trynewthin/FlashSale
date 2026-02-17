@@ -49,6 +49,11 @@ func (s *Server) Start(addr string) error {
 	// 状态/日志接口：用于“无需跑任务也能查看”的只读监控面板。
 	mux.HandleFunc("GET /api/v1/status", s.withAuthAPI(s.getStatus))
 	mux.HandleFunc("GET /api/v1/containers/status", s.withAuthAPI(s.getContainersStatus))
+	mux.HandleFunc("GET /api/v1/observability/links", s.withAuthAPI(s.getObservabilityLinks))
+	mux.HandleFunc("GET /api/v1/etcd/services", s.withAuthAPI(s.getEtcdServices))
+	mux.HandleFunc("GET /api/v1/metrics/catalog", s.withAuthAPI(s.getMetricsCatalog))
+	mux.HandleFunc("GET /api/v1/metrics/snapshot", s.withAuthAPI(s.getMetricsSnapshot))
+	mux.HandleFunc("GET /api/v1/metrics/range", s.withAuthAPI(s.getMetricsRange))
 	mux.HandleFunc("POST /api/v1/containers/{container_id}/action", s.withAuthAPI(s.containerAction))
 	mux.HandleFunc("POST /api/v1/services/{service}/scale", s.withAuthAPI(s.scaleService))
 	mux.HandleFunc("GET /api/v1/service-logs/files", s.withAuthAPI(s.listServiceLogFiles))

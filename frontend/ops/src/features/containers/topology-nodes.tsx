@@ -39,6 +39,7 @@ interface ServiceGroupNodeData extends Record<string, unknown> {
   scaleLoading: boolean
   statusText: string
   statusTone: RuntimeStatusTone
+  etcdRegistered?: number
   dependsOn: string[]
   requiredBy: string[]
   focused: boolean
@@ -96,6 +97,14 @@ export const ServiceGroupNodeView = memo(({ data }: NodeProps<Node<ServiceGroupN
         <div className="min-w-0">
           <div className="truncate text-sm font-bold text-slate-900">{serviceDisplayName(data.serviceName)}</div>
           <div className="truncate text-[11px] text-slate-500">{data.serviceName}</div>
+          {data.etcdRegistered !== undefined && (
+            <div
+              className="mt-0.5 text-[10px] font-medium text-blue-600"
+              title={`etcd 注册实例数: ${data.etcdRegistered}`}
+            >
+              etcd: {data.etcdRegistered}/{data.replicas} registered
+            </div>
+          )}
         </div>
         <div
           className="nodrag nopan nowheel flex shrink-0 items-center gap-1"

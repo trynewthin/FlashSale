@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react"
 
 import type { ContainerRuntimeSnapshot } from "@/api/types"
-import { runtimeStatus } from "@/features/containers/shared"
+import { runtimeStatus, serviceEtcdKey } from "@/features/containers/shared"
 import { ReplicaNodeView, ServiceGroupNodeView } from "@/features/containers/topology-nodes"
 
 const SERVICE_GROUP_MIN_WIDTH = 320
@@ -38,7 +38,8 @@ interface ServiceGroupNodeData extends Record<string, unknown> {
   scalable: boolean
   scaleLoading: boolean
   statusText: string
-  statusTone: "running" | "partial" | "stopped"
+  statusTone: "running" | "partial" | "stopped" | "absent"
+  etcdRegistered?: number
   dependsOn: string[]
   requiredBy: string[]
   focused: boolean
@@ -69,6 +70,7 @@ const topologyNodeTypes: NodeTypes = {
 
 interface ServiceTopologyCanvasProps {
   snapshot: ContainerRuntimeSnapshot | null
+  etcdInstanceMap: Map<string, number>
   focusService: string
   actioningKey: string
   onActionContainer: (containerName: string, action: "start" | "stop" | "restart") => void
@@ -123,6 +125,7 @@ function buildServiceGroupLayout(replicaCount: number): ServiceGroupLayout {
 
 function buildFlow(
   snapshot: ContainerRuntimeSnapshot | null,
+  etcdInstanceMap: Map<string, number>,
   focusService: string,
   actioningKey: string,
   onActionContainer: (containerName: string, action: "start" | "stop" | "restart") => void,
@@ -197,7 +200,7 @@ function buildFlow(
     const serviceID = serviceNodeID(service.name)
     const layout = graph.node(serviceID)
     const size = layoutByService.get(service.name) ?? buildServiceGroupLayout(service.replicas)
-    const status = runtimeStatus(service.running_replicas, service.replicas)
+    const status = runtimeStatus(service.running_replicas, service.replicas, service.absent)
     return {
       id: serviceID,
       type: "serviceGroup",
@@ -212,6 +215,10 @@ function buildFlow(
         statusTone: status.tone,
         dependsOn: service.depends_on,
         requiredBy: requiredByMap.get(service.name) ?? [],
+        etcdRegistered: (() => {
+          const ek = serviceEtcdKey(service.name)
+          return ek !== undefined ? (etcdInstanceMap.get(ek) ?? 0) : undefined
+        })(),
         focused: focusService ? focusedNodeSet.has(service.name) : false,
         onScaleUp: onScaleUpService,
       },
@@ -301,6 +308,7 @@ function buildFlow(
 // ServiceTopologyCanvas 提供全画布拓扑视图，并将副本拆分为独立节点。
 export function ServiceTopologyCanvas({
   snapshot,
+  etcdInstanceMap,
   focusService,
   actioningKey,
   onActionContainer,
@@ -313,6 +321,7 @@ export function ServiceTopologyCanvas({
     () =>
       buildFlow(
         snapshot,
+        etcdInstanceMap,
         focusService,
         actioningKey,
         onActionContainer,
@@ -322,6 +331,7 @@ export function ServiceTopologyCanvas({
       ),
     [
       snapshot,
+      etcdInstanceMap,
       focusService,
       actioningKey,
       onActionContainer,

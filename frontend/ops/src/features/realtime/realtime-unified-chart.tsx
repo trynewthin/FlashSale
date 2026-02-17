@@ -15,14 +15,11 @@ type ChartMetricKey =
   | "totalContainers"
   | "runningReplicas"
   | "totalReplicas"
-  | "qps"
-  | "successRate"
-  | "errorRate"
-  | "p95LatencyMs"
-  | "networkErrorRate"
-  | "stockDeductionRate"
+  | "promQps"
+  | "promP99LatencyMs"
+  | "promErrorRate"
 
-type MetricGroupKey = "test_core" | "infra_health" | "capacity" | "all"
+type MetricGroupKey = "server_metrics" | "infra_health" | "capacity" | "all"
 
 interface MetricDef {
   key: ChartMetricKey
@@ -47,20 +44,17 @@ const METRICS: MetricDef[] = [
   { key: "totalContainers", label: "总容器数", color: "#94a3b8", axis: "count", unit: "" },
   { key: "runningReplicas", label: "运行副本数", color: "#16a34a", axis: "count", unit: "" },
   { key: "totalReplicas", label: "总副本数", color: "#cbd5e1", axis: "count", unit: "" },
-  { key: "qps", label: "测试 QPS", color: "#7c3aed", axis: "count", unit: " req/s" },
-  { key: "p95LatencyMs", label: "测试 P95", color: "#db2777", axis: "count", unit: " ms" },
-  { key: "successRate", label: "测试成功率", color: "#059669", axis: "percent", unit: "%" },
-  { key: "errorRate", label: "测试错误率", color: "#ef4444", axis: "percent", unit: "%" },
-  { key: "networkErrorRate", label: "网络错误率", color: "#f59e0b", axis: "percent", unit: "%" },
-  { key: "stockDeductionRate", label: "库存扣减成功率", color: "#14b8a6", axis: "percent", unit: "%" },
+  { key: "promQps", label: "服务端 RPC QPS", color: "#7c3aed", axis: "count", unit: " req/s" },
+  { key: "promP99LatencyMs", label: "服务端 RPC P99", color: "#db2777", axis: "count", unit: " ms" },
+  { key: "promErrorRate", label: "服务端错误率", color: "#ef4444", axis: "percent", unit: "%" },
 ]
 
 const GROUPS: MetricGroupDef[] = [
   {
-    key: "test_core",
-    label: "测试维度",
-    description: "聚焦压测结果：成功率 / QPS / P95 / 错误率。",
-    metrics: ["successRate", "qps", "p95LatencyMs", "errorRate", "stockDeductionRate", "networkErrorRate"],
+    key: "server_metrics",
+    label: "服务端指标",
+    description: "Prometheus 采集：RPC QPS / P99 延迟 / 错误率。",
+    metrics: ["promQps", "promP99LatencyMs", "promErrorRate"],
   },
   {
     key: "infra_health",
@@ -82,7 +76,7 @@ const GROUPS: MetricGroupDef[] = [
   },
 ]
 
-const DEFAULT_GROUP_KEY: MetricGroupKey = "test_core"
+const DEFAULT_GROUP_KEY: MetricGroupKey = "server_metrics"
 
 interface RealtimeUnifiedChartProps {
   samples: RealtimeSample[]
@@ -108,7 +102,7 @@ function readMetricValue(sample: RealtimeSample, key: ChartMetricKey): number {
   return 0
 }
 
-// RealtimeUnifiedChart 以单图聚合展示核心运行指标，并支持按“指标组”切换维度集合。
+// RealtimeUnifiedChart — 系统监控图（基础设施健康 + Prometheus 服务端指标）
 export function RealtimeUnifiedChart({ samples }: RealtimeUnifiedChartProps) {
   const [activeGroup, setActiveGroup] = useState<MetricGroupKey>(DEFAULT_GROUP_KEY)
   const [visibleKeys, setVisibleKeys] = useState<ChartMetricKey[]>(() => groupByKey(DEFAULT_GROUP_KEY).metrics)
@@ -165,7 +159,7 @@ export function RealtimeUnifiedChart({ samples }: RealtimeUnifiedChartProps) {
     <Card>
       <CardHeader className="space-y-3">
         <div className="space-y-1">
-          <CardTitle>实时监控图表</CardTitle>
+          <CardTitle>系统监控</CardTitle>
           <CardDescription>{activeGroupDef.description}</CardDescription>
         </div>
 
@@ -203,7 +197,7 @@ export function RealtimeUnifiedChart({ samples }: RealtimeUnifiedChartProps) {
       </CardHeader>
 
       <CardContent>
-        <div className="h-[360px] w-full">
+        <div className="h-[320px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={samples}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />

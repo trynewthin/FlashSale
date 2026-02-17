@@ -2,8 +2,13 @@ import { getOpsAccessKey } from "@/api/core/auth"
 import { buildApiUrl, requestJSON } from "@/api/core/http"
 import type {
   ContainerRuntimeSnapshot,
+  EtcdRegistrySnapshot,
   JobDetail,
   JobSummary,
+  MetricCatalogItem,
+  MetricsSnapshotResponse,
+  ObservabilityLinks,
+  PromQueryResult,
   ServiceLogFile,
   ServiceLogTail,
   StatusSnapshot,
@@ -102,6 +107,37 @@ export const opsApi = {
   async getContainersStatus(): Promise<ContainerRuntimeSnapshot> {
     const data = await requestJSON<{ status: ContainerRuntimeSnapshot }>("api/v1/containers/status")
     return data.status
+  },
+
+  async getObservabilityLinks(): Promise<ObservabilityLinks> {
+    const data = await requestJSON<{ links: ObservabilityLinks }>("api/v1/observability/links")
+    return data.links
+  },
+
+  async getEtcdServices(): Promise<EtcdRegistrySnapshot> {
+    const data = await requestJSON<{ registry: EtcdRegistrySnapshot }>("api/v1/etcd/services")
+    return data.registry
+  },
+
+  async getMetricsCatalog(): Promise<MetricCatalogItem[]> {
+    const data = await requestJSON<{ metrics: MetricCatalogItem[] }>("api/v1/metrics/catalog")
+    return data.metrics
+  },
+
+  async getMetricsSnapshot(names: string[]): Promise<MetricsSnapshotResponse> {
+    const data = await requestJSON<MetricsSnapshotResponse>(
+      `api/v1/metrics/snapshot?names=${names.join(",")}`
+    )
+    return data
+  },
+
+  async getMetricsRange(
+    name: string,
+    start: string,
+    end: string,
+    step = "15s"
+  ): Promise<{ name: string; unit: string; result: PromQueryResult }> {
+    return requestJSON(`api/v1/metrics/range?name=${name}&start=${start}&end=${end}&step=${step}`)
   },
 
   async actionContainer(containerID: string, action: "start" | "stop" | "restart"): Promise<void> {

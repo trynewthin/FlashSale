@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -33,6 +35,8 @@ func runData(args []string) error {
 		return runDataClear(args[1:])
 	case "seed-overwrite":
 		return runDataSeedOverwrite(args[1:])
+	case "seed-products":
+		return runDataSeedProducts(args[1:])
 	default:
 		printDataUsage()
 		return fmt.Errorf("unknown data subcommand: %s", args[0])
@@ -81,6 +85,7 @@ func runDataSeedOverwrite(args []string) error {
 	seckillReservedStock := fs.Int64("seckill-reserved-stock", 5000, "秒杀预占库存")
 	seckillPriceCent := fs.Int64("seckill-price-cent", 9900, "秒杀价格(分)")
 	seckillDurationMinutes := fs.Int64("seckill-duration-minutes", 120, "秒杀持续分钟")
+	cdnOrigin := fs.String("cdn-origin", "http://localhost:19000", "CDN 服务地址（用于商品图片 URL 前缀）")
 	outputDir := fs.String("output-dir", "log/data", "输出目录")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -193,10 +198,11 @@ VALUES (?, 'super_admin', 'Super Admin', 1, 1, ?, ?);
 	userToken := userLoginData.AccessToken
 
 	// 2. 创建商品。
+	cdn := strings.TrimRight(*cdnOrigin, "/")
 	productDefs := []map[string]any{
-		{"name": "seed-product-a", "main_image": "https://example.com/seed-a.png", "description": "overwrite seed product a", "price_cent": 19900, "stock": 80000, "status": 1},
-		{"name": "seed-product-b", "main_image": "https://example.com/seed-b.png", "description": "overwrite seed product b", "price_cent": 25900, "stock": 60000, "status": 1},
-		{"name": "seed-product-c", "main_image": "https://example.com/seed-c.png", "description": "overwrite seed product c", "price_cent": 9900, "stock": 50000, "status": 1},
+		{"name": "无线耳机 Pro", "main_image": cdn + "/assets/products/product-a.svg", "description": "高保真降噪无线耳机，续航 30 小时，轻盈舒适。", "price_cent": 19900, "stock": 80000, "status": 1},
+		{"name": "智能手表 S3", "main_image": cdn + "/assets/products/product-b.svg", "description": "全天健康监测，NFC 支付，IP68 防水，轻薄时尚。", "price_cent": 25900, "stock": 60000, "status": 1},
+		{"name": "便携蓝牙音箱", "main_image": cdn + "/assets/products/product-c.svg", "description": "360° 环绕立体声，防水防尘，一键配对，随身携带。", "price_cent": 9900, "stock": 50000, "status": 1},
 	}
 	type productOut struct {
 		Product struct {
@@ -464,8 +470,243 @@ func callAPI(client *http.Client, method, urlStr, token string, body any, out an
 	return nil
 }
 
+// ─── seed-products ───────────────────────────────────────────────────────────
+
+// productSVGColors 为每个商品提供不同的主色调（HSL）。
+var productSVGColors = []struct {
+	Bg, Accent, Text string
+}{
+	{"#1a1a2e", "#e94560", "#ffffff"}, {"#0f3460", "#533483", "#e0e0e0"},
+	{"#16213e", "#0f3460", "#a8dadc"}, {"#2d6a4f", "#52b788", "#d8f3dc"},
+	{"#370617", "#e85d04", "#ffd60a"}, {"#03045e", "#0077b6", "#90e0ef"},
+	{"#3a0ca3", "#7209b7", "#f72585"}, {"#1b4332", "#40916c", "#b7e4c7"},
+	{"#6a040f", "#d00000", "#ffba08"}, {"#023e8a", "#0096c7", "#caf0f8"},
+	{"#4a4e69", "#9a8c98", "#f2e9e4"}, {"#264653", "#2a9d8f", "#e9c46a"},
+	{"#3d405b", "#e07a5f", "#f4f1de"}, {"#1d3557", "#457b9d", "#a8dadc"},
+	{"#2b2d42", "#ef233c", "#edf2f4"}, {"#073b4c", "#118ab2", "#06d6a0"},
+	{"#212529", "#fd7e14", "#f8f9fa"}, {"#343a40", "#6c757d", "#dee2e6"},
+	{"#1e1b4b", "#7c3aed", "#ddd6fe"}, {"#14532d", "#16a34a", "#bbf7d0"},
+}
+
+// productNames 为 20 个商品提供名称和描述。
+var productNames = []struct {
+	Name, Desc string
+	Price      int64
+	Stock      int64
+}{
+	{"无线耳机 Pro X", "高保真降噪，续航 40 小时，钛合金腔体。", 29900, 50000},
+	{"智能手表 Ultra", "血氧+心率+ECG，钛合金表壳，IP68 防水。", 39900, 30000},
+	{"便携蓝牙音箱 360", "360° 环绕立体声，IPX7 防水，20 小时续航。", 14900, 40000},
+	{"机械键盘 TKL", "Cherry MX 红轴，RGB 背光，铝合金外壳。", 49900, 20000},
+	{"人体工学鼠标", "垂直握持，6 档 DPI，无线 2.4G。", 19900, 35000},
+	{"4K 便携显示器", "15.6" + "\"" + " 4K IPS，USB-C 供电，1.2kg 超轻。", 89900, 10000},
+	{"快充充电宝 30W", "30000mAh，双向 30W 快充，航空铝外壳。", 24900, 60000},
+	{"智能台灯 Pro", "护眼无频闪，色温 2700-6500K，APP 控制。", 12900, 45000},
+	{"降噪耳塞 ANC", "主动降噪 -40dB，通透模式，IPX5 防水。", 17900, 55000},
+	{"无线充电板 15W", "三线圈设计，兼容 Qi，15W 快充。", 8900, 80000},
+	{"智能体脂秤", "17 项身体指标，蓝牙 5.0，APP 数据同步。", 9900, 70000},
+	{"折叠手机支架", "铝合金，360° 旋转，适配 4-13 英寸设备。", 4900, 100000},
+	{"USB-C 扩展坞 11合1", "HDMI 4K+PD 100W+USB3.0×3+SD 卡槽。", 34900, 25000},
+	{"游戏手柄 Pro", "霍尔摇杆，震动反馈，有线/无线双模。", 44900, 15000},
+	{"智能门锁 C级", "指纹+密码+NFC+钥匙，C 级锁芯。", 79900, 8000},
+	{"空气净化器 H13", "H13 HEPA，CADR 600，静音 22dB。", 69900, 12000},
+	{"电动牙刷 S10", "声波振动 40000 次/分，5 档模式，30 天续航。", 19900, 50000},
+	{"咖啡机 全自动", "一键萃取，内置研磨，15bar 意式泵压。", 129900, 5000},
+	{"投影仪 1080P", "1080P 原生，3000 流明，自动梯形校正。", 149900, 4000},
+	{"扫地机器人 LDS", "LDS 激光导航，5000Pa 吸力，自动回充。", 199900, 3000},
+}
+
+// buildProductSVG 生成带商品名称和色彩的 SVG 图片内容。
+func buildProductSVG(index int, name string) []byte {
+	c := productSVGColors[index%len(productSVGColors)]
+	// 截取商品名前 6 个字符作为图标文字
+	runes := []rune(name)
+	short := string(runes)
+	if len(runes) > 6 {
+		short = string(runes[:6])
+	}
+	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+  <rect width="400" height="300" fill="%s" rx="12"/>
+  <rect x="20" y="20" width="360" height="260" fill="%s" rx="8" opacity="0.15"/>
+  <text x="200" y="140" font-family="sans-serif" font-size="48" font-weight="bold"
+        fill="%s" text-anchor="middle" dominant-baseline="middle">%s</text>
+  <text x="200" y="200" font-family="sans-serif" font-size="18"
+        fill="%s" text-anchor="middle" opacity="0.8">%s</text>
+  <rect x="160" y="230" width="80" height="4" fill="%s" rx="2" opacity="0.6"/>
+</svg>`, c.Bg, c.Accent, c.Text, short, c.Text, name, c.Accent)
+	return []byte(svg)
+}
+
+// uploadProductImage 通过 admin-gateway 上传商品图片，返回 CDN 可访问的图片 URL。
+// 路由：POST {adminBaseURL}/api/v1/admin/media/files/upload?category=products
+// Nginx 会验证 JWT 并将请求代理到 media-store，同时注入 media-store secret。
+func uploadProductImage(client *http.Client, adminBaseURL, adminToken string, filename string, content []byte) (string, error) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile("file", filename)
+	if err != nil {
+		return "", err
+	}
+	if _, err := fw.Write(content); err != nil {
+		return "", err
+	}
+	_ = mw.Close()
+
+	url := strings.TrimRight(adminBaseURL, "/") + "/api/v1/admin/media/files/upload?category=products"
+	req, err := http.NewRequest(http.MethodPost, url, &buf)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("upload request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var result struct {
+		Filename string `json:"filename"`
+		URL      string `json:"url"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("upload response parse failed: %w (body=%s)", err, body)
+	}
+	if result.URL != "" {
+		return result.URL, nil
+	}
+	if result.Filename != "" {
+		return result.Filename, nil // 调用方拼接 CDN origin
+	}
+	return "", fmt.Errorf("upload response missing url/filename (body=%s)", body)
+}
+
+func runDataSeedProducts(args []string) error {
+	fs := flag.NewFlagSet("data seed-products", flag.ContinueOnError)
+	force := fs.Bool("force", false, "确认执行")
+	count := fs.Int("count", 20, "要创建的商品数量（1-20）")
+	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	adminBaseURL := fs.String("admin-base-url", "http://127.0.0.1:8083", "管理网关地址（用于 API 调用和图片上传）")
+	adminUsername := fs.String("admin-username", "admin_root", "管理员用户名")
+	adminPassword := fs.String("admin-password", "Admin12345", "管理员密码")
+	cdnOrigin := fs.String("cdn-origin", "http://localhost:19000", "CDN 地址（写入数据库的图片 URL 前缀）")
+	outputDir := fs.String("output-dir", "log/data", "输出目录")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if !*force {
+		return fmt.Errorf("seed-products requires --force")
+	}
+	if *count < 1 {
+		*count = 1
+	}
+	if *count > len(productNames) {
+		*count = len(productNames)
+	}
+
+	repoRoot, err := filepath.Abs(".")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(*envFile) != "-" {
+		if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
+			return err
+		}
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	// 1. admin 登录
+	adminLoginData := struct {
+		AccessToken string `json:"access_token"`
+	}{}
+	if err := callAPI(client, http.MethodPost,
+		strings.TrimRight(*adminBaseURL, "/")+"/api/v1/admin/auth/login",
+		"",
+		map[string]any{"username": *adminUsername, "password": *adminPassword},
+		&adminLoginData,
+	); err != nil {
+		return fmt.Errorf("admin login failed: %w", err)
+	}
+	adminToken := adminLoginData.AccessToken
+	fmt.Printf("[seed-products] admin login ok\n")
+
+	cdn := strings.TrimRight(*cdnOrigin, "/")
+	type productOut struct {
+		Product struct {
+			ProductID json.Number `json:"product_id"`
+		} `json:"product"`
+	}
+
+	results := make([]map[string]any, 0, *count)
+
+	for i := 0; i < *count; i++ {
+		def := productNames[i]
+		fmt.Printf("[seed-products] [%d/%d] %s\n", i+1, *count, def.Name)
+
+		// 2. 生成 SVG 并上传
+		svgContent := buildProductSVG(i, def.Name)
+		filename := fmt.Sprintf("seed-product-%02d-%s.svg", i+1, uuid.NewString()[:8])
+
+		imageURL, err := uploadProductImage(client, *adminBaseURL, adminToken, filename, svgContent)
+		if err != nil {
+			return fmt.Errorf("upload image [%d] failed: %w", i+1, err)
+		}
+		// 如果返回的是相对路径（filename only），拼接 CDN origin
+		if !strings.HasPrefix(imageURL, "http") {
+			imageURL = cdn + "/assets/products/" + imageURL
+		}
+		fmt.Printf("  image: %s\n", imageURL)
+
+		// 3. 创建商品
+		var out productOut
+		if err := callAPI(client, http.MethodPost,
+			strings.TrimRight(*adminBaseURL, "/")+"/api/v1/admin/products",
+			adminToken,
+			map[string]any{
+				"name":        def.Name,
+				"main_image":  imageURL,
+				"description": def.Desc,
+				"price_cent":  def.Price,
+				"stock":       def.Stock,
+				"status":      1,
+			},
+			&out,
+		); err != nil {
+			return fmt.Errorf("create product [%d] %q failed: %w", i+1, def.Name, err)
+		}
+		fmt.Printf("  product_id: %s\n", out.Product.ProductID.String())
+		results = append(results, map[string]any{
+			"index":      i + 1,
+			"name":       def.Name,
+			"product_id": out.Product.ProductID.String(),
+			"image_url":  imageURL,
+		})
+	}
+
+	// 4. 写结果文件
+	absOut := devenv.ResolvePath(repoRoot, strings.TrimSpace(*outputDir))
+	if err := os.MkdirAll(absOut, 0o755); err != nil {
+		return err
+	}
+	resultFile := filepath.Join(absOut, "seed-products.result.json")
+	if err := writeJSON(resultFile, map[string]any{
+		"generated_at_unix": time.Now().Unix(),
+		"count":             len(results),
+		"products":          results,
+	}); err != nil {
+		return err
+	}
+
+	fmt.Printf("[seed-products] done: %d products created, result: %s\n", len(results), resultFile)
+	return nil
+}
+
 func printDataUsage() {
 	fmt.Print(`fs data 用法:
   fs data clear --force [--clear-admin]
-  fs data seed-overwrite --force` + "\n")
+  fs data seed-overwrite --force
+  fs data seed-products --force [--count 20]` + "\n")
 }

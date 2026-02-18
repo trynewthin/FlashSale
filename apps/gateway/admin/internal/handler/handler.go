@@ -33,6 +33,12 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	mux.HandleFunc("POST /api/v1/admin/auth/login", amh.Login)
 	mux.HandleFunc("POST /api/v1/admin/auth/refresh", amh.Refresh)
 	mux.Handle("POST /api/v1/admin/auth/logout", middleware.AuthRequired(svcCtx, http.HandlerFunc(amh.Logout)))
+
+	// 轻量鉴权检查（供 Nginx auth_request 子请求使用，仅验证 JWT 有效性）
+	mux.Handle("GET /api/v1/admin/auth/check", middleware.AuthRequired(svcCtx, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})))
+
 	mux.Handle("GET /api/v1/admin/me", middleware.AuthRequired(svcCtx, http.HandlerFunc(amh.GetMyProfile)))
 	mux.Handle("POST /api/v1/admin/me/password", middleware.AuthRequired(svcCtx, http.HandlerFunc(amh.ChangeMyPassword)))
 	mux.Handle(

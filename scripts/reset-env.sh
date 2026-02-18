@@ -1,31 +1,59 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# scripts/reset-env.sh — 完全清理并重新启动整个开发环境
+#
+# ⚠️  警告：这会删除所有 Docker 容器和数据卷（mysql/redis/etcd 数据全部清空）
+#
+# 用法：
+#   ./scripts/reset-env.sh              # 全量重置（含冒烟测试）
+#   ./scripts/reset-env.sh --with-obs   # 全量重置 + 启动可观测性
+#   ./scripts/reset-env.sh --skip-test  # 全量重置，跳过冒烟测试
 
-# reset-env.sh - 完全清理并重新启动整个开发环境
-# 注意：这会删除所有 Docker 容器和数据卷 (volumes)
+set -euo pipefail
 
-set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+COMPOSE_FILE="$SCRIPT_DIR/../deploy/compose/docker-compose.app.yml"
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-COMPOSE_FILE="$REPO_ROOT/deploy/compose/docker-compose.app.yml"
+WITH_OBS=false
+SKIP_TEST=false
 
-echo "⚠️  This will DELETE all data and restart everything. Press Ctrl+C to cancel."
-sleep 3
+for arg in "$@"; do
+    case "$arg" in
+        --with-obs)  WITH_OBS=true ;;
+        --skip-test) SKIP_TEST=true ;;
+        -h|--help)
+            cat <<EOF
+Usage: $0 [options]
 
-echo ">>> [1/4] Stopping and removing all containers/volumes..."
-docker compose -f "$COMPOSE_FILE" down -v
+Options:
+  --with-obs    Also start observability cluster (jaeger/prometheus/grafana)
+  --skip-test   Skip smoke test after rebuild
+EOF
+            exit 0 ;;
+        *) echo "Unknown option: $arg"; exit 1 ;;
+    esac
+done
 
-echo ">>> [2/4] Rebuilding all backend images..."
-docker compose -f "$COMPOSE_FILE" --profile build build backend-image
-docker compose -f "$COMPOSE_FILE" build --no-cache
+echo -e "\n\033[1;33m⚠️  This will DELETE all containers and volumes.\033[0m"
+echo -e "\033[0;90m   Press Ctrl+C to cancel (starting in 5s...)\033[0m"
+sleep 5
 
-echo ">>> [3/4] Starting environment (databases, infra)..."
-docker compose -f "$COMPOSE_FILE" up -d mysql redis kafka etcd
-echo "Waiting for infra health..."
-sleep 10
+# ── [1/3] 停止所有容器并删除 volumes ──
+echo -e "\n\033[0;36m>>> [1/3] Stopping all containers + removing volumes...\033[0m"
+docker compose -f "$COMPOSE_FILE" down -v --remove-orphans
 
-echo ">>> [4/4] Starting all services and ops-control..."
-docker compose -f "$COMPOSE_FILE" up -d
-docker compose -f "$COMPOSE_FILE" up -d ops-control
+# ── [2/3] 全量重建所有集群 ──
+echo -e "\n\033[0;36m>>> [2/3] Rebuilding all clusters...\033[0m"
+REBUILD_ARGS="--skip-test"   # reset-env 自己控制是否跑测试
+$WITH_OBS && REBUILD_ARGS="$REBUILD_ARGS --with-obs"
+bash "$SCRIPT_DIR/rebuild.sh" $REBUILD_ARGS
 
-echo "✅ Environment Reset Complete."
-docker compose -f "$COMPOSE_FILE" ps
+# ── [3/3] 冒烟测试 ──
+if ! $SKIP_TEST; then
+    echo -e "\n\033[0;36m>>> [3/3] Running smoke test...\033[0m"
+    bash "$SCRIPT_DIR/smoke-test.sh"
+else
+    echo -e "\n\033[0;90m>>> [3/3] Smoke test skipped (--skip-test)\033[0m"
+fi
+
+echo -e "\n\033[1;32m✔  Environment reset complete.\033[0m"
+docker compose -f "$COMPOSE_FILE" ps --format "table {{.Name}}\t{{.Status}}"

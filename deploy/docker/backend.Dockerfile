@@ -1,8 +1,10 @@
-# FlashSale 后端容器镜像（多服务同镜像，多命令启动）
+# FlashSale 后端容器镜像（多服务同镜像，并行编译）
 #
-# 目标：
-# - 让 user/product/order/seckill/admin rpc + 双网关可以在 Docker 内独立运行（无需宿主机 Go 环境）
-# - 便于演示“只扩容单个服务”（例如 seckill-rpc 多实例）
+# 优化：
+# - 所有 Go 二进制在一个 RUN 内并行编译（利用 shell & + wait）
+# - Go 编译器自身的并行性（-p=N）叠加多目标并行 = 充分利用 CPU
+# - 共享 build cache 和 mod cache
+# - 单次 COPY . . 后一次性编译，减少 layer 和 context 开销
 
 FROM golang:1.25-alpine AS build
 
@@ -16,49 +18,26 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # 复制源码
 COPY . .
 
-# 编译输出目录
 RUN mkdir -p /out
 
-# 注意：这里统一构建成静态二进制，运行时使用 alpine 最小镜像
 ENV CGO_ENABLED=0
 
+# 并行编译所有目标二进制
+# 每个 go build 后台执行（&），最后 wait 等待全部完成
+# 如果任何一个失败，wait 会返回非零退出码
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath -o /out/user-rpc ./apps/user/rpc
-
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath -o /out/product-rpc ./apps/product/rpc
-
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath -o /out/order-rpc ./apps/order/rpc
-
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath -o /out/seckill-rpc ./apps/seckill/rpc
-
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath -o /out/admin-rpc ./apps/admin/rpc
-
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath -o /out/user-gateway ./apps/gateway/user
-
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath -o /out/admin-gateway ./apps/gateway/admin
-
-# 可选：把 fs 也放进去，方便在容器内执行迁移/seed（主要用于一次性 job 容器）
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath -o /out/fs ./cmd/fs
-
-# 压测工具：容器内无 Go 环境，需预编译
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath -o /out/seckillload ./cmd/perf/seckillload
+    set -e && \
+    go build -buildvcs=false -trimpath -o /out/user-rpc       ./apps/user/rpc         & \
+    go build -buildvcs=false -trimpath -o /out/product-rpc    ./apps/product/rpc      & \
+    go build -buildvcs=false -trimpath -o /out/order-rpc      ./apps/order/rpc        & \
+    go build -buildvcs=false -trimpath -o /out/seckill-rpc    ./apps/seckill/rpc      & \
+    go build -buildvcs=false -trimpath -o /out/admin-rpc      ./apps/admin/rpc        & \
+    go build -buildvcs=false -trimpath -o /out/user-gateway   ./apps/gateway/user     & \
+    go build -buildvcs=false -trimpath -o /out/admin-gateway  ./apps/gateway/admin    & \
+    go build -buildvcs=false -trimpath -o /out/fs             ./cmd/fs                & \
+    go build -buildvcs=false -trimpath -o /out/seckillload    ./cmd/perf/seckillload  & \
+    wait
 
 FROM alpine:3.20
 

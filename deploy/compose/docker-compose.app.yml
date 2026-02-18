@@ -401,6 +401,42 @@ services:
       timeout: 3s
       retries: 12
 
+  cdn:
+    image: nginx:1.27-alpine
+    container_name: flashsale-app-cdn
+    restart: unless-stopped
+    ports:
+      - "${FLASH_CDN_PORT:-19000}:80"
+    volumes:
+      - ../nginx/nginx.cdn.conf:/etc/nginx/nginx.conf:ro
+      - ../cdn/assets:/srv/cdn/assets:ro
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/healthz" ]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  media-store:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/media-store.Dockerfile
+    container_name: flashsale-app-media-store
+    restart: unless-stopped
+    ports:
+      - "${FLASH_MEDIA_STORE_PORT:-19001}:9200"
+    environment:
+      MEDIA_STORE_ADDR: "0.0.0.0:9200"
+      MEDIA_STORE_DIR: "/srv/cdn/assets"
+      MEDIA_STORE_SECRET: "${FLASH_MEDIA_STORE_SECRET:-flashsale-media-dev}"
+      MEDIA_STORE_CDN_ORIGIN: "${FLASHSALE_CDN_ORIGIN:-http://localhost:19000}"
+    volumes:
+      - ../cdn/assets:/srv/cdn/assets:rw
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:9200/healthz" ]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
   # ─── 可观测性（可选 profile）───
   # 启动方式：docker compose -f ... --profile observability up -d
   # 注意：需要与主服务一起启动，prometheus 才能采集到 service name

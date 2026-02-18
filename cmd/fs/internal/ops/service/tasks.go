@@ -78,8 +78,10 @@ func BuildTasks(env *EnvContext) map[string]model.TaskDef {
 			Name:        "注入演示商品（含图片）",
 			Description: "通过 admin-gateway 上传 SVG 图片并创建 20 个演示商品，不清空现有数据。",
 			Command:     []string{"self", "data", "seed-products"},
-			DefaultArgs: withGatewayContext("--force", "--count=20", "--cdn-origin="+env.CDNOrigin),
-			Dangerous:   false,
+			DefaultArgs: withContext("--force", "--count=20", "--cdn-origin="+env.CDNOrigin,
+				"--admin-base-url="+env.AdminGatewayURL,
+				"--nginx-base-url="+env.NginxBaseURL),
+			Dangerous: false,
 		},
 		"data.clear": {
 			ID:          "data.clear",

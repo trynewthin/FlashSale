@@ -537,10 +537,10 @@ func buildProductSVG(index int, name string) []byte {
 	return []byte(svg)
 }
 
-// uploadProductImage 通过 admin-gateway 上传商品图片，返回 CDN 可访问的图片 URL。
-// 路由：POST {adminBaseURL}/api/v1/admin/media/files/upload?category=products
-// Nginx 会验证 JWT 并将请求代理到 media-store，同时注入 media-store secret。
-func uploadProductImage(client *http.Client, adminBaseURL, adminToken string, filename string, content []byte) (string, error) {
+// uploadProductImage 通过 nginx 上传商品图片，返回 CDN 可访问的图片 URL。
+// 路由：POST {nginxBaseURL}/api/v1/admin/media/files/upload?category=products
+// Nginx 验证 JWT（auth_request → admin-gateway）并将请求代理到 media-store，同时注入 media-store secret。
+func uploadProductImage(client *http.Client, nginxBaseURL, adminToken string, filename string, content []byte) (string, error) {
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	fw, err := mw.CreateFormFile("file", filename)
@@ -552,7 +552,7 @@ func uploadProductImage(client *http.Client, adminBaseURL, adminToken string, fi
 	}
 	_ = mw.Close()
 
-	url := strings.TrimRight(adminBaseURL, "/") + "/api/v1/admin/media/files/upload?category=products"
+	url := strings.TrimRight(nginxBaseURL, "/") + "/api/v1/admin/media/files/upload?category=products"
 	req, err := http.NewRequest(http.MethodPost, url, &buf)
 	if err != nil {
 		return "", err
@@ -588,13 +588,18 @@ func runDataSeedProducts(args []string) error {
 	force := fs.Bool("force", false, "确认执行")
 	count := fs.Int("count", 20, "要创建的商品数量（1-20）")
 	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
-	adminBaseURL := fs.String("admin-base-url", "http://127.0.0.1:8083", "管理网关地址（用于 API 调用和图片上传）")
+	adminBaseURL := fs.String("admin-base-url", "http://127.0.0.1:8083", "管理网关地址（用于登录和创建商品）")
+	nginxBaseURL := fs.String("nginx-base-url", "", "Nginx 地址（用于图片上传，走 /api/v1/admin/media/；默认与 admin-base-url 相同）")
 	adminUsername := fs.String("admin-username", "admin_root", "管理员用户名")
 	adminPassword := fs.String("admin-password", "Admin12345", "管理员密码")
 	cdnOrigin := fs.String("cdn-origin", "http://localhost:19000", "CDN 地址（写入数据库的图片 URL 前缀）")
 	outputDir := fs.String("output-dir", "log/data", "输出目录")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	// nginx-base-url 默认与 admin-base-url 相同（本地开发场景两者一致）
+	if strings.TrimSpace(*nginxBaseURL) == "" {
+		*nginxBaseURL = *adminBaseURL
 	}
 	if !*force {
 		return fmt.Errorf("seed-products requires --force")
@@ -650,7 +655,7 @@ func runDataSeedProducts(args []string) error {
 		svgContent := buildProductSVG(i, def.Name)
 		filename := fmt.Sprintf("seed-product-%02d-%s.svg", i+1, uuid.NewString()[:8])
 
-		imageURL, err := uploadProductImage(client, *adminBaseURL, adminToken, filename, svgContent)
+		imageURL, err := uploadProductImage(client, *nginxBaseURL, adminToken, filename, svgContent)
 		if err != nil {
 			return fmt.Errorf("upload image [%d] failed: %w", i+1, err)
 		}

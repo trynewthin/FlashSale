@@ -5,4 +5,4 @@ export * from "@/api/modules/product"
 export * from "@/api/modules/order"
 export * from "@/api/modules/seckill"
 export * from "@/api/modules/operations"
-
+export * from "@/api/modules/media"

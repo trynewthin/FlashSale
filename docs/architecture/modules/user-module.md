@@ -2,7 +2,7 @@
 
 ## 1. 模块职责
 
-用户模块负责 C 端账号域能力：注册、登录、资料获取、昵称修改、账号注销。
+用户模块负责 C 端账号域能力：注册、登录、资料获取、昵称修改、账号注销、用户修改密码；同时向管理端提供用户列表查询与密码重置能力。
 
 ## 2. 与其他模块关系
 
@@ -37,8 +37,14 @@ flowchart LR
 | `apps/user/rpc/internal/logic/get_profile_logic.go` | 获取资料逻辑 |
 | `apps/user/rpc/internal/logic/update_nickname_logic.go` | 修改昵称逻辑 |
 | `apps/user/rpc/internal/logic/delete_user_logic.go` | 注销/删除逻辑 |
+| `apps/user/rpc/internal/logic/change_password_logic.go` | 用户修改密码逻辑（需提供旧密码验证） |
+| `apps/user/rpc/internal/logic/list_users_logic.go` | 管理端分页查询用户列表逻辑 |
+| `apps/user/rpc/internal/logic/reset_user_password_logic.go` | 管理端重置用户密码逻辑 |
 | `apps/user/rpc/internal/logic/auth_logic_test.go` | 注册/登录逻辑测试 |
 | `apps/user/rpc/internal/logic/validation_test.go` | 参数校验测试 |
+| `apps/user/rpc/internal/logic/change_password_logic_test.go` | 修改密码逻辑测试 |
+| `apps/user/rpc/internal/logic/list_reset_logic_test.go` | 用户列表与重置密码逻辑测试 |
+| `apps/user/rpc/internal/logic/common_test.go` | 公共逻辑测试 |
 | `apps/user/rpc/internal/server/userrpcserver.go` | gRPC server 方法装配 |
 | `apps/user/rpc/internal/server/authz.go` | RPC 层鉴权辅助 |
 | `apps/user/rpc/internal/server/authz_test.go` | 鉴权辅助测试 |
@@ -48,3 +54,5 @@ flowchart LR
 - 用户口令策略复用于系统统一规则（强度校验 + bcrypt）。
 - 管理端查询用户信息通过网关进入同一 User RPC，无单独“管理用户表”。
 - 返回的用户 ID 为雪花 ID，前端按字符串处理以避免 JS 精度丢失。
+- `ChangePassword` 需要用户提供旧密码验证，通过 `authorizeTargetUser` 鉴权，仅限本人操作。
+- `ListUsers` 和 `ResetUserPassword` 为管理端专用，不做用户鉴权，由 Admin Gateway 的 `UserManagement` 域权限前置控制。

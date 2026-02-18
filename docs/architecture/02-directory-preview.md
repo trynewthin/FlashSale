@@ -22,7 +22,8 @@ FlashSale/
 ├─ configs/               # 本地/部署环境变量与基础配置
 ├─ frontend/
 │  ├─ user                # 用户端前端
-│  └─ admin               # 管理端前端
+│  ├─ admin               # 管理端前端
+│  └─ ops                 # 运维控制面板前端（:9100）
 └─ docs/                  # 文档（当前目录）
 ```
 

@@ -44,6 +44,7 @@ flowchart LR
 | `pkg/base/logx/log.go` | 统一日志初始化 |
 | `pkg/base/tracing/tracing.go` | OpenTelemetry trace 初始化 |
 | `pkg/base/metrics/metrics.go` | Prometheus 指标注册与导出 |
+| `pkg/base/snowflakex/snowflake.go` | 雪花 ID 生成器封装（节点 ID 可配置） |
 
 ## 4. 设计说明
 

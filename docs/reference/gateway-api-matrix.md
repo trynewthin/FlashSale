@@ -11,6 +11,7 @@
 | `GET /api/v1/user/profile` | `UserHandler.GetProfile` | `UserRpc.GetProfile` |
 | `PATCH /api/v1/user/nickname` | `UserHandler.UpdateNickname` | `UserRpc.UpdateNickname` |
 | `DELETE /api/v1/user` | `UserHandler.DeleteUser` | `UserRpc.DeleteUser` |
+| `PUT /api/v1/user/password` | `UserHandler.ChangePassword` | `UserRpc.ChangePassword` |
 | `GET /api/v1/products` | `ProductPublicHandler.ListProducts` | `ProductRpc.ListProductsPublic` |
 | `GET /api/v1/products/{product_id}` | `ProductPublicHandler.GetProduct` | `ProductRpc.GetProductPublic` |
 | `POST /api/v1/orders` | `OrderUserHandler.CreateOrder` | `OrderRpc.CreateOrder` |
@@ -58,6 +59,8 @@
 | `GET /api/v1/admin/users/{user_id}` | `AdminHandler.GetUserProfile` | `UserRpc.GetProfile` |
 | `PATCH /api/v1/admin/users/{user_id}/nickname` | `AdminHandler.UpdateUserNickname` | `UserRpc.UpdateNickname` |
 | `DELETE /api/v1/admin/users/{user_id}` | `AdminHandler.DeleteUser` | `UserRpc.DeleteUser` |
+| `GET /api/v1/admin/users` | `AdminHandler.ListUsers` | `UserRpc.ListUsers` |
+| `POST /api/v1/admin/users/{user_id}/reset-password` | `AdminHandler.ResetUserPassword` | `UserRpc.ResetUserPassword` |
 | `POST /api/v1/admin/products` | `ProductAdminHandler.CreateProduct` | `ProductRpc.CreateProduct` |
 | `PATCH /api/v1/admin/products/{product_id}` | `ProductAdminHandler.UpdateProduct` | `ProductRpc.UpdateProduct` |
 | `DELETE /api/v1/admin/products/{product_id}` | `ProductAdminHandler.DeleteProduct` | `ProductRpc.DeleteProduct` |

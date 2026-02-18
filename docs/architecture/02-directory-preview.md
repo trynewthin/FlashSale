@@ -10,6 +10,7 @@ FlashSale/
 │  ├─ order/rpc
 │  ├─ seckill/rpc
 │  ├─ admin/rpc
+│  ├─ media-store         # CDN 文件管理服务（上传/删除/列表）
 │  └─ gateway/
 │     ├─ user
 │     └─ admin
@@ -18,7 +19,7 @@ FlashSale/
 │  ├─ fs                  # 一体化开发/运维/压测入口
 │  ├─ perf/seckillload    # 秒杀专项压测器
 │  └─ smoke/*             # MySQL/Redis/Kafka 连通性检查
-├─ deploy/                # compose、nginx、migrations、监控配置
+├─ deploy/                # compose、nginx、cdn、migrations、监控配置
 ├─ configs/               # 本地/部署环境变量与基础配置
 ├─ frontend/
 │  ├─ user                # 用户端前端
@@ -59,7 +60,22 @@ apps/gateway/<admin|user>/
    └─ handler            # HTTP 路由与处理器
 ```
 
-## 4. 基础能力目录（pkg/base）
+## 4. media-store 文件管理服务
+
+```text
+apps/media-store/
+├─ main.go                  # 入口
+└─ internal/
+   ├─ config                # 环境变量配置
+   ├─ svc                   # 依赖注入（config + logger + store）
+   ├─ middleware             # Auth 鉴权、CORS
+   ├─ handler               # HTTP 路由与处理器
+   └─ storage               # Store 接口 + LocalStore 实现
+```
+
+> 纯标准库实现，零外部依赖。与 CDN 容器（Nginx 只读）配合，通过共享 volume 管理静态资源。
+
+## 5. 基础能力目录（pkg/base）
 
 - `authx`：JWT 签发与解析（用户/管理员）
 - `errorx` / `grpcerr`：统一错误码与 gRPC 状态映射

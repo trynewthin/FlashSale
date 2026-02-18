@@ -46,6 +46,10 @@ flowchart LR
 
   ORPC -.-> K[(Kafka)]
   SRPC -.-> K
+
+  CDN[CDN Nginx :19000] -.-> |read-only| VOL[(cdn/assets)]
+  MS[Media Store :19001] -.-> |read-write| VOL
+  A --> MS
 ```
 
 ## 3. 代码分层模型
@@ -69,6 +73,8 @@ flowchart TD
 - `seckill`：活动化秒杀流程（活动、活动商品、抢购、埋点、活动订单追溯）。
 - `admin`：管理员认证、RBAC、数据范围与审计。
 - `gateway`：HTTP 协议适配、鉴权、限流、参数前置校验、RPC 转发。
+- `cdn`：Nginx 只读静态文件服务（商品主图、横幅等素材）。
+- `media-store`：文件管理服务（上传/删除/列表），与 CDN 共享 volume。
 
 ## 5. 关键工程约束
 

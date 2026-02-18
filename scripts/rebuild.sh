@@ -21,7 +21,7 @@
 #   ./scripts/rebuild.sh --scope ops --hot  # ops 热更新（最快）
 #   ./scripts/rebuild.sh --no-cache         # 禁用构建缓存
 #   ./scripts/rebuild.sh --with-obs         # 同时启动可观测性
-#   ./scripts/rebuild.sh --skip-test        # 跳过冒烟测试
+#   ./scripts/rebuild.sh --with-test        # 重建后运行冒烟测试（需先 seed 数据）
 
 set -euo pipefail
 
@@ -32,7 +32,7 @@ CLUSTER_DIR="$SCRIPT_DIR/clusters"
 SCOPE="all"
 NO_CACHE=""
 WITH_OBS=false
-SKIP_TEST=false
+SKIP_TEST=true   # 默认跳过；用 --with-test 显式开启
 HOT=false
 
 while [[ $# -gt 0 ]]; do
@@ -40,7 +40,7 @@ while [[ $# -gt 0 ]]; do
         --scope)      SCOPE="$2"; shift 2 ;;
         --no-cache)   NO_CACHE="--no-cache"; shift ;;
         --with-obs)   WITH_OBS=true; shift ;;
-        --skip-test)  SKIP_TEST=true; shift ;;
+        --with-test)  SKIP_TEST=false; shift ;;
         --hot)        HOT=true; shift ;;
         -h|--help)
             cat <<EOF
@@ -51,7 +51,7 @@ Options:
                     Which cluster(s) to rebuild (default: all)
   --no-cache        Disable Docker build cache
   --with-obs        Also start observability cluster (jaeger/prometheus/grafana)
-  --skip-test       Skip smoke test after deploy
+  --with-test       Run smoke test after deploy (requires seeded data)
   --hot             ops only: hot-update via docker cp (skip image rebuild)
   -h, --help        Show this help
 

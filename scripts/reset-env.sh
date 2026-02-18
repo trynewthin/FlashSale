@@ -4,9 +4,9 @@
 # ⚠️  警告：这会删除所有 Docker 容器和数据卷（mysql/redis/etcd 数据全部清空）
 #
 # 用法：
-#   ./scripts/reset-env.sh              # 全量重置（含冒烟测试）
+#   ./scripts/reset-env.sh              # 全量重置（默认跳过冒烟测试，冷启动数据库为空）
 #   ./scripts/reset-env.sh --with-obs   # 全量重置 + 启动可观测性
-#   ./scripts/reset-env.sh --skip-test  # 全量重置，跳过冒烟测试
+#   ./scripts/reset-env.sh --with-test  # 全量重置 + 运行冒烟测试（需先 seed 数据）
 
 set -euo pipefail
 
@@ -14,19 +14,19 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/../deploy/compose/docker-compose.app.yml"
 
 WITH_OBS=false
-SKIP_TEST=false
+SKIP_TEST=true   # 冷启动后数据库为空，默认跳过；用 --with-test 显式开启
 
 for arg in "$@"; do
     case "$arg" in
         --with-obs)  WITH_OBS=true ;;
-        --skip-test) SKIP_TEST=true ;;
+        --with-test) SKIP_TEST=false ;;
         -h|--help)
             cat <<EOF
 Usage: $0 [options]
 
 Options:
   --with-obs    Also start observability cluster (jaeger/prometheus/grafana)
-  --skip-test   Skip smoke test after rebuild
+  --with-test   Run smoke test after rebuild (requires seeded data)
 EOF
             exit 0 ;;
         *) echo "Unknown option: $arg"; exit 1 ;;
@@ -39,11 +39,11 @@ sleep 5
 
 # ── [1/3] 停止所有容器并删除 volumes ──
 echo -e "\n\033[0;36m>>> [1/3] Stopping all containers + removing volumes...\033[0m"
-docker compose -f "$COMPOSE_FILE" down -v --remove-orphans
+docker compose -f "$COMPOSE_FILE" --profile observability down -v --remove-orphans
 
 # ── [2/3] 全量重建所有集群 ──
 echo -e "\n\033[0;36m>>> [2/3] Rebuilding all clusters...\033[0m"
-REBUILD_ARGS="--skip-test"   # reset-env 自己控制是否跑测试
+REBUILD_ARGS=""
 $WITH_OBS && REBUILD_ARGS="$REBUILD_ARGS --with-obs"
 bash "$SCRIPT_DIR/rebuild.sh" $REBUILD_ARGS
 
@@ -52,7 +52,7 @@ if ! $SKIP_TEST; then
     echo -e "\n\033[0;36m>>> [3/3] Running smoke test...\033[0m"
     bash "$SCRIPT_DIR/smoke-test.sh"
 else
-    echo -e "\n\033[0;90m>>> [3/3] Smoke test skipped (--skip-test)\033[0m"
+    echo -e "\n\033[0;90m>>> [3/3] Smoke test skipped (use --with-test to enable)\033[0m"
 fi
 
 echo -e "\n\033[1;32m✔  Environment reset complete.\033[0m"

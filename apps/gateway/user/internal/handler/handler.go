@@ -17,6 +17,7 @@ import (
 	"flashsale/pkg/base/grpcerr"
 	"flashsale/pkg/base/responsex"
 	"flashsale/pkg/base/rpcmeta"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -35,6 +36,7 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	mux.Handle("GET /api/v1/user/profile", middleware.AuthRequired(svcCtx, http.HandlerFunc(h.GetProfile)))
 	mux.Handle("PATCH /api/v1/user/nickname", middleware.AuthRequired(svcCtx, http.HandlerFunc(h.UpdateNickname)))
 	mux.Handle("DELETE /api/v1/user", middleware.AuthRequired(svcCtx, http.HandlerFunc(h.DeleteUser)))
+	mux.Handle("PUT /api/v1/user/password", middleware.AuthRequired(svcCtx, http.HandlerFunc(h.ChangePassword)))
 	mux.HandleFunc("GET /api/v1/products", ph.ListProducts)
 	mux.HandleFunc("GET /api/v1/products/{product_id}", ph.GetProduct)
 	mux.Handle("POST /api/v1/orders", middleware.AuthRequired(svcCtx, http.HandlerFunc(oh.CreateOrder)))
@@ -189,6 +191,41 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
 	resp, err := h.svcCtx.UserRPCCli.DeleteUser(rpcCtx, &pb.DeleteUserReq{UserId: uid})
+	if err != nil {
+		writeRPCFail(w, err)
+		return
+	}
+	writeOK(w, resp)
+}
+
+// ChangePassword 修改当前登录用户密码。
+func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	uid, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		writeFail(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证信息缺失"))
+		return
+	}
+	token, ok := middleware.AccessTokenFromContext(r.Context())
+	if !ok {
+		writeFail(w, http.StatusUnauthorized, errorx.New(errorx.CodeAuthUnauthorized, "认证令牌缺失"))
+		return
+	}
+	var req struct {
+		OldPassword string `json:"old_password"`
+		NewPassword string `json:"new_password"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysBadRequest, "请求体非法", err))
+		return
+	}
+	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	defer cancel()
+	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
+	resp, err := h.svcCtx.UserRPCCli.ChangePassword(rpcCtx, &pb.ChangePasswordReq{
+		UserId:      uid,
+		OldPassword: req.OldPassword,
+		NewPassword: req.NewPassword,
+	})
 	if err != nil {
 		writeRPCFail(w, err)
 		return

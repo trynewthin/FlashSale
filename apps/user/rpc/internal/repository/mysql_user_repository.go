@@ -9,16 +9,18 @@ import (
 	"time"
 
 	"flashsale/apps/user/rpc/internal/model"
+
 	mysqlDriver "github.com/go-sql-driver/mysql"
 )
 
 const (
-	insertUserSQL       = "INSERT INTO users (id, phone, password_hash, nickname, status) VALUES (?, ?, ?, ?, 1)"
-	findByPhoneSQL      = "SELECT id, phone, password_hash, nickname, status, last_login_at, last_login_ip, deleted_at, created_at, updated_at FROM users WHERE phone = ? AND deleted_at IS NULL LIMIT 1"
-	findByIDSQL         = "SELECT id, phone, password_hash, nickname, status, last_login_at, last_login_ip, deleted_at, created_at, updated_at FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1"
-	updateNicknameSQL   = "UPDATE users SET nickname = ? WHERE id = ? AND deleted_at IS NULL"
-	updateLoginAuditSQL = "UPDATE users SET last_login_at = ?, last_login_ip = ? WHERE id = ? AND deleted_at IS NULL"
-	softDeleteSQL       = "UPDATE users SET deleted_at = ?, status = 0 WHERE id = ? AND deleted_at IS NULL"
+	insertUserSQL         = "INSERT INTO users (id, phone, password_hash, nickname, status) VALUES (?, ?, ?, ?, 1)"
+	findByPhoneSQL        = "SELECT id, phone, password_hash, nickname, status, last_login_at, last_login_ip, deleted_at, created_at, updated_at FROM users WHERE phone = ? AND deleted_at IS NULL LIMIT 1"
+	findByIDSQL           = "SELECT id, phone, password_hash, nickname, status, last_login_at, last_login_ip, deleted_at, created_at, updated_at FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1"
+	updateNicknameSQL     = "UPDATE users SET nickname = ? WHERE id = ? AND deleted_at IS NULL"
+	updateLoginAuditSQL   = "UPDATE users SET last_login_at = ?, last_login_ip = ? WHERE id = ? AND deleted_at IS NULL"
+	softDeleteSQL         = "UPDATE users SET deleted_at = ?, status = 0 WHERE id = ? AND deleted_at IS NULL"
+	updatePasswordHashSQL = "UPDATE users SET password_hash = ? WHERE id = ? AND deleted_at IS NULL"
 )
 
 // MySQLUserRepository 是 UserRepository 的 MySQL 实现。
@@ -161,4 +163,101 @@ func (r *MySQLUserRepository) findOne(ctx context.Context, query string, arg any
 		m.DeletedAt = &deletedAt.Time
 	}
 	return &m, nil
+}
+
+// UpdatePasswordHash 更新用户密码哈希。
+func (r *MySQLUserRepository) UpdatePasswordHash(ctx context.Context, userID int64, passwordHash string) error {
+	if r == nil || r.db == nil {
+		return fmt.Errorf("repository db is nil")
+	}
+	ret, err := r.db.ExecContext(ctx, updatePasswordHashSQL, passwordHash, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := ret.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+// ListUsers 分页查询用户列表。
+func (r *MySQLUserRepository) ListUsers(ctx context.Context, query UserListQuery) ([]*model.User, int64, error) {
+	if r == nil || r.db == nil {
+		return nil, 0, fmt.Errorf("repository db is nil")
+	}
+
+	where := "deleted_at IS NULL"
+	args := make([]any, 0, 4)
+
+	if query.Status >= 0 {
+		where += " AND status = ?"
+		args = append(args, query.Status)
+	}
+	if query.Keyword != "" {
+		where += " AND (phone LIKE ? OR nickname LIKE ?)"
+		kw := "%" + query.Keyword + "%"
+		args = append(args, kw, kw)
+	}
+
+	// count
+	var total int64
+	countSQL := "SELECT COUNT(*) FROM users WHERE " + where
+	if err := r.db.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if total == 0 {
+		return []*model.User{}, 0, nil
+	}
+
+	// list
+	offset := (query.Page - 1) * query.PageSize
+	listSQL := "SELECT id, phone, password_hash, nickname, status, last_login_at, last_login_ip, deleted_at, created_at, updated_at FROM users WHERE " + where + " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	listArgs := append(args, query.PageSize, offset)
+	rows, err := r.db.QueryContext(ctx, listSQL, listArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var users []*model.User
+	for rows.Next() {
+		var (
+			m           model.User
+			lastLoginAt sql.NullTime
+			lastLoginIP sql.NullString
+			deletedAt   sql.NullTime
+		)
+		if err := rows.Scan(
+			&m.ID,
+			&m.Phone,
+			&m.PasswordHash,
+			&m.Nickname,
+			&m.Status,
+			&lastLoginAt,
+			&lastLoginIP,
+			&deletedAt,
+			&m.CreatedAt,
+			&m.UpdatedAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		if lastLoginAt.Valid {
+			m.LastLoginAt = &lastLoginAt.Time
+		}
+		if lastLoginIP.Valid {
+			m.LastLoginIP = lastLoginIP.String
+		}
+		if deletedAt.Valid {
+			m.DeletedAt = &deletedAt.Time
+		}
+		users = append(users, &m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return users, total, nil
 }

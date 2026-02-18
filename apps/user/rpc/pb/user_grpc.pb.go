@@ -19,18 +19,21 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserRpc_Register_FullMethodName       = "/user.UserRpc/Register"
-	UserRpc_Login_FullMethodName          = "/user.UserRpc/Login"
-	UserRpc_GetProfile_FullMethodName     = "/user.UserRpc/GetProfile"
-	UserRpc_UpdateNickname_FullMethodName = "/user.UserRpc/UpdateNickname"
-	UserRpc_DeleteUser_FullMethodName     = "/user.UserRpc/DeleteUser"
+	UserRpc_Register_FullMethodName          = "/user.UserRpc/Register"
+	UserRpc_Login_FullMethodName             = "/user.UserRpc/Login"
+	UserRpc_GetProfile_FullMethodName        = "/user.UserRpc/GetProfile"
+	UserRpc_UpdateNickname_FullMethodName    = "/user.UserRpc/UpdateNickname"
+	UserRpc_DeleteUser_FullMethodName        = "/user.UserRpc/DeleteUser"
+	UserRpc_ChangePassword_FullMethodName    = "/user.UserRpc/ChangePassword"
+	UserRpc_ListUsers_FullMethodName         = "/user.UserRpc/ListUsers"
+	UserRpc_ResetUserPassword_FullMethodName = "/user.UserRpc/ResetUserPassword"
 )
 
 // UserRpcClient is the client API for UserRpc service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// UserRpc 定义普通用户模块一期 RPC 能力。
+// UserRpc 定义普通用户模块 RPC 能力。
 type UserRpcClient interface {
 	// Register 用户注册并返回访问令牌。
 	Register(ctx context.Context, in *RegisterReq, opts ...grpc.CallOption) (*AuthResp, error)
@@ -42,6 +45,12 @@ type UserRpcClient interface {
 	UpdateNickname(ctx context.Context, in *UpdateNicknameReq, opts ...grpc.CallOption) (*ProfileResp, error)
 	// DeleteUser 软删除用户。
 	DeleteUser(ctx context.Context, in *DeleteUserReq, opts ...grpc.CallOption) (*DeleteUserResp, error)
+	// ChangePassword 用户修改密码（需提供旧密码验证）。
+	ChangePassword(ctx context.Context, in *ChangePasswordReq, opts ...grpc.CallOption) (*ChangePasswordResp, error)
+	// ListUsers 分页查询用户列表（管理端调用）。
+	ListUsers(ctx context.Context, in *ListUsersReq, opts ...grpc.CallOption) (*ListUsersResp, error)
+	// ResetUserPassword 管理端重置用户密码。
+	ResetUserPassword(ctx context.Context, in *ResetUserPasswordReq, opts ...grpc.CallOption) (*ResetUserPasswordResp, error)
 }
 
 type userRpcClient struct {
@@ -102,11 +111,41 @@ func (c *userRpcClient) DeleteUser(ctx context.Context, in *DeleteUserReq, opts 
 	return out, nil
 }
 
+func (c *userRpcClient) ChangePassword(ctx context.Context, in *ChangePasswordReq, opts ...grpc.CallOption) (*ChangePasswordResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChangePasswordResp)
+	err := c.cc.Invoke(ctx, UserRpc_ChangePassword_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userRpcClient) ListUsers(ctx context.Context, in *ListUsersReq, opts ...grpc.CallOption) (*ListUsersResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUsersResp)
+	err := c.cc.Invoke(ctx, UserRpc_ListUsers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userRpcClient) ResetUserPassword(ctx context.Context, in *ResetUserPasswordReq, opts ...grpc.CallOption) (*ResetUserPasswordResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResetUserPasswordResp)
+	err := c.cc.Invoke(ctx, UserRpc_ResetUserPassword_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserRpcServer is the server API for UserRpc service.
 // All implementations must embed UnimplementedUserRpcServer
 // for forward compatibility.
 //
-// UserRpc 定义普通用户模块一期 RPC 能力。
+// UserRpc 定义普通用户模块 RPC 能力。
 type UserRpcServer interface {
 	// Register 用户注册并返回访问令牌。
 	Register(context.Context, *RegisterReq) (*AuthResp, error)
@@ -118,6 +157,12 @@ type UserRpcServer interface {
 	UpdateNickname(context.Context, *UpdateNicknameReq) (*ProfileResp, error)
 	// DeleteUser 软删除用户。
 	DeleteUser(context.Context, *DeleteUserReq) (*DeleteUserResp, error)
+	// ChangePassword 用户修改密码（需提供旧密码验证）。
+	ChangePassword(context.Context, *ChangePasswordReq) (*ChangePasswordResp, error)
+	// ListUsers 分页查询用户列表（管理端调用）。
+	ListUsers(context.Context, *ListUsersReq) (*ListUsersResp, error)
+	// ResetUserPassword 管理端重置用户密码。
+	ResetUserPassword(context.Context, *ResetUserPasswordReq) (*ResetUserPasswordResp, error)
 	mustEmbedUnimplementedUserRpcServer()
 }
 
@@ -142,6 +187,15 @@ func (UnimplementedUserRpcServer) UpdateNickname(context.Context, *UpdateNicknam
 }
 func (UnimplementedUserRpcServer) DeleteUser(context.Context, *DeleteUserReq) (*DeleteUserResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteUser not implemented")
+}
+func (UnimplementedUserRpcServer) ChangePassword(context.Context, *ChangePasswordReq) (*ChangePasswordResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ChangePassword not implemented")
+}
+func (UnimplementedUserRpcServer) ListUsers(context.Context, *ListUsersReq) (*ListUsersResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListUsers not implemented")
+}
+func (UnimplementedUserRpcServer) ResetUserPassword(context.Context, *ResetUserPasswordReq) (*ResetUserPasswordResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResetUserPassword not implemented")
 }
 func (UnimplementedUserRpcServer) mustEmbedUnimplementedUserRpcServer() {}
 func (UnimplementedUserRpcServer) testEmbeddedByValue()                 {}
@@ -254,6 +308,60 @@ func _UserRpc_DeleteUser_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserRpc_ChangePassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangePasswordReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserRpcServer).ChangePassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserRpc_ChangePassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserRpcServer).ChangePassword(ctx, req.(*ChangePasswordReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserRpc_ListUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUsersReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserRpcServer).ListUsers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserRpc_ListUsers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserRpcServer).ListUsers(ctx, req.(*ListUsersReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserRpc_ResetUserPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetUserPasswordReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserRpcServer).ResetUserPassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserRpc_ResetUserPassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserRpcServer).ResetUserPassword(ctx, req.(*ResetUserPasswordReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserRpc_ServiceDesc is the grpc.ServiceDesc for UserRpc service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -280,6 +388,18 @@ var UserRpc_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteUser",
 			Handler:    _UserRpc_DeleteUser_Handler,
+		},
+		{
+			MethodName: "ChangePassword",
+			Handler:    _UserRpc_ChangePassword_Handler,
+		},
+		{
+			MethodName: "ListUsers",
+			Handler:    _UserRpc_ListUsers_Handler,
+		},
+		{
+			MethodName: "ResetUserPassword",
+			Handler:    _UserRpc_ResetUserPassword_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

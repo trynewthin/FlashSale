@@ -4,7 +4,7 @@ package user;
 
 option go_package = "flashsale/apps/user/rpc/pb;pb";
 
-// UserRpc 定义普通用户模块一期 RPC 能力。
+// UserRpc 定义普通用户模块 RPC 能力。
 service UserRpc {
   // Register 用户注册并返回访问令牌。
   rpc Register (RegisterReq) returns (AuthResp);
@@ -16,6 +16,12 @@ service UserRpc {
   rpc UpdateNickname (UpdateNicknameReq) returns (ProfileResp);
   // DeleteUser 软删除用户。
   rpc DeleteUser (DeleteUserReq) returns (DeleteUserResp);
+  // ChangePassword 用户修改密码（需提供旧密码验证）。
+  rpc ChangePassword (ChangePasswordReq) returns (ChangePasswordResp);
+  // ListUsers 分页查询用户列表（管理端调用）。
+  rpc ListUsers (ListUsersReq) returns (ListUsersResp);
+  // ResetUserPassword 管理端重置用户密码。
+  rpc ResetUserPassword (ResetUserPasswordReq) returns (ResetUserPasswordResp);
 }
 
 message RegisterReq {
@@ -42,6 +48,50 @@ message UpdateNicknameReq {
 
 message DeleteUserReq {
   int64 user_id = 1;
+}
+
+message ChangePasswordReq {
+  int64 user_id = 1;
+  string old_password = 2;
+  string new_password = 3;
+}
+
+message ChangePasswordResp {
+  bool success = 1;
+}
+
+message ListUsersReq {
+  int64 page = 1;
+  int64 page_size = 2;
+  string keyword = 3;
+  int32 status = 4;
+}
+
+message ListUsersResp {
+  repeated UserView list = 1;
+  int64 total = 2;
+  int64 page = 3;
+  int64 page_size = 4;
+}
+
+message UserView {
+  int64 user_id = 1;
+  string phone = 2;
+  string nickname = 3;
+  int32 status = 4;
+  int64 last_login_at_unix = 5;
+  string last_login_ip = 6;
+  int64 created_at_unix = 7;
+  int64 updated_at_unix = 8;
+}
+
+message ResetUserPasswordReq {
+  int64 user_id = 1;
+  string new_password = 2;
+}
+
+message ResetUserPasswordResp {
+  bool success = 1;
 }
 
 message AuthResp {

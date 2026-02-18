@@ -66,3 +66,14 @@ func issueAccessToken(svcCtx *svc.ServiceContext, user *model.User) (string, int
 	}
 	return token, expiresIn, nil
 }
+
+// normalizePagination 规范化分页参数。
+func normalizePagination(page, pageSize int64) (int64, int64) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 20
+	}
+	return page, pageSize
+}

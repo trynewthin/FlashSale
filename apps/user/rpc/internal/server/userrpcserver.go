@@ -79,3 +79,36 @@ func (s *UserRpcServer) DeleteUser(ctx context.Context, in *pb.DeleteUserReq) (*
 	}
 	return resp, nil
 }
+
+// ChangePassword 用户修改密码。
+func (s *UserRpcServer) ChangePassword(ctx context.Context, in *pb.ChangePasswordReq) (*pb.ChangePasswordResp, error) {
+	if err := authorizeTargetUser(ctx, in.GetUserId()); err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	l := logic.NewChangePasswordLogic(ctx, s.svcCtx)
+	resp, err := l.ChangePassword(in)
+	if err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	return resp, nil
+}
+
+// ListUsers 分页查询用户列表（管理端调用，无用户鉴权）。
+func (s *UserRpcServer) ListUsers(ctx context.Context, in *pb.ListUsersReq) (*pb.ListUsersResp, error) {
+	l := logic.NewListUsersLogic(ctx, s.svcCtx)
+	resp, err := l.ListUsers(in)
+	if err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	return resp, nil
+}
+
+// ResetUserPassword 管理端重置用户密码（无用户鉴权）。
+func (s *UserRpcServer) ResetUserPassword(ctx context.Context, in *pb.ResetUserPasswordReq) (*pb.ResetUserPasswordResp, error) {
+	l := logic.NewResetUserPasswordLogic(ctx, s.svcCtx)
+	resp, err := l.ResetUserPassword(in)
+	if err != nil {
+		return nil, grpcerr.ToStatus(err)
+	}
+	return resp, nil
+}

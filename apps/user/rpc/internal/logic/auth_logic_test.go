@@ -12,6 +12,7 @@ import (
 	"flashsale/apps/user/rpc/pb"
 	baseauth "flashsale/pkg/base/authx"
 	"flashsale/pkg/base/errorx"
+
 	"github.com/bwmarrin/snowflake"
 	mysqlDriver "github.com/go-sql-driver/mysql"
 )
@@ -101,6 +102,30 @@ func (m *memoryUserRepo) SoftDelete(_ context.Context, userID int64, at time.Tim
 		return nil
 	}
 	return repository.ErrUserNotFound
+}
+
+// UpdatePasswordHash 更新密码哈希。
+func (m *memoryUserRepo) UpdatePasswordHash(_ context.Context, userID int64, passwordHash string) error {
+	if user, ok := m.usersByID[userID]; ok {
+		if m.deleted[userID] {
+			return repository.ErrUserNotFound
+		}
+		user.PasswordHash = passwordHash
+		return nil
+	}
+	return repository.ErrUserNotFound
+}
+
+// ListUsers 分页查询用户（测试桩）。
+func (m *memoryUserRepo) ListUsers(_ context.Context, _ repository.UserListQuery) ([]*model.User, int64, error) {
+	var users []*model.User
+	for _, u := range m.usersByID {
+		if !m.deleted[u.ID] {
+			cp := *u
+			users = append(users, &cp)
+		}
+	}
+	return users, int64(len(users)), nil
 }
 
 // TestRegisterAndLoginFlow 覆盖注册、登录与 token 域隔离。

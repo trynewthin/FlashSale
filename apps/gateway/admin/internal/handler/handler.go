@@ -112,6 +112,14 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainUserManagement, http.HandlerFunc(h.DeleteUser))),
 	)
 	mux.Handle(
+		"GET /api/v1/admin/users",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainUserManagement, http.HandlerFunc(h.ListUsers))),
+	)
+	mux.Handle(
+		"POST /api/v1/admin/users/{user_id}/reset-password",
+		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainUserManagement, http.HandlerFunc(h.ResetUserPassword))),
+	)
+	mux.Handle(
 		"POST /api/v1/admin/products",
 		middleware.AuthRequired(svcCtx, middleware.RequireDomain(svcCtx, authz.RoleDomainProductManagement, http.HandlerFunc(ph.CreateProduct))),
 	)
@@ -316,6 +324,62 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
 	resp, err := h.svcCtx.UserRPCCli.DeleteUser(rpcCtx, &pb.DeleteUserReq{UserId: userID})
+	if err != nil {
+		writeRPCFail(w, err)
+		return
+	}
+	writeOK(w, resp)
+}
+
+// ListUsers 分页查询用户列表（管理员侧）。
+func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	if h == nil || h.svcCtx == nil || h.svcCtx.UserRPCCli == nil {
+		writeFail(w, http.StatusInternalServerError, errorx.New(errorx.CodeSysInternal, "gateway not initialized"))
+		return
+	}
+	page := handlerx.ParseQueryInt64(r, "page", 1)
+	pageSize := handlerx.ParseQueryInt64(r, "page_size", 20)
+	keyword := r.URL.Query().Get("keyword")
+	status := handlerx.ParseQueryInt64(r, "status", -1)
+	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	defer cancel()
+	resp, err := h.svcCtx.UserRPCCli.ListUsers(rpcCtx, &pb.ListUsersReq{
+		Page:     page,
+		PageSize: pageSize,
+		Keyword:  keyword,
+		Status:   int32(status),
+	})
+	if err != nil {
+		writeRPCFail(w, err)
+		return
+	}
+	writeOK(w, resp)
+}
+
+// ResetUserPassword 重置指定用户密码（管理员侧）。
+func (h *AdminHandler) ResetUserPassword(w http.ResponseWriter, r *http.Request) {
+	userID, ok := parsePathUserID(r)
+	if !ok {
+		writeFail(w, http.StatusBadRequest, errorx.New(errorx.CodeSysBadRequest, "user_id 非法"))
+		return
+	}
+	if h == nil || h.svcCtx == nil || h.svcCtx.UserRPCCli == nil {
+		writeFail(w, http.StatusInternalServerError, errorx.New(errorx.CodeSysInternal, "gateway not initialized"))
+		return
+	}
+	var req struct {
+		NewPassword string `json:"new_password"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeFail(w, http.StatusBadRequest, errorx.Wrap(errorx.CodeSysBadRequest, "请求体非法", err))
+		return
+	}
+	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
+	defer cancel()
+	resp, err := h.svcCtx.UserRPCCli.ResetUserPassword(rpcCtx, &pb.ResetUserPasswordReq{
+		UserId:      userID,
+		NewPassword: req.NewPassword,
+	})
 	if err != nil {
 		writeRPCFail(w, err)
 		return

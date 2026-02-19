@@ -5,7 +5,7 @@ DevServer:
   Enabled: true
   Port: 6060
 Timeout: 8000
-BaseConfigPath: configs/local/dev.yaml
+BaseConfigPath: configs/dev.yaml
 
 Telemetry:
   Name: order.rpc

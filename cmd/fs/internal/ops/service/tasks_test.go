@@ -10,7 +10,7 @@ import (
 func TestBuildTasks_ContainsExpectedTasks(t *testing.T) {
 	env := &EnvContext{
 		RepoRoot:        "/tmp/test-repo",
-		DefaultEnvFile:  "configs/local/dev.env",
+		DefaultEnvFile:  "configs/deploy.env",
 		AdminGatewayURL: "http://127.0.0.1:8083",
 		UserGatewayURL:  "http://127.0.0.1:8082",
 		DeploymentMode:  model.DeploymentModeHostProcess,
@@ -64,7 +64,7 @@ func TestBuildTasks_SeedInjectsGatewayURLs(t *testing.T) {
 func TestBuildTasks_EnvFileInjected(t *testing.T) {
 	env := &EnvContext{
 		RepoRoot:        "/tmp/test-repo",
-		DefaultEnvFile:  "configs/local/dev.env",
+		DefaultEnvFile:  "configs/deploy.env",
 		AdminGatewayURL: "http://127.0.0.1:8083",
 		UserGatewayURL:  "http://127.0.0.1:8082",
 	}
@@ -72,7 +72,7 @@ func TestBuildTasks_EnvFileInjected(t *testing.T) {
 	tasks := BuildTasks(env)
 	task := tasks["env.start"]
 	args := strings.Join(task.DefaultArgs, " ")
-	if !strings.Contains(args, "--env-file=configs/local/dev.env") {
+	if !strings.Contains(args, "--env-file=configs/deploy.env") {
 		t.Fatalf("env.start 缺少 --env-file 注入，args=%q", args)
 	}
 }

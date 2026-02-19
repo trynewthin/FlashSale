@@ -267,9 +267,7 @@ func DetectComposeContext(repoRoot string) model.ComposeContext {
 
 	envCandidates := []string{
 		strings.TrimSpace(os.Getenv("FLASHSALE_APP_ENV_FILE")),
-		filepath.Join("configs", "prod", "server.env"),
-		filepath.Join("configs", "prod", "prod.env"),
-		filepath.Join("configs", "local", "dev.env"),
+		filepath.Join("configs", "deploy.env"),
 	}
 	for _, cand := range envCandidates {
 		if strings.TrimSpace(cand) == "" {

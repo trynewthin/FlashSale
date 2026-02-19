@@ -180,7 +180,7 @@ type perfGlobalArgs struct {
 // extractPerfGlobalArgs 从参数中提取全局控制参数，并返回剔除后的参数列表。
 func extractPerfGlobalArgs(args []string) (perfGlobalArgs, []string, error) {
 	global := perfGlobalArgs{
-		EnvFile: "configs/local/dev.env",
+		EnvFile: "configs/deploy.env",
 	}
 	cleanArgs := make([]string, 0, len(args))
 	for index := 0; index < len(args); index++ {
@@ -297,12 +297,12 @@ func setEnvFromFileIfEmpty(key, path string) {
 // printPerfUsage 打印压测子命令帮助。
 func printPerfUsage() {
 	fmt.Print(`fs perf 用法:
-  fs perf [--env-file configs/local/dev.env] prepare [--skip-smoke] [--skip-seed] [--base-url http://127.0.0.1:18000]
-  fs perf [--env-file configs/local/dev.env] purchase-stress [seckillload flags...]
-  fs perf [--env-file configs/local/dev.env] idempotency [seckillload flags...]
-  fs perf [--env-file configs/local/dev.env] track-stress [seckillload flags...]
-  fs perf [--env-file configs/local/dev.env] purchase-open [seckillload flags...]
-  fs perf [--env-file configs/local/dev.env] track-open [seckillload flags...]
+  fs perf [--env-file configs/deploy.env] prepare [--skip-smoke] [--skip-seed] [--base-url http://127.0.0.1:18000]
+  fs perf [--env-file configs/deploy.env] purchase-stress [seckillload flags...]
+  fs perf [--env-file configs/deploy.env] idempotency [seckillload flags...]
+  fs perf [--env-file configs/deploy.env] track-stress [seckillload flags...]
+  fs perf [--env-file configs/deploy.env] purchase-open [seckillload flags...]
+  fs perf [--env-file configs/deploy.env] track-open [seckillload flags...]
 
 说明:
   - 压测固定使用临时数据模式：自动创建临时商品/活动/活动商品，默认结束后自动清理。

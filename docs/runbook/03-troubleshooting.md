@@ -57,7 +57,7 @@
 排查：
 
 1. `go run ./cmd/fs env up` 确保 MySQL 已就绪。
-2. 检查 `configs/local/dev.env` 的 MySQL 用户与密码。
+2. 检查 `configs/deploy.env` 的 MySQL 用户与密码。
 3. 如脏版本，先评估是否需要 `migrate-down --all` 后重建。
 
 ## 6. 快速健康检查命令

@@ -1,7 +1,7 @@
 Name: order-rpc
 ListenOn: 0.0.0.0:8085
 Timeout: 8000
-BaseConfigPath: configs/local/dev.yaml
+BaseConfigPath: configs/dev.yaml
 ProductRPC:
   Target: 127.0.0.1:8084
 SeckillCreateMaxInFlight: 448

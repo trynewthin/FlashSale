@@ -71,7 +71,7 @@ func runPerfPrepare(args []string, envFile string) error {
 		return err
 	}
 	if strings.TrimSpace(envFile) == "" {
-		envFile = "configs/local/dev.env"
+		envFile = "configs/deploy.env"
 	}
 	if strings.TrimSpace(envFile) != "-" {
 		_ = devenv.Load(devenv.ResolvePath(repoRoot, envFile))

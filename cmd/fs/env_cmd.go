@@ -54,7 +54,7 @@ func runEnv(args []string) error {
 
 func runEnvUp(args []string) error {
 	fs := flag.NewFlagSet("env up", flag.ContinueOnError)
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	composeFile := fs.String("compose-file", "deploy/compose/docker-compose.yml", "compose 文件路径")
 	observability := fs.Bool("observability", false, "启用可观测 profile")
 	if err := fs.Parse(args); err != nil {
@@ -86,7 +86,7 @@ func runEnvUp(args []string) error {
 
 func runEnvDown(args []string) error {
 	fs := flag.NewFlagSet("env down", flag.ContinueOnError)
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	composeFile := fs.String("compose-file", "deploy/compose/docker-compose.yml", "compose 文件路径")
 	removeVolumes := fs.Bool("remove-volumes", false, "删除 volumes")
 	if err := fs.Parse(args); err != nil {
@@ -149,7 +149,7 @@ func runEnvOpsDown(args []string) error {
 
 func runEnvStart(args []string) error {
 	fs := flag.NewFlagSet("env start", flag.ContinueOnError)
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	composeFile := fs.String("compose-file", "deploy/compose/docker-compose.yml", "compose 文件路径")
 	observability := fs.Bool("observability", false, "启用可观测 profile")
 	skipMigrate := fs.Bool("skip-migrate", false, "跳过迁移")
@@ -179,7 +179,7 @@ func runEnvStart(args []string) error {
 
 func runEnvRestart(args []string) error {
 	fs := flag.NewFlagSet("env restart", flag.ContinueOnError)
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	composeFile := fs.String("compose-file", "deploy/compose/docker-compose.yml", "compose 文件路径")
 	removeVolumes := fs.Bool("remove-volumes", false, "删除 volumes（会清空 mysql/redis 数据）")
 	observability := fs.Bool("observability", false, "启用可观测 profile")
@@ -206,7 +206,7 @@ func runEnvRestart(args []string) error {
 
 func runEnvMigrateUp(args []string) error {
 	fs := flag.NewFlagSet("env migrate-up", flag.ContinueOnError)
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func runEnvMigrateUp(args []string) error {
 
 func runEnvMigrateDown(args []string) error {
 	fs := flag.NewFlagSet("env migrate-down", flag.ContinueOnError)
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	all := fs.Bool("all", false, "回滚全部")
 	steps := fs.Int("steps", 1, "回滚步数")
 	if err := fs.Parse(args); err != nil {
@@ -292,8 +292,8 @@ func buildMigrateDSN(host string, port int, user, pass, db string) string {
 
 func runEnvSmoke(args []string) error {
 	fs := flag.NewFlagSet("env smoke", flag.ContinueOnError)
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
-	configPath := fs.String("config", "configs/local/dev.yaml", "smoke 配置文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
+	configPath := fs.String("config", "configs/dev.yaml", "smoke 配置文件")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -372,9 +372,9 @@ func printEnvUsage() {
   fs env down [--remove-volumes]
   fs env ops-up
   fs env ops-down
-  fs env start [--env-file configs/local/dev.env] [--compose-file deploy/compose/docker-compose.yml] [--observability] [--skip-migrate] [--skip-smoke]
-  fs env restart [--env-file configs/local/dev.env] [--compose-file deploy/compose/docker-compose.yml] [--remove-volumes] [--observability] [--skip-migrate] [--skip-smoke]
+  fs env start [--env-file configs/deploy.env] [--compose-file deploy/compose/docker-compose.yml] [--observability] [--skip-migrate] [--skip-smoke]
+  fs env restart [--env-file configs/deploy.env] [--compose-file deploy/compose/docker-compose.yml] [--remove-volumes] [--observability] [--skip-migrate] [--skip-smoke]
   fs env migrate-up
   fs env migrate-down [--steps 1 | --all]
-  fs env smoke [--env-file configs/local/dev.env]` + "\n")
+  fs env smoke [--env-file configs/deploy.env]` + "\n")
 }

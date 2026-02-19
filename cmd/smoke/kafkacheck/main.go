@@ -15,7 +15,7 @@ import (
 
 // main 执行 Kafka smoke 检查：启动消费协程、发送消息并等待回执。
 func main() {
-	configPath := flag.String("config", "configs/local/dev.yaml", "config file path")
+	configPath := flag.String("config", "configs/dev.yaml", "config file path")
 	timeout := flag.Duration("timeout", 20*time.Second, "consume timeout")
 	flag.Parse()
 

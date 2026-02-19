@@ -12,7 +12,7 @@ import (
 type Config struct {
 	Name           string `json:",default=admin-gateway"`
 	ListenOn       string `json:",default=0.0.0.0:8083"`
-	BaseConfigPath string `json:",default=configs/local/dev.yaml"`
+	BaseConfigPath string `json:",default=configs/dev.yaml"`
 	UserRPC        zrpc.RpcClientConf
 	AdminRPC       zrpc.RpcClientConf
 	ProductRPC     zrpc.RpcClientConf

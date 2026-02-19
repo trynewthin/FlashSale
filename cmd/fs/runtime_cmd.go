@@ -56,7 +56,7 @@ func runRuntime(args []string) error {
 
 func runRuntimeStartBackend(args []string) error {
 	fs := flag.NewFlagSet("runtime start-backend", flag.ContinueOnError)
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	killExisting := fs.Bool("kill-existing", true, "启动前先停止旧进程")
 	bootstrapAdmin := fs.Bool("bootstrap-admin", true, "启用超级管理员初始化")
 	bootstrapUsername := fs.String("bootstrap-username", "admin_root", "超级管理员用户名")
@@ -170,7 +170,7 @@ func runRuntimeStopBackend(args []string) error {
 
 func runRuntimeRestartBackend(args []string) error {
 	fs := flag.NewFlagSet("runtime restart-backend", flag.ContinueOnError)
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	portReadyTimeout := fs.Int("port-ready-timeout-sec", 90, "端口就绪超时秒")
 	bootstrapAdmin := fs.Bool("bootstrap-admin", true, "启用超级管理员初始化")
 	bootstrapUsername := fs.String("bootstrap-username", "admin_root", "超级管理员用户名")
@@ -293,7 +293,7 @@ func runRuntimeStopFrontend(args []string) error {
 
 func runRuntimeStartOpsControl(args []string) error {
 	fs := flag.NewFlagSet("runtime start-ops-control", flag.ContinueOnError)
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	addr := fs.String("addr", "0.0.0.0:18080", "监听地址")
 	authKeyEnv := fs.String("auth-key-env", "FLASHSALE_OPS_ACCESS_KEY", "访问密钥环境变量名")
 	allowEmptyKey := fs.Bool("allow-empty-key", false, "允许空密钥")

@@ -10,13 +10,13 @@ import (
 func TestNewEnvContext_HostMode(t *testing.T) {
 	// Windows 下 detectRunningInDocker() 永远返回 false，
 	// 所以这里测试的就是宿主机模式。
-	ctx := NewEnvContext("/tmp/test-repo", "configs/local/dev.env")
+	ctx := NewEnvContext("/tmp/test-repo", "configs/deploy.env")
 
 	if ctx.RepoRoot != "/tmp/test-repo" {
 		t.Fatalf("RepoRoot = %q, want /tmp/test-repo", ctx.RepoRoot)
 	}
-	if ctx.DefaultEnvFile != "configs/local/dev.env" {
-		t.Fatalf("DefaultEnvFile = %q, want configs/local/dev.env", ctx.DefaultEnvFile)
+	if ctx.DefaultEnvFile != "configs/deploy.env" {
+		t.Fatalf("DefaultEnvFile = %q, want configs/deploy.env", ctx.DefaultEnvFile)
 	}
 	if ctx.InDocker {
 		t.Fatal("InDocker should be false on Windows")

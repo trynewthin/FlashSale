@@ -49,7 +49,7 @@ func runDataClear(args []string) error {
 	clearAdmin := fs.Bool("clear-admin", false, "清空管理员账号与角色")
 	keepInfraTables := fs.Bool("keep-infra-tables", false, "保留 outbox/idempotency")
 	skipRedisFlush := fs.Bool("skip-redis-flush", false, "跳过 redis flush")
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func runDataClear(args []string) error {
 		return err
 	}
 	// 允许在容器/服务器上仅通过 environment 提供连接参数：--env-file=- 表示跳过加载 env 文件。
-	// 这能避免依赖本地 configs/local/dev.env（该文件默认不入库），也避免把敏感 env 文件写进镜像层。
+	// 这能避免依赖本地 configs/deploy.env（该文件默认不入库），也避免把敏感 env 文件写进镜像层。
 	if strings.TrimSpace(*envFile) != "-" {
 		if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
 			return err
@@ -73,7 +73,7 @@ func runDataClear(args []string) error {
 func runDataSeedOverwrite(args []string) error {
 	fs := flag.NewFlagSet("data seed-overwrite", flag.ContinueOnError)
 	force := fs.Bool("force", false, "确认覆写填充")
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	adminBaseURL := fs.String("admin-base-url", "http://127.0.0.1:8083", "管理网关地址")
 	userBaseURL := fs.String("user-base-url", "http://127.0.0.1:8082", "用户网关地址")
 	adminUsername := fs.String("admin-username", "admin_root", "管理员用户名")
@@ -600,7 +600,7 @@ func runDataSeedProducts(args []string) error {
 	fs := flag.NewFlagSet("data seed-products", flag.ContinueOnError)
 	force := fs.Bool("force", false, "确认执行")
 	count := fs.Int("count", 30, "要创建的商品数量")
-	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
+	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
 	adminBaseURL := fs.String("admin-base-url", "http://127.0.0.1:8083", "管理网关地址（用于登录和创建商品）")
 	nginxBaseURL := fs.String("nginx-base-url", "", "Nginx 地址（用于图片上传，走 /api/v1/admin/media/；默认与 admin-base-url 相同）")
 	adminUsername := fs.String("admin-username", "admin_root", "管理员用户名")

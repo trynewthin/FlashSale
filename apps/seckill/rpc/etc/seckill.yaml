@@ -1,7 +1,7 @@
 Name: seckill-rpc
 ListenOn: 0.0.0.0:8086
 Timeout: 8000
-BaseConfigPath: configs/local/dev.yaml
+BaseConfigPath: configs/dev.yaml
 SnowflakeNode: 6
 ProductRPC:
   Target: 127.0.0.1:8084

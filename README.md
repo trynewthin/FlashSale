@@ -95,7 +95,7 @@ docker compose -f deploy/compose/docker-compose.app.yml up -d --scale seckill-rp
 运维控制台与业务服务解耦，支持 Web 可视化与 CLI 双入口：
 
 ```powershell
-# 0) 配置访问密钥（建议写入 configs/local/dev.env）
+# 0) 配置访问密钥（建议写入 configs/deploy.env）
 $env:FLASHSALE_OPS_ACCESS_KEY="replace_me_strong_key"
 
 # 1) 启动独立可视化组件（容器日志与容器管理）
@@ -126,14 +126,14 @@ go run ./cmd/fs ops logs --job <job_id> --key-env FLASHSALE_OPS_ACCESS_KEY
 
 ## 端口与连接配置
 
-开发 CLI 统一读取：`configs/local/dev.env`
+开发 CLI 统一读取：`configs/deploy.env`
 
 - `FLASH_*`：Docker 对外端口
 - `FLASHSALE_*`：应用连接覆盖参数
 - `FLASH_MYSQL_ROOT_PASSWORD` / `FLASH_MYSQL_APP_PASSWORD`：数据库容器与应用账号密码
 - `FLASH_GRAFANA_ADMIN_USER` / `FLASH_GRAFANA_ADMIN_PASSWORD`：Grafana 管理员凭据
 
-如果本机端口被占用，只需修改 `configs/local/dev.env`，再执行 `fs` 命令即可。
+如果本机端口被占用，只需修改 `configs/deploy.env`，再执行 `fs` 命令即可。
 
 ## 组件版本
 

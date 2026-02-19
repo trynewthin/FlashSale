@@ -1,4 +1,4 @@
 Name: admin-rpc
 ListenOn: 0.0.0.0:8087
-BaseConfigPath: configs/local/dev.yaml
+BaseConfigPath: configs/dev.yaml
 SnowflakeNode: 7

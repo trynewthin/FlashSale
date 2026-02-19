@@ -2,5 +2,5 @@ Name: product.rpc
 ListenOn: 0.0.0.0:8084
 Mode: dev
 
-BaseConfigPath: configs/local/dev.yaml
+BaseConfigPath: configs/dev.yaml
 SnowflakeNode: 2

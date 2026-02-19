@@ -18,10 +18,10 @@ cd FlashSale
 
 ```powershell
 # 首次可复制模板
-Copy-Item configs/local/dev.env.example configs/local/dev.env
+Copy-Item configs/deploy.env.example configs/deploy.env
 ```
 
-> 非生产环境可直接使用默认值；如端口冲突，修改 `configs/local/dev.env` 的 `FLASH_*` 端口。
+> 非生产环境可直接使用默认值；如端口冲突，修改 `configs/deploy.env` 的 `FLASH_*` 端口。
 
 ## 4. 启动 Docker 基础环境
 

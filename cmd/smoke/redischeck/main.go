@@ -14,7 +14,7 @@ import (
 
 // main 执行 Redis smoke 检查：Ping、Set/Get、TryLock。
 func main() {
-	configPath := flag.String("config", "configs/local/dev.yaml", "config file path")
+	configPath := flag.String("config", "configs/dev.yaml", "config file path")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)

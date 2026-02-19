@@ -59,7 +59,7 @@ func TestExtractPerfGlobalArgs(t *testing.T) {
 		{
 			name:        "fallback is used",
 			args:        []string{"purchase-open", "-rate", "200"},
-			wantEnvFile: "configs/local/dev.env",
+			wantEnvFile: "configs/deploy.env",
 			wantArgs:    []string{"purchase-open", "-rate", "200"},
 		},
 	}

@@ -4,7 +4,7 @@ Mode: pro
 DevServer:
   Enabled: true
   Port: 6060
-BaseConfigPath: configs/local/dev.yaml
+BaseConfigPath: configs/dev.yaml
 SnowflakeNode: 1
 AccessTokenTTL: 24h
 

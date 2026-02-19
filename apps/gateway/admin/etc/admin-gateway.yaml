@@ -1,6 +1,6 @@
 Name: admin-gateway
 ListenOn: 0.0.0.0:8083
-BaseConfigPath: configs/local/dev.yaml
+BaseConfigPath: configs/dev.yaml
 
 UserRPC:
   Target: 127.0.0.1:8081

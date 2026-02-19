@@ -89,12 +89,11 @@ func runOpsServer(args []string) error {
 	if err != nil {
 		return err
 	}
-	// 选择默认 env-file：服务器优先 server.env，本地优先 dev.env。
+	// 选择默认 env-file：优先 deploy.env
 	chosenEnv := strings.TrimSpace(*defaultEnvFile)
 	if chosenEnv == "" {
 		candidates := []string{
-			filepath.Join(rootAbs, "configs", "prod", "server.env"),
-			filepath.Join(rootAbs, "configs", "local", "dev.env"),
+			filepath.Join(rootAbs, "configs", "deploy.env"),
 		}
 		for _, p := range candidates {
 			if _, err := os.Stat(p); err == nil {

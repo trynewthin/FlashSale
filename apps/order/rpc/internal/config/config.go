@@ -12,7 +12,7 @@ import (
 // Config 描述订单 RPC 服务启动配置。
 type Config struct {
 	zrpc.RpcServerConf
-	BaseConfigPath                    string `json:",default=configs/local/dev.yaml"`
+	BaseConfigPath                    string `json:",default=configs/dev.yaml"`
 	SnowflakeNode                     int64  `json:",default=3"`
 	ProductRPC                        zrpc.RpcClientConf
 	SeckillCreateMaxInFlight          int  `json:",default=128"`

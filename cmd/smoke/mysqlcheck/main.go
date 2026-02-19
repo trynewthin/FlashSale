@@ -15,7 +15,7 @@ import (
 
 // main 执行 MySQL smoke 检查：连接、Ping 和 SELECT 1。
 func main() {
-	configPath := flag.String("config", "configs/local/dev.yaml", "config file path")
+	configPath := flag.String("config", "configs/dev.yaml", "config file path")
 	timeout := flag.Duration("timeout", 5*time.Second, "ping timeout")
 	flag.Parse()
 

@@ -26,7 +26,7 @@ info()  { echo -e "  ${C_GRAY}$*${C_RESET}"; }
 # 直接透传参数，stderr 正常输出（compose progress 走 stderr，bash 不会误判）
 dc() {
     info "> docker compose $*"
-    docker compose -f "$COMPOSE_FILE" "$@"
+    docker compose --env-file "$REPO_ROOT/configs/deploy.env" -f "$COMPOSE_FILE" "$@"
     local rc=$?
     if [ $rc -ne 0 ]; then
         fail "docker compose failed (exit $rc): docker compose $*"

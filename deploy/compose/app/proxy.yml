@@ -39,11 +39,11 @@ services:
       FLASHSALE_ETCD_ENDPOINT: etcd:2379
       FLASHSALE_PROMETHEUS_ENDPOINT: http://prometheus:9090
       FLASHSALE_APP_COMPOSE_FILE: /app/deploy/compose/docker-compose.app.yml
-      FLASHSALE_APP_ENV_FILE: /app/configs/local/docker-app.env
+      FLASHSALE_APP_ENV_FILE: /app/configs/deploy.env
     command:
       - --addr=0.0.0.0:9100
       - --repo-root=/app
-      - --default-env-file=configs/local/docker-app.env
+      - --default-env-file=configs/deploy.env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ../../../log:/app/log

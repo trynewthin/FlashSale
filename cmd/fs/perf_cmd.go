@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"flashsale/cmd/fs/internal/devenv"
-	"flashsale/cmd/fs/internal/legacy"
 	"flashsale/cmd/fs/internal/platform"
 )
 
@@ -260,47 +259,21 @@ func isGatewayHealthy(baseURL string, timeout time.Duration) bool {
 
 // applyPerfDefaultsFromRunlogs 从最近 seed 结果读取默认压测参数。
 func applyPerfDefaultsFromRunlogs(repoRoot string) {
-	// 新版默认从 log/data 读取；为兼容旧版本，回退读取 .memory/runlogs。
-	allowLegacy := legacy.AllowLegacyMemory()
 	candidates := []struct {
-		key   string
-		paths []string
+		key  string
+		path string
 	}{
-		{"FLASHSALE_ACTIVITY_ID", []string{
-			filepath.Join(repoRoot, "log", "data", "perf.activity_id.txt"),
-		}},
-		{"FLASHSALE_ACTIVITY_ITEM_ID", []string{
-			filepath.Join(repoRoot, "log", "data", "perf.item_id.txt"),
-		}},
-		{"FLASHSALE_USER_TOKEN", []string{
-			filepath.Join(repoRoot, "log", "data", "user.token.txt"),
-		}},
-	}
-	if allowLegacy {
-		candidates[0].paths = append(candidates[0].paths, filepath.Join(repoRoot, ".memory", "runlogs", "perf.activity_id.txt"))
-		candidates[1].paths = append(candidates[1].paths, filepath.Join(repoRoot, ".memory", "runlogs", "perf.item_id.txt"))
-		candidates[2].paths = append(candidates[2].paths, filepath.Join(repoRoot, ".memory", "runlogs", "user.token.txt"))
+		{"FLASHSALE_ACTIVITY_ID", filepath.Join(repoRoot, "log", "data", "perf.activity_id.txt")},
+		{"FLASHSALE_ACTIVITY_ITEM_ID", filepath.Join(repoRoot, "log", "data", "perf.item_id.txt")},
+		{"FLASHSALE_USER_TOKEN", filepath.Join(repoRoot, "log", "data", "user.token.txt")},
 	}
 	for _, c := range candidates {
-		for _, p := range c.paths {
-			setEnvFromFileIfEmpty(c.key, p)
-			if strings.TrimSpace(os.Getenv(c.key)) != "" {
-				break
-			}
-		}
+		setEnvFromFileIfEmpty(c.key, c.path)
 	}
 	if strings.TrimSpace(os.Getenv("FLASHSALE_TOKENS_FILE")) == "" {
-		tokenCandidates := []string{
-			filepath.Join(repoRoot, "log", "data", "user.token.txt"),
-		}
-		if allowLegacy {
-			tokenCandidates = append(tokenCandidates, filepath.Join(repoRoot, ".memory", "runlogs", "user.token.txt"))
-		}
-		for _, tokenPath := range tokenCandidates {
-			if _, err := os.Stat(tokenPath); err == nil {
-				_ = os.Setenv("FLASHSALE_TOKENS_FILE", tokenPath)
-				break
-			}
+		tokenPath := filepath.Join(repoRoot, "log", "data", "user.token.txt")
+		if _, err := os.Stat(tokenPath); err == nil {
+			_ = os.Setenv("FLASHSALE_TOKENS_FILE", tokenPath)
 		}
 	}
 }
@@ -338,7 +311,7 @@ func printPerfUsage() {
   - 默认会执行压测前预检（网关健康、活动/商品可用性、购买场景 token 可用性）。
   - 可通过 --skip-preflight 跳过预检，通过 --auto-prepare 在预检失败后自动执行 prepare 后重试一次。
   - prepare 会按顺序执行：env smoke -> data seed-overwrite -> 预检确认，确保压测前置条件可用。
-  - 自动优先读取 log/data 中的 activity/item/token 默认值（兼容旧的 .memory/runlogs）。
+  - 自动从 log/data 读取 activity/item/token 默认值。
   - 其余参数与 cmd/perf/seckillload 完全一致，可直接透传。` + "\n")
 }
 

@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"flashsale/cmd/fs/internal/legacy"
 	"flashsale/cmd/fs/internal/logdir"
 	"flashsale/cmd/fs/internal/ops/model"
 )
@@ -50,22 +49,12 @@ func BuildStatusSnapshot(env *EnvContext) model.StatusSnapshot {
 		out.HTTP = hostProcessHTTPChecks(env)
 	}
 
-	seedCandidates := []string{
-		filepath.Join(logdir.DataDir(env.RepoRoot), "seed-overwrite.result.json"),
-	}
-	if legacy.AllowLegacyMemory() {
-		seedCandidates = append(seedCandidates,
-			filepath.Join(env.RepoRoot, ".memory", "runlogs", "seed-overwrite.result.json"),
-		)
-	}
-	for _, seedPath := range seedCandidates {
-		out.Files.SeedResultPath = seedPath
-		if _, err := os.Stat(seedPath); err == nil {
-			raw, err := os.ReadFile(seedPath)
-			if err == nil && json.Valid(raw) {
-				out.Files.SeedResultOK = true
-			}
-			break
+	seedPath := filepath.Join(logdir.DataDir(env.RepoRoot), "seed-overwrite.result.json")
+	out.Files.SeedResultPath = seedPath
+	if _, err := os.Stat(seedPath); err == nil {
+		raw, err := os.ReadFile(seedPath)
+		if err == nil && json.Valid(raw) {
+			out.Files.SeedResultOK = true
 		}
 	}
 

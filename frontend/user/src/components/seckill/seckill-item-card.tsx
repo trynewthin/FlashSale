@@ -6,6 +6,7 @@ import Counter from "@/components/Counter"
 import { useSeckillPurchaseMutation } from "@/hooks/user/use-seckill-hooks"
 import { useApiError } from "@/hooks/common/use-api-error"
 import { cdnUrl } from "@/lib/cdn"
+import { formatCent } from "@/lib/format"
 
 function discountText(origin: number, seckill: number) {
   const pct = Math.round((1 - seckill / origin) * 100)
@@ -117,7 +118,7 @@ export function SeckillItemCard({
               />
             </div>
             <span className="text-[11px] text-muted-foreground line-through">
-              ¥{(item.origin_price_cent / 100).toFixed(2)}
+              {formatCent(item.origin_price_cent)}
             </span>
           </div>
         </div>

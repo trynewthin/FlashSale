@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"flashsale/cmd/fs/internal/legacy"
 	"flashsale/cmd/fs/internal/ops/service"
 )
 
@@ -20,8 +19,7 @@ type LogsHandler struct {
 }
 
 func (h *LogsHandler) ListFiles(w http.ResponseWriter, r *http.Request) {
-	includeLegacy := ParseBoolQuery(r, "legacy", false) && legacy.AllowLegacyMemory()
-	files := service.ListServiceLogFiles(h.RepoRoot, includeLegacy)
+	files := service.ListServiceLogFiles(h.RepoRoot)
 
 	sort.Slice(files, func(i, j int) bool {
 		if files[i].RelPath == files[j].RelPath {
@@ -39,8 +37,7 @@ func (h *LogsHandler) GetTail(w http.ResponseWriter, r *http.Request) {
 		WriteErr(w, http.StatusBadRequest, "file_id 不能为空")
 		return
 	}
-	allowLegacy := ParseBoolQuery(r, "legacy", false) && legacy.AllowLegacyMemory()
-	path, rel, err := service.ResolveServiceLogPath(h.RepoRoot, fileID, allowLegacy)
+	path, rel, err := service.ResolveServiceLogPath(h.RepoRoot, fileID)
 	if err != nil {
 		WriteErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -74,8 +71,7 @@ func (h *LogsHandler) StreamLog(w http.ResponseWriter, r *http.Request) {
 		WriteErr(w, http.StatusBadRequest, "file_id 不能为空")
 		return
 	}
-	allowLegacy := ParseBoolQuery(r, "legacy", false) && legacy.AllowLegacyMemory()
-	path, rel, err := service.ResolveServiceLogPath(h.RepoRoot, fileID, allowLegacy)
+	path, rel, err := service.ResolveServiceLogPath(h.RepoRoot, fileID)
 	if err != nil {
 		WriteErr(w, http.StatusBadRequest, err.Error())
 		return

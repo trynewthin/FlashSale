@@ -8,13 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"flashsale/cmd/fs/internal/legacy"
 	"flashsale/cmd/fs/internal/ops/model"
 )
 
 // ListServiceLogFiles 列出可查看的服务日志文件。
-func ListServiceLogFiles(repoRoot string, includeLegacy bool) []model.ServiceLogFile {
-	roots := ServiceLogRoots(repoRoot, includeLegacy)
+func ListServiceLogFiles(repoRoot string) []model.ServiceLogFile {
+	roots := ServiceLogRoots(repoRoot)
 
 	var out []model.ServiceLogFile
 	for _, root := range roots {
@@ -53,22 +52,15 @@ func ListServiceLogFiles(repoRoot string, includeLegacy bool) []model.ServiceLog
 }
 
 // ServiceLogRoots 返回日志根目录列表。
-func ServiceLogRoots(repoRoot string, includeLegacy bool) []string {
-	roots := []string{
+func ServiceLogRoots(repoRoot string) []string {
+	return []string{
 		filepath.Join(repoRoot, "log", "services"),
 		filepath.Join(repoRoot, "log", "frontends"),
 	}
-	if includeLegacy {
-		roots = append(roots,
-			filepath.Join(repoRoot, ".memory", "runlogs", "services"),
-			filepath.Join(repoRoot, ".memory", "runlogs", "frontends"),
-		)
-	}
-	return roots
 }
 
 // ResolveServiceLogPath 解析日志文件 ID 为绝对路径（安全校验）。
-func ResolveServiceLogPath(repoRoot, fileID string, allowLegacy bool) (absPath string, relPath string, err error) {
+func ResolveServiceLogPath(repoRoot, fileID string) (absPath string, relPath string, err error) {
 	rawRel, err := DecodeServiceLogFileID(fileID)
 	if err != nil {
 		return "", "", fmt.Errorf("file_id 非法")
@@ -80,8 +72,7 @@ func ResolveServiceLogPath(repoRoot, fileID string, allowLegacy bool) (absPath s
 	rel := filepath.FromSlash(rawRel)
 	abs := filepath.Clean(filepath.Join(repoRoot, rel))
 
-	includeLegacy := allowLegacy && legacy.AllowLegacyMemory()
-	for _, root := range ServiceLogRoots(repoRoot, includeLegacy) {
+	for _, root := range ServiceLogRoots(repoRoot) {
 		if IsWithinDir(filepath.Clean(root), abs) {
 			if !IsAllowedServiceLogFilename(filepath.Base(abs)) {
 				return "", "", fmt.Errorf("不允许读取该文件")

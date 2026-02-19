@@ -24,7 +24,7 @@ export function LoginPage() {
   const [regNickname, setRegNickname] = useState("")
 
   if (isAuthed) {
-    navigate("/products", { replace: true })
+    navigate("/", { replace: true })
     return null
   }
 
@@ -32,7 +32,7 @@ export function LoginPage() {
     e.preventDefault()
     loginMutation.mutate(
       { phone: loginPhone, password: loginPassword },
-      { onSuccess: () => navigate("/products", { replace: true }) }
+      { onSuccess: () => navigate("/", { replace: true }) }
     )
   }
 
@@ -40,7 +40,7 @@ export function LoginPage() {
     e.preventDefault()
     registerMutation.mutate(
       { phone: regPhone, password: regPassword, nickname: regNickname },
-      { onSuccess: () => navigate("/products", { replace: true }) }
+      { onSuccess: () => navigate("/", { replace: true }) }
     )
   }
 

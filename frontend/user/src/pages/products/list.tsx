@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 
 import { useProductsQuery } from "@/hooks/user/use-product-hooks"
+import { cdnUrl } from "@/lib/cdn"
 import { useApiError } from "@/hooks/common/use-api-error"
 
-function formatCent(cent: number) { return `¥${(cent / 100).toFixed(2)}` }
+import { formatCent } from "@/lib/format"
 
 export function ProductListPage() {
   const navigate = useNavigate()
@@ -54,7 +55,7 @@ export function ProductListPage() {
             onClick={() => navigate(`/products/${p.product_id}`)}>
             {p.main_image && (
               <div className="aspect-square bg-muted">
-                <img src={p.main_image} alt={p.name} className="size-full object-cover" />
+                <img src={cdnUrl(p.main_image)} alt={p.name} className="size-full object-cover" />
               </div>
             )}
             {!p.main_image && <div className="flex aspect-square items-center justify-center bg-muted text-muted-foreground text-xs">暂无图片</div>}

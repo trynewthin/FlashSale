@@ -262,6 +262,7 @@ func (h *OrderUserHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 	}
 	page, pageSize := handlerx.ParsePagination(r, 1, 20, 100)
 	status := handlerx.ParseQueryInt64(r, "order_status", 0)
+	orderNo := strings.TrimSpace(r.URL.Query().Get("order_no"))
 	rpcCtx, cancel := context.WithTimeout(r.Context(), defaultRPCTimeout)
 	defer cancel()
 	rpcCtx = rpcmeta.WithAccessToken(rpcCtx, token)
@@ -270,6 +271,7 @@ func (h *OrderUserHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 		Page:        page,
 		PageSize:    pageSize,
 		OrderStatus: int32(status),
+		OrderNo:     orderNo,
 	})
 	if err != nil {
 		writeRPCFail(w, err)

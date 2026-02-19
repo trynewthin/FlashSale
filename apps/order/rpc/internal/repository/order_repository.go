@@ -22,6 +22,7 @@ type UserListQuery struct {
 	Page        int64
 	PageSize    int64
 	OrderStatus int8
+	OrderNo     string
 }
 
 // AdminListQuery 表示管理侧订单列表查询条件。

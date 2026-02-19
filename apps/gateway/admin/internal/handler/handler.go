@@ -29,7 +29,9 @@ func RegisterRoutes(mux *http.ServeMux, svcCtx *svc.ServiceContext) {
 	ph := &ProductAdminHandler{svcCtx: svcCtx}
 	oh := &OrderAdminHandler{svcCtx: svcCtx}
 	sh := &SeckillAdminHandler{svcCtx: svcCtx}
+	dh := &DashboardHandler{svcCtx: svcCtx}
 	mux.HandleFunc("GET /healthz", h.Health)
+	mux.Handle("GET /api/v1/admin/dashboard/stats", middleware.AuthRequired(svcCtx, http.HandlerFunc(dh.GetStats)))
 	mux.HandleFunc("POST /api/v1/admin/auth/login", amh.Login)
 	mux.HandleFunc("POST /api/v1/admin/auth/refresh", amh.Refresh)
 	mux.Handle("POST /api/v1/admin/auth/logout", middleware.AuthRequired(svcCtx, http.HandlerFunc(amh.Logout)))

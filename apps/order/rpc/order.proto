@@ -96,6 +96,7 @@ message ListOrdersUserReq {
   int64 page = 2;
   int64 page_size = 3;
   int32 order_status = 4;
+  string order_no = 5;
 }
 
 message ListOrdersUserResp {

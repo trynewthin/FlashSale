@@ -120,6 +120,10 @@ func (r *MySQLOrderRepository) ListByUser(ctx context.Context, query UserListQue
 		whereParts = append(whereParts, "order_status = ?")
 		args = append(args, query.OrderStatus)
 	}
+	if query.OrderNo != "" {
+		whereParts = append(whereParts, "order_no = ?")
+		args = append(args, query.OrderNo)
+	}
 	where := " WHERE " + strings.Join(whereParts, " AND ")
 	return r.list(ctx, where, args, query.Page, query.PageSize)
 }

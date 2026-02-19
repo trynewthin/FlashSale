@@ -2,8 +2,8 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "source": "/api/v1/:path*",
+      "destination": "$BACKEND_URL/api/v1/:path*"
     },
     {
       "source": "/(.*)",
@@ -11,4 +11,3 @@
     }
   ]
 }
-

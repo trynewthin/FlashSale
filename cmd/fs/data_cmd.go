@@ -85,7 +85,6 @@ func runDataSeedOverwrite(args []string) error {
 	seckillReservedStock := fs.Int64("seckill-reserved-stock", 5000, "秒杀预占库存")
 	seckillPriceCent := fs.Int64("seckill-price-cent", 9900, "秒杀价格(分)")
 	seckillDurationMinutes := fs.Int64("seckill-duration-minutes", 120, "秒杀持续分钟")
-	cdnOrigin := fs.String("cdn-origin", "http://localhost:19000", "CDN 服务地址（用于商品图片 URL 前缀）")
 	outputDir := fs.String("output-dir", "log/data", "输出目录")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -197,12 +196,11 @@ VALUES (?, 'super_admin', 'Super Admin', 1, 1, ?, ?);
 	}
 	userToken := userLoginData.AccessToken
 
-	// 2. 创建商品。
-	cdn := strings.TrimRight(*cdnOrigin, "/")
+	// 2. 创建商品（图片使用相对路径，前端拼接 CDN 域名）。
 	productDefs := []map[string]any{
-		{"name": "无线耳机 Pro", "main_image": cdn + "/assets/products/product-a.svg", "description": "高保真降噪无线耳机，续航 30 小时，轻盈舒适。", "price_cent": 19900, "stock": 80000, "status": 1},
-		{"name": "智能手表 S3", "main_image": cdn + "/assets/products/product-b.svg", "description": "全天健康监测，NFC 支付，IP68 防水，轻薄时尚。", "price_cent": 25900, "stock": 60000, "status": 1},
-		{"name": "便携蓝牙音箱", "main_image": cdn + "/assets/products/product-c.svg", "description": "360° 环绕立体声，防水防尘，一键配对，随身携带。", "price_cent": 9900, "stock": 50000, "status": 1},
+		{"name": "无线耳机 Pro", "main_image": "/assets/products/product-a.svg", "description": "高保真降噪无线耳机，续航 30 小时，轻盈舒适。", "price_cent": 19900, "stock": 80000, "status": 1},
+		{"name": "智能手表 S3", "main_image": "/assets/products/product-b.svg", "description": "全天健康监测，NFC 支付，IP68 防水，轻薄时尚。", "price_cent": 25900, "stock": 60000, "status": 1},
+		{"name": "便携蓝牙音箱", "main_image": "/assets/products/product-c.svg", "description": "360° 环绕立体声，防水防尘，一键配对，随身携带。", "price_cent": 9900, "stock": 50000, "status": 1},
 	}
 	type productOut struct {
 		Product struct {
@@ -486,9 +484,14 @@ var productSVGColors = []struct {
 	{"#2b2d42", "#ef233c", "#edf2f4"}, {"#073b4c", "#118ab2", "#06d6a0"},
 	{"#212529", "#fd7e14", "#f8f9fa"}, {"#343a40", "#6c757d", "#dee2e6"},
 	{"#1e1b4b", "#7c3aed", "#ddd6fe"}, {"#14532d", "#16a34a", "#bbf7d0"},
+	{"#4c1d95", "#8b5cf6", "#ede9fe"}, {"#831843", "#ec4899", "#fce7f3"},
+	{"#1e3a5f", "#4da6ff", "#e0f0ff"}, {"#3b0d11", "#f87171", "#fecaca"},
+	{"#064e3b", "#34d399", "#d1fae5"}, {"#312e81", "#6366f1", "#e0e7ff"},
+	{"#78350f", "#f59e0b", "#fef3c7"}, {"#1f2937", "#9ca3af", "#f3f4f6"},
+	{"#701a75", "#d946ef", "#fae8ff"}, {"#0c4a6e", "#38bdf8", "#e0f2fe"},
 }
 
-// productNames 为 20 个商品提供名称和描述。
+// productNames 为商品提供名称和描述。
 var productNames = []struct {
 	Name, Desc string
 	Price      int64
@@ -514,12 +517,22 @@ var productNames = []struct {
 	{"咖啡机 全自动", "一键萃取，内置研磨，15bar 意式泵压。", 129900, 5000},
 	{"投影仪 1080P", "1080P 原生，3000 流明，自动梯形校正。", 149900, 4000},
 	{"扫地机器人 LDS", "LDS 激光导航，5000Pa 吸力，自动回充。", 199900, 3000},
+	{"氮化镓充电器 65W", "三口输出，GaN III 芯片，体积缩小 40%。", 16900, 60000},
+	{"电竞显示器 27寸", "2K 165Hz，1ms 响应，HDR400，Type-C 90W。", 229900, 5000},
+	{"智能猫眼门铃", "2K 夜视，人脸识别，双向通话，云存储。", 34900, 20000},
+	{"颈椎按摩仪", "EMS 脉冲+热敷，4 档力度，Type-C 充电。", 19900, 40000},
+	{"运动蓝牙耳机", "骨传导不入耳，IP68 防水，32g 超轻。", 59900, 25000},
+	{"智能加湿器", "UV 杀菌，4L 大容量，静音 28dB，APP 控制。", 15900, 35000},
+	{"桌面风扇 Pro", "直流变频，12 档风速，可折叠，10000mAh。", 13900, 45000},
+	{"电子墨水阅读器", "6.8 英寸，300PPI，冷暖双色温，32GB。", 119900, 8000},
+	{"智能摄像头 360", "2K 全景，AI 人形追踪，双向语音，夜视。", 24900, 30000},
+	{"无线麦克风 Pro", "一拖二，降噪芯片，续航 12h，兼容手机/相机。", 39900, 15000},
 }
 
-// buildProductSVG 生成带商品名称和色彩的 SVG 图片内容。
+// buildProductSVG 生成带商品名称和色彩的 SVG 图片内容（不含价格）。
 func buildProductSVG(index int, name string) []byte {
 	c := productSVGColors[index%len(productSVGColors)]
-	// 截取商品名前 6 个字符作为图标文字
+	// 截取商品名前 6 个字符作为大字图标
 	runes := []rune(name)
 	short := string(runes)
 	if len(runes) > 6 {
@@ -528,11 +541,11 @@ func buildProductSVG(index int, name string) []byte {
 	svg := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
   <rect width="400" height="300" fill="%s" rx="12"/>
   <rect x="20" y="20" width="360" height="260" fill="%s" rx="8" opacity="0.15"/>
-  <text x="200" y="140" font-family="sans-serif" font-size="48" font-weight="bold"
+  <text x="200" y="130" font-family="sans-serif" font-size="52" font-weight="bold"
         fill="%s" text-anchor="middle" dominant-baseline="middle">%s</text>
-  <text x="200" y="200" font-family="sans-serif" font-size="18"
-        fill="%s" text-anchor="middle" opacity="0.8">%s</text>
-  <rect x="160" y="230" width="80" height="4" fill="%s" rx="2" opacity="0.6"/>
+  <text x="200" y="190" font-family="sans-serif" font-size="16"
+        fill="%s" text-anchor="middle" opacity="0.7">%s</text>
+  <rect x="140" y="220" width="120" height="3" fill="%s" rx="2" opacity="0.4"/>
 </svg>`, c.Bg, c.Accent, c.Text, short, c.Text, name, c.Accent)
 	return []byte(svg)
 }
@@ -586,14 +599,14 @@ func uploadProductImage(client *http.Client, nginxBaseURL, adminToken string, fi
 func runDataSeedProducts(args []string) error {
 	fs := flag.NewFlagSet("data seed-products", flag.ContinueOnError)
 	force := fs.Bool("force", false, "确认执行")
-	count := fs.Int("count", 20, "要创建的商品数量（1-20）")
+	count := fs.Int("count", 30, "要创建的商品数量")
 	envFile := fs.String("env-file", "configs/local/dev.env", "环境变量文件")
 	adminBaseURL := fs.String("admin-base-url", "http://127.0.0.1:8083", "管理网关地址（用于登录和创建商品）")
 	nginxBaseURL := fs.String("nginx-base-url", "", "Nginx 地址（用于图片上传，走 /api/v1/admin/media/；默认与 admin-base-url 相同）")
 	adminUsername := fs.String("admin-username", "admin_root", "管理员用户名")
 	adminPassword := fs.String("admin-password", "Admin12345", "管理员密码")
-	cdnOrigin := fs.String("cdn-origin", "http://localhost:19000", "CDN 地址（写入数据库的图片 URL 前缀）")
 	outputDir := fs.String("output-dir", "log/data", "输出目录")
+	seckillDuration := fs.Int("seckill-duration", 60, "秒杀活动持续时间（分钟）")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -638,7 +651,6 @@ func runDataSeedProducts(args []string) error {
 	adminToken := adminLoginData.AccessToken
 	fmt.Printf("[seed-products] admin login ok\n")
 
-	cdn := strings.TrimRight(*cdnOrigin, "/")
 	type productOut struct {
 		Product struct {
 			ProductID json.Number `json:"product_id"`
@@ -659,10 +671,7 @@ func runDataSeedProducts(args []string) error {
 		if err != nil {
 			return fmt.Errorf("upload image [%d] failed: %w", i+1, err)
 		}
-		// 如果返回的是相对路径（filename only），拼接 CDN origin
-		if !strings.HasPrefix(imageURL, "http") {
-			imageURL = cdn + "/assets/products/" + imageURL
-		}
+		// media-store 现在统一返回相对路径 /assets/...
 		fmt.Printf("  image: %s\n", imageURL)
 
 		// 3. 创建商品
@@ -691,7 +700,78 @@ func runDataSeedProducts(args []string) error {
 		})
 	}
 
-	// 4. 写结果文件
+	// 4. 创建秒杀活动并加入所有商品
+	nowUnix := time.Now().Unix()
+	var activityOut struct {
+		Activity struct {
+			ActivityID json.Number `json:"activity_id"`
+		} `json:"activity"`
+	}
+	activityTitle := fmt.Sprintf("限时秒杀 %s", time.Now().Format("01-02 15:04"))
+	if err := callAPI(client, http.MethodPost,
+		strings.TrimRight(*adminBaseURL, "/")+"/api/v1/admin/seckill/activities",
+		adminToken,
+		map[string]any{
+			"title":             activityTitle,
+			"description":       fmt.Sprintf("自动创建的秒杀活动，含 %d 件商品", len(results)),
+			"style_config_json": "{}",
+			"start_at_unix":     nowUnix - 60,
+			"end_at_unix":       nowUnix + int64(*seckillDuration)*60,
+		},
+		&activityOut,
+	); err != nil {
+		return fmt.Errorf("create seckill activity failed: %w", err)
+	}
+	activityID := activityOut.Activity.ActivityID.String()
+	fmt.Printf("[seed-products] seckill activity created: %s (%s, %d min)\n", activityID, activityTitle, *seckillDuration)
+
+	for i, r := range results {
+		productID := r["product_id"].(string)
+		origPrice := productNames[i].Price
+		// 秒杀价 = 原价 * 30%~70%
+		discountPct := 30 + (i*17)%41 // 30% ~ 70%
+		seckillPrice := origPrice * int64(discountPct) / 100
+		if seckillPrice < 100 {
+			seckillPrice = 100 // 最低 1 元
+		}
+		var itemOut struct {
+			Item struct {
+				ItemID json.Number `json:"item_id"`
+			} `json:"item"`
+		}
+		if err := callAPI(client, http.MethodPost,
+			fmt.Sprintf("%s/api/v1/admin/seckill/activities/%s/items", strings.TrimRight(*adminBaseURL, "/"), activityID),
+			adminToken,
+			map[string]any{
+				"product_id":            productID,
+				"seckill_price_cent":    seckillPrice,
+				"reserved_stock_total":  productNames[i].Stock / 10, // 预留 10% 库存
+				"user_limit_mode":       0,
+				"user_limit_window_sec": 0,
+				"user_limit_qty":        0,
+				"max_qty_per_order":     2,
+				"status":                1,
+			},
+			&itemOut,
+		); err != nil {
+			fmt.Printf("  [warn] add item %s to activity failed: %v\n", productID, err)
+			continue
+		}
+		fmt.Printf("  item [%d] product=%s seckill_price=%d item_id=%s\n", i+1, productID, seckillPrice, itemOut.Item.ItemID.String())
+	}
+
+	// 发布活动
+	if err := callAPI(client, http.MethodPost,
+		fmt.Sprintf("%s/api/v1/admin/seckill/activities/%s/publish", strings.TrimRight(*adminBaseURL, "/"), activityID),
+		adminToken,
+		map[string]any{},
+		nil,
+	); err != nil {
+		return fmt.Errorf("publish seckill activity failed: %w", err)
+	}
+	fmt.Printf("[seed-products] seckill activity published\n")
+
+	// 5. 写结果文件
 	absOut := devenv.ResolvePath(repoRoot, strings.TrimSpace(*outputDir))
 	if err := os.MkdirAll(absOut, 0o755); err != nil {
 		return err
@@ -701,11 +781,17 @@ func runDataSeedProducts(args []string) error {
 		"generated_at_unix": time.Now().Unix(),
 		"count":             len(results),
 		"products":          results,
+		"seckill_activity": map[string]any{
+			"activity_id":   activityID,
+			"title":         activityTitle,
+			"duration_min":  *seckillDuration,
+			"product_count": len(results),
+		},
 	}); err != nil {
 		return err
 	}
 
-	fmt.Printf("[seed-products] done: %d products created, result: %s\n", len(results), resultFile)
+	fmt.Printf("[seed-products] done: %d products + 1 seckill activity, result: %s\n", len(results), resultFile)
 	return nil
 }
 

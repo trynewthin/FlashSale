@@ -70,7 +70,7 @@ func BuildTasks(env *EnvContext) map[string]model.TaskDef {
 			Name:        "覆写填充数据",
 			Description: "清空业务数据并重建演示数据。",
 			Command:     []string{"self", "data", "seed-overwrite"},
-			DefaultArgs: withGatewayContext("--force", "--cdn-origin="+env.CDNOrigin),
+			DefaultArgs: withGatewayContext("--force"),
 			Dangerous:   true,
 		},
 		"data.seed_products": {
@@ -78,7 +78,7 @@ func BuildTasks(env *EnvContext) map[string]model.TaskDef {
 			Name:        "注入演示商品（含图片）",
 			Description: "通过 admin-gateway 上传 SVG 图片并创建 20 个演示商品，不清空现有数据。",
 			Command:     []string{"self", "data", "seed-products"},
-			DefaultArgs: withContext("--force", "--count=20", "--cdn-origin="+env.CDNOrigin,
+			DefaultArgs: withContext("--force", "--count=20",
 				"--admin-base-url="+env.AdminGatewayURL,
 				"--nginx-base-url="+env.NginxBaseURL),
 			Dangerous: false,

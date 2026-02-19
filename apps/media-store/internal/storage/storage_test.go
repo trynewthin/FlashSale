@@ -12,7 +12,7 @@ func TestNewLocalStore_CreatesRootDir(t *testing.T) {
 	dir := t.TempDir()
 	root := filepath.Join(dir, "not-exist-yet")
 
-	store, err := NewLocalStore(root, "http://cdn.test")
+	store, err := NewLocalStore(root)
 	if err != nil {
 		t.Fatalf("NewLocalStore failed: %v", err)
 	}
@@ -41,8 +41,8 @@ func TestSave_CreatesFileInCategory(t *testing.T) {
 	if !strings.HasSuffix(info.Filename, ".png") {
 		t.Errorf("filename %q should end with .png", info.Filename)
 	}
-	if !strings.HasPrefix(info.URL, "http://cdn.test/assets/products/") {
-		t.Errorf("url %q should start with CDN origin prefix", info.URL)
+	if !strings.HasPrefix(info.URL, "/assets/products/") {
+		t.Errorf("url %q should start with /assets/products/", info.URL)
 	}
 
 	// 验证文件写入磁盘
@@ -286,7 +286,7 @@ func TestIsValidFilename(t *testing.T) {
 func newTestStore(t *testing.T) *LocalStore {
 	t.Helper()
 	dir := t.TempDir()
-	store, err := NewLocalStore(dir, "http://cdn.test")
+	store, err := NewLocalStore(dir)
 	if err != nil {
 		t.Fatalf("NewLocalStore failed: %v", err)
 	}

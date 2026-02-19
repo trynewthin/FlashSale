@@ -13,7 +13,6 @@ type Config struct {
 	Addr       string // 监听地址
 	StorageDir string // 文件存储根目录（即 CDN 共享 volume）
 	Secret     string // 静态鉴权 secret
-	CDNOrigin  string // CDN 外部访问地址前缀（用于拼接返回的 URL）
 	MaxSize    int64  // 单文件最大字节数
 }
 
@@ -23,7 +22,6 @@ func Load() Config {
 		Addr:       envOr("MEDIA_STORE_ADDR", "0.0.0.0:9200"),
 		StorageDir: envOr("MEDIA_STORE_DIR", "/srv/cdn/assets"),
 		Secret:     envOr("MEDIA_STORE_SECRET", "flashsale-media-dev"),
-		CDNOrigin:  envOr("MEDIA_STORE_CDN_ORIGIN", "http://localhost:19000"),
 		MaxSize:    envOrInt64("MEDIA_STORE_MAX_SIZE", 10<<20), // 默认 10 MB
 	}
 }

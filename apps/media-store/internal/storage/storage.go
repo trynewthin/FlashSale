@@ -44,18 +44,16 @@ type Store interface {
 
 // LocalStore 基于本地文件系统的存储实现。
 type LocalStore struct {
-	rootDir   string // 存储根目录
-	cdnOrigin string // CDN 外部地址前缀
+	rootDir string // 存储根目录
 }
 
 // NewLocalStore 创建本地文件系统存储。
-func NewLocalStore(rootDir, cdnOrigin string) (*LocalStore, error) {
+func NewLocalStore(rootDir string) (*LocalStore, error) {
 	if err := os.MkdirAll(rootDir, 0755); err != nil {
 		return nil, fmt.Errorf("create storage root: %w", err)
 	}
 	return &LocalStore{
-		rootDir:   rootDir,
-		cdnOrigin: strings.TrimRight(cdnOrigin, "/"),
+		rootDir: rootDir,
 	}, nil
 }
 
@@ -90,7 +88,7 @@ func (s *LocalStore) Save(category, origName string, reader io.Reader) (FileInfo
 	return FileInfo{
 		Filename:  filename,
 		Category:  category,
-		URL:       fmt.Sprintf("%s/assets/%s/%s", s.cdnOrigin, category, filename),
+		URL:       fmt.Sprintf("/assets/%s/%s", category, filename),
 		Size:      written,
 		CreatedAt: time.Now().Format(time.RFC3339),
 	}, nil
@@ -187,7 +185,7 @@ func (s *LocalStore) listCategory(category string) ([]FileInfo, error) {
 		result = append(result, FileInfo{
 			Filename:  entry.Name(),
 			Category:  category,
-			URL:       fmt.Sprintf("%s/assets/%s/%s", s.cdnOrigin, category, entry.Name()),
+			URL:       fmt.Sprintf("/assets/%s/%s", category, entry.Name()),
 			Size:      info.Size(),
 			CreatedAt: info.ModTime().Format(time.RFC3339),
 		})

@@ -243,11 +243,10 @@ func newTestMux(t *testing.T) (*http.ServeMux, *svc.ServiceContext) {
 		Addr:       "127.0.0.1:0",
 		StorageDir: dir,
 		Secret:     testSecret,
-		CDNOrigin:  "http://cdn.test",
 		MaxSize:    10 << 20,
 	}
 
-	store, err := storage.NewLocalStore(cfg.StorageDir, cfg.CDNOrigin)
+	store, err := storage.NewLocalStore(cfg.StorageDir)
 	if err != nil {
 		t.Fatalf("init store: %v", err)
 	}

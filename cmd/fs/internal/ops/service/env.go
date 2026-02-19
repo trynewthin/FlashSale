@@ -30,11 +30,6 @@ type EnvContext struct {
 	// ─── 外部服务 ───
 	EtcdEndpoint  string // 如 "etcd:2379" 或 "localhost:2379"
 	PrometheusURL string // 如 "http://prometheus:9090" 或 "http://localhost:9090"
-
-	// ─── 静态资源 ───
-	// CDNOrigin 是写入数据库的图片 URL 前缀，必须是浏览器可访问的地址（宏机/公网）。
-	// 不能使用容器内网 service name（如 http://cdn）。
-	CDNOrigin string // 如 "http://localhost:19000" 或 "http://<服务器IP>:19000"
 }
 
 // NewEnvContext 根据运行时环境自动推断所有地址配置。
@@ -55,9 +50,6 @@ func NewEnvContext(repoRoot, defaultEnvFile string) *EnvContext {
 		ctx.OpsControlURL = "http://127.0.0.1:9100" // 容器内 ops 自身
 		ctx.EtcdEndpoint = envOrDefault("FLASHSALE_ETCD_ENDPOINT", "etcd:2379")
 		ctx.PrometheusURL = envOrDefault("FLASHSALE_PROMETHEUS_ENDPOINT", "http://prometheus:9090")
-		// CDNOrigin 必须是浏览器可访问的地址，容器内网 http://cdn 不适用。
-		// 部署时通过 FLASHSALE_CDN_ORIGIN 环境变量注入服务器公网地址。
-		ctx.CDNOrigin = envOrDefault("FLASHSALE_CDN_ORIGIN", "http://localhost:19000")
 	} else {
 		ctx.DeploymentMode = model.DeploymentModeHostProcess
 		ctx.AdminGatewayURL = envOrDefault("FLASHSALE_ADMIN_GATEWAY_URL", "http://127.0.0.1:8083")
@@ -67,7 +59,6 @@ func NewEnvContext(repoRoot, defaultEnvFile string) *EnvContext {
 		ctx.OpsControlURL = "http://127.0.0.1:18080"
 		ctx.EtcdEndpoint = envOrDefault("FLASHSALE_ETCD_ENDPOINT", "localhost:2379")
 		ctx.PrometheusURL = envOrDefault("FLASHSALE_PROMETHEUS_ENDPOINT", "http://localhost:9090")
-		ctx.CDNOrigin = envOrDefault("FLASHSALE_CDN_ORIGIN", "http://localhost:19000")
 	}
 
 	return ctx

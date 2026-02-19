@@ -4,6 +4,7 @@ import JSONbig from "json-bigint"
 import { ApiError, toApiError } from "@/api/core/error"
 import { adminTokenStore } from "@/api/core/token-store"
 import { isApiEnvelope } from "@/api/core/types"
+import { useAdminAuthStore } from "@/stores/auth-store"
 
 const ADMIN_API_BASE_URL = import.meta.env.VITE_ADMIN_API_BASE_URL ?? "/api/v1/admin"
 const REQUEST_TIMEOUT_MS = 10000
@@ -18,6 +19,29 @@ function parseJSONWithInt64Safety(data: unknown): unknown {
   } catch {
     return data
   }
+}
+
+// ── 会话失效自动跳登录 ───────────────────────────────────────────
+const SESSION_INVALID_CODES = new Set([
+  "AUTH_UNAUTHORIZED",
+  "ADMIN_NOT_FOUND",
+])
+
+let isRedirectingToLogin = false
+
+function handleSessionInvalid() {
+  if (isRedirectingToLogin) return
+  isRedirectingToLogin = true
+
+  adminTokenStore.clear()
+  useAdminAuthStore.getState().clearSession()
+
+  setTimeout(() => {
+    isRedirectingToLogin = false
+    const current = window.location.pathname + window.location.search
+    const loginPath = current === "/login" ? "/login" : `/login?redirect=${encodeURIComponent(current)}`
+    window.location.href = loginPath
+  }, 50)
 }
 
 const adminHttp = axios.create({
@@ -43,6 +67,9 @@ adminHttp.interceptors.response.use(
       return payload
     }
     if (payload.code !== "OK") {
+      if (SESSION_INVALID_CODES.has(payload.code)) {
+        handleSessionInvalid()
+      }
       throw new ApiError({
         message: payload.message || "请求失败",
         code: payload.code,
@@ -54,6 +81,19 @@ adminHttp.interceptors.response.use(
     return payload.data
   },
   (error) => {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status ?? 0
+      if (status === 401) {
+        handleSessionInvalid()
+      }
+      let payload = error.response?.data
+      if (typeof payload === "string") {
+        try { payload = JSON.parse(payload) } catch { /* ignore */ }
+      }
+      if (isApiEnvelope(payload) && SESSION_INVALID_CODES.has(payload.code)) {
+        handleSessionInvalid()
+      }
+    }
     return Promise.reject(toApiError(error))
   }
 )

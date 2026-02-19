@@ -10,8 +10,9 @@ FROM golang:1.25-alpine AS build
 
 WORKDIR /src
 
-# 依赖层缓存
+# 依赖层缓存（GOPROXY 确保国内服务器可达）
 COPY go.mod go.sum ./
+ENV GOPROXY=https://goproxy.cn,direct
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 

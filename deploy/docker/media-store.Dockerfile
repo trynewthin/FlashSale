@@ -8,6 +8,7 @@ WORKDIR /src
 
 # 依赖层缓存
 COPY go.mod go.sum ./
+ENV GOPROXY=https://goproxy.cn,direct
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 

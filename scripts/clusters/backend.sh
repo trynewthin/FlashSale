@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/clusters/backend.sh — 集群B：后端业务服务
-# migrate(job) + rpc×5 + gateway×2 + nginx
+# migrate(job) + rpc×5 + gateway×2
 #
 # 用法：
 #   ./scripts/clusters/backend.sh            # 构建镜像 + 启动
@@ -15,10 +15,9 @@ SERVICES=(
     migrate
     user-rpc product-rpc order-rpc seckill-rpc admin-rpc
     user-gateway admin-gateway
-    nginx
 )
-# nginx 是最后一个 healthy 的，等它就够了
-HEALTH_CONTAINERS=(flashsale-app-nginx)
+# gateway 是最后一个 healthy 的，等它们就够了
+HEALTH_CONTAINERS=(flashsale-app-user-gateway-1 flashsale-app-admin-gateway-1)
 
 echo -e "${C_BOLD}=== [Cluster: backend] ===${C_RESET}"
 
@@ -36,7 +35,7 @@ case "$CMD" in
         step "UP" "Deploying backend services"
         dc_up "${SERVICES[@]}"
 
-        step "HC" "Waiting for nginx to become healthy..."
+        step "HC" "Waiting for gateways to become healthy..."
         wait_healthy 120 "${HEALTH_CONTAINERS[@]}" || { fail "Backend health check failed"; exit 1; }
         ok "Backend cluster ready"
         ;;
@@ -47,7 +46,7 @@ case "$CMD" in
         step "UP" "Deploying backend services"
         dc_up "${SERVICES[@]}"
 
-        step "HC" "Waiting for nginx to become healthy..."
+        step "HC" "Waiting for gateways to become healthy..."
         wait_healthy 120 "${HEALTH_CONTAINERS[@]}" || { fail "Backend health check failed"; exit 1; }
         ok "Backend cluster ready"
         ;;

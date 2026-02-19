@@ -3,11 +3,11 @@
 #
 # 集群依赖与并行策略：
 #
-#   [infra up] ──────────────────────────────────────────────→ healthy
+#   [infra up] ─────────────────────────────────────────────→ healthy
 #                                                               ↓
 #   [backend build] ─┐                                  [backend up] → healthy
-#                    ├─ 并行 ─→ 两者同时构建              ↓
-#   [cdn build]     ─┘                             [cdn up] → healthy
+#                    ├─ 并行 ─→ 两者同时构建                    ↓
+#   [proxy build]   ─┘                               [proxy up] → healthy
 #                                                               ↓
 #                                              [ops build（依赖 backend 镜像）]
 #                                                               ↓
@@ -16,7 +16,7 @@
 # 用法：
 #   ./scripts/rebuild.sh                    # 全量重建所有集群
 #   ./scripts/rebuild.sh --scope backend    # 只重建后端
-#   ./scripts/rebuild.sh --scope cdn        # 只重建 CDN
+#   ./scripts/rebuild.sh --scope proxy      # 只重建代理/CDN
 #   ./scripts/rebuild.sh --scope ops        # 只重建 ops（需要 backend 镜像已存在）
 #   ./scripts/rebuild.sh --scope ops --hot  # ops 热更新（最快）
 #   ./scripts/rebuild.sh --no-cache         # 禁用构建缓存
@@ -47,7 +47,7 @@ while [[ $# -gt 0 ]]; do
 Usage: $0 [options]
 
 Options:
-  --scope <all|infra|backend|cdn|ops|observability>
+  --scope <all|infra|backend|proxy|ops|observability>
                     Which cluster(s) to rebuild (default: all)
   --no-cache        Disable Docker build cache
   --with-obs        Also start observability cluster (jaeger/prometheus/grafana)
@@ -58,9 +58,10 @@ Options:
 Examples:
   $0                          # Full rebuild
   $0 --scope backend          # Rebuild backend only
+  $0 --scope proxy            # Rebuild proxy (nginx + cdn + media-store)
   $0 --scope ops --hot        # Hot-update ops frontend (~15s)
   $0 --no-cache               # Full rebuild, no cache
-  $0 --with-obs --skip-test   # Full rebuild + observability, no test
+  $0 --with-obs               # Full rebuild + observability
 EOF
             exit 0
             ;;
@@ -72,12 +73,20 @@ done
 C_BOLD='\033[1m'
 C_CYAN='\033[0;36m'
 C_GREEN='\033[0;32m'
+C_YELLOW='\033[1;33m'
 C_RESET='\033[0m'
 
 banner() { echo -e "\n${C_BOLD}${C_CYAN}━━━ $* ━━━${C_RESET}"; }
 ok()     { echo -e "  ${C_GREEN}✔${C_RESET}  $*"; }
+warn()   { echo -e "  ${C_YELLOW}⚠${C_RESET}  $*"; }
 
 START_TIME=$(date +%s)
+
+# ── 向后兼容：cdn → proxy ──
+if [ "$SCOPE" = "cdn" ]; then
+    warn "Scope 'cdn' is deprecated, use 'proxy' instead"
+    SCOPE="proxy"
+fi
 
 # ── 单集群模式 ──
 
@@ -90,8 +99,8 @@ if [ "$SCOPE" != "all" ]; then
         backend)
             bash "$CLUSTER_DIR/backend.sh" all $NO_CACHE
             ;;
-        cdn)
-            bash "$CLUSTER_DIR/cdn.sh" all $NO_CACHE
+        proxy)
+            bash "$CLUSTER_DIR/proxy.sh" all $NO_CACHE
             ;;
         ops)
             if $HOT; then
@@ -119,8 +128,8 @@ fi
 banner "Phase 1/4 — Infra"
 bash "$CLUSTER_DIR/infra.sh" up
 
-# Phase 2：backend + cdn 并行构建（两者镜像完全独立）
-banner "Phase 2/4 — Build images (backend ∥ cdn)"
+# Phase 2：backend + proxy 并行构建（两者镜像完全独立）
+banner "Phase 2/4 — Build images (backend ∥ proxy)"
 
 LOG_DIR="/tmp/flashsale-build-$$"
 mkdir -p "$LOG_DIR"
@@ -129,35 +138,36 @@ mkdir -p "$LOG_DIR"
 bash "$CLUSTER_DIR/backend.sh" build $NO_CACHE > "$LOG_DIR/backend.log" 2>&1 &
 PID_BACKEND=$!
 
-bash "$CLUSTER_DIR/cdn.sh" build $NO_CACHE > "$LOG_DIR/cdn.log" 2>&1 &
-PID_CDN=$!
+bash "$CLUSTER_DIR/proxy.sh" build $NO_CACHE > "$LOG_DIR/proxy.log" 2>&1 &
+PID_PROXY=$!
 
 echo "  Building backend image... (pid $PID_BACKEND)"
-echo "  Building cdn image...     (pid $PID_CDN)"
+echo "  Building proxy image...   (pid $PID_PROXY)"
 
 FAILED=0
 wait $PID_BACKEND || { echo "  ✘ backend build failed"; cat "$LOG_DIR/backend.log"; FAILED=1; }
-wait $PID_CDN     || { echo "  ✘ cdn build failed";     cat "$LOG_DIR/cdn.log";     FAILED=1; }
+wait $PID_PROXY   || { echo "  ✘ proxy build failed";   cat "$LOG_DIR/proxy.log";   FAILED=1; }
 
-[ $FAILED -eq 0 ] && ok "Both images built" || exit 1
+[ $FAILED -eq 0 ] && ok "All images built" || exit 1
 
-# Phase 3：backend + cdn 并行启动（两者 up 也互相独立）
-banner "Phase 3/4 — Deploy (backend ∥ cdn)"
+# Phase 3：backend up → proxy up（串行，proxy 依赖 backend gateway healthy）
+banner "Phase 3/4 — Deploy (backend → proxy)"
 
-bash "$CLUSTER_DIR/backend.sh" up > "$LOG_DIR/backend-up.log" 2>&1 &
-PID_BACKEND_UP=$!
+echo "  Starting backend cluster..."
+bash "$CLUSTER_DIR/backend.sh" up > "$LOG_DIR/backend-up.log" 2>&1 || {
+    echo "  ✘ backend up failed"
+    cat "$LOG_DIR/backend-up.log"
+    exit 1
+}
+ok "Backend cluster deployed"
 
-bash "$CLUSTER_DIR/cdn.sh" up > "$LOG_DIR/cdn-up.log" 2>&1 &
-PID_CDN_UP=$!
-
-echo "  Starting backend cluster... (pid $PID_BACKEND_UP)"
-echo "  Starting cdn cluster...     (pid $PID_CDN_UP)"
-
-FAILED=0
-wait $PID_BACKEND_UP || { echo "  ✘ backend up failed"; cat "$LOG_DIR/backend-up.log"; FAILED=1; }
-wait $PID_CDN_UP     || { echo "  ✘ cdn up failed";     cat "$LOG_DIR/cdn-up.log";     FAILED=1; }
-
-[ $FAILED -eq 0 ] && ok "Backend + CDN deployed" || exit 1
+echo "  Starting proxy cluster..."
+bash "$CLUSTER_DIR/proxy.sh" up > "$LOG_DIR/proxy-up.log" 2>&1 || {
+    echo "  ✘ proxy up failed"
+    cat "$LOG_DIR/proxy-up.log"
+    exit 1
+}
+ok "Proxy cluster deployed"
 
 rm -rf "$LOG_DIR"
 

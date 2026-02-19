@@ -83,7 +83,16 @@
 | `GET /api/v1/admin/seckill/activities/{activity_id}/traffic` | `SeckillAdminHandler.GetTraffic` | `SeckillRpc.GetActivityTraffic` |
 | `GET /api/v1/admin/seckill/activities/{activity_id}/orders` | `SeckillAdminHandler.ListOrders` | `SeckillRpc.ListActivityOrders` |
 
+### 2.3 工作台聚合接口
+
+> 以下接口在网关内部聚合多个 RPC 调用，不直接映射到单个 RPC 方法。
+
+| HTTP 路由 | Handler | 聚合调用 |
+|---|---|---|
+| `GET /api/v1/admin/dashboard/stats` | `DashboardHandler.GetStats` | `UserRpc.ListUsers` + `ProductRpc.ListProductsAdmin` + `OrderRpc.ListOrdersAdmin` × 6 + `SeckillRpc.ListActivitiesAdmin` × 3 |
+
 ## 3. 对齐结论
 
 - 当前路由注册与 RPC 调用方法可一一对应，未发现“网关调用无 proto 方法”的断链情况。
+- Dashboard 聚合接口在网关层并发扇出多个 RPC，用于统计面板展示。
 - 管理端鉴权由网关前置，敏感字段（如 `admin_id`）由服务端上下文生成/覆盖，避免前端伪造。

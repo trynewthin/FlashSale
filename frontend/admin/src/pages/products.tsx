@@ -14,6 +14,7 @@ import { Plus, Search, X } from "lucide-react"
 import { type AdminProduct } from "@/api/modules/product"
 import { useAdminProductListQuery, useCreateProductMutation } from "@/hooks/biz/use-product-mgmt-hooks"
 import { useApiError } from "@/hooks/common/use-api-error"
+import { formatCent, formatUnix } from "@/lib/format"
 
 import {
   ProductFormFields,
@@ -21,15 +22,6 @@ import {
 } from "@/components/product"
 
 const STATUS_MAP: Record<number, string> = { 1: "上架", 2: "下架" }
-
-function formatCent(cent: number) {
-  return `¥${(cent / 100).toFixed(2)}`
-}
-
-function formatUnix(unix: number) {
-  if (!unix) return "-"
-  return new Date(unix * 1000).toLocaleString("zh-CN")
-}
 
 export function ProductManagementPage() {
   const { toUserMessage } = useApiError()

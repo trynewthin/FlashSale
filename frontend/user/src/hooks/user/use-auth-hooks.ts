@@ -1,9 +1,9 @@
-// 用户认证与资料 Hooks：统一会话落库、缓存失效与鉴权失效回收行为。
+// 用户认证与资料 Hooks：统一会话落库、缓存失效。
+// 注：AUTH_UNAUTHORIZED / USER_NOT_FOUND 由 http.ts interceptor 全局处理，hooks 无需重复。
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect } from "react"
 
 import { userAuthApi, type LoginReq, type RegisterReq, type UpdateNicknameReq } from "@/api/modules/auth"
-import { useApiError } from "@/hooks/common/use-api-error"
 import { userQueryKeys } from "@/hooks/query-keys"
 import { useUserAuthStore, type UserProfileState } from "@/stores/auth-store"
 
@@ -65,11 +65,8 @@ export function useLogoutAction() {
 }
 
 export function useUserProfileQuery() {
-  const queryClient = useQueryClient()
-  const { isCode } = useApiError()
   const accessToken = useUserAuthStore((state) => state.accessToken)
   const setProfile = useUserAuthStore((state) => state.setProfile)
-  const clearSession = useUserAuthStore((state) => state.clearSession)
 
   const profileQuery = useQuery({
     queryKey: userQueryKeys.profile("self"),
@@ -84,21 +81,12 @@ export function useUserProfileQuery() {
     }
   }, [profileQuery.data, setProfile])
 
-  useEffect(() => {
-    if (profileQuery.error && isCode(profileQuery.error, "AUTH_UNAUTHORIZED")) {
-      clearSession()
-      queryClient.clear()
-    }
-  }, [clearSession, isCode, profileQuery.error, queryClient])
-
   return profileQuery
 }
 
 export function useUpdateNicknameMutation() {
   const queryClient = useQueryClient()
-  const { isCode } = useApiError()
   const setProfile = useUserAuthStore((state) => state.setProfile)
-  const clearSession = useUserAuthStore((state) => state.clearSession)
 
   return useMutation({
     mutationFn: (req: UpdateNicknameReq) => userAuthApi.updateNickname(req),
@@ -110,12 +98,6 @@ export function useUpdateNicknameMutation() {
       queryClient.invalidateQueries({
         queryKey: userQueryKeys.profile("self"),
       })
-    },
-    onError: (error) => {
-      if (isCode(error, "AUTH_UNAUTHORIZED")) {
-        clearSession()
-        queryClient.clear()
-      }
     },
   })
 }

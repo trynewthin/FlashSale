@@ -16,6 +16,7 @@ import { Plus, Search, X } from "lucide-react"
 import { type ActivityAdmin } from "@/api/modules/seckill"
 import { useSeckillActivityListQuery, useCreateSeckillActivityMutation } from "@/hooks/biz/use-seckill-mgmt-hooks"
 import { useApiError } from "@/hooks/common/use-api-error"
+import { formatUnix } from "@/lib/format"
 
 import {
   ActivityFormFields,
@@ -24,10 +25,6 @@ import {
 
 const STATUS_MAP: Record<number, string> = { 1: "草稿", 2: "已发布", 3: "已下线", 4: "已删除" }
 
-function formatUnix(unix: number) {
-  if (!unix) return "-"
-  return new Date(unix * 1000).toLocaleString("zh-CN")
-}
 
 function unixToLocalDatetimeStr(unix: number) {
   if (!unix) return ""

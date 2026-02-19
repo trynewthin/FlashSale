@@ -15,6 +15,7 @@ import { type OrderView } from "@/api/modules/order"
 import { useAdminOrderListQuery } from "@/hooks/biz/use-order-mgmt-hooks"
 import { useAdminPermission } from "@/hooks/auth/use-admin-permission"
 import { useApiError } from "@/hooks/common/use-api-error"
+import { formatCent, formatUnix } from "@/lib/format"
 import {
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
@@ -26,8 +27,7 @@ import {
 
 import { ReviewOrderDialog, ShipOrderDialog, OrderRowActions } from "@/components/order"
 
-function formatCent(cent: number) { return `¥${(cent / 100).toFixed(2)}` }
-function formatUnix(unix: number) { if (!unix) return "-"; return new Date(unix * 1000).toLocaleString("zh-CN") }
+
 
 export function OrderManagementPage() {
   const { toUserMessage } = useApiError()
@@ -70,12 +70,12 @@ export function OrderManagementPage() {
         </div>
         <div className="space-y-1">
           <Label className="text-xs">订单状态</Label>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "")}>
-              <SelectTrigger className="w-28"><SelectValue placeholder="全部" /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "")}>
+            <SelectTrigger className="w-28"><SelectValue placeholder="全部" /></SelectTrigger>
+            <SelectContent>
+              {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1">
           <Label className="text-xs">审核状态</Label>
@@ -118,18 +118,18 @@ export function OrderManagementPage() {
               const shippingStatus = Number(order.shipping_status ?? 0)
               return (
                 <TableRow key={order.order_id}>
-                <TableCell className="font-mono text-xs">{order.order_no}</TableCell>
-                <TableCell>{order.user_id}</TableCell>
-                <TableCell>{formatCent(order.total_amount_cent)}</TableCell>
-                <TableCell><Badge variant="outline">{ORDER_STATUS_LABELS[order.order_status] ?? order.order_status}</Badge></TableCell>
-                <TableCell><Badge variant="secondary">{PAYMENT_STATUS_LABELS[paymentStatus] ?? paymentStatus}</Badge></TableCell>
-                <TableCell><Badge variant={reviewStatus === REVIEW_STATUS.passed ? "default" : "secondary"}>{REVIEW_STATUS_LABELS[reviewStatus] ?? reviewStatus}</Badge></TableCell>
-                <TableCell><Badge variant="secondary">{SHIPPING_STATUS_LABELS[shippingStatus] ?? shippingStatus}</Badge></TableCell>
-                <TableCell className="text-sm text-muted-foreground">{formatUnix(order.created_at_unix)}</TableCell>
-                <TableCell>
-                  <OrderRowActions order={order} canReview={canReview} canShip={canShip}
-                    onReview={() => setReviewTarget(order)} onShip={() => setShipTarget(order)} />
-                </TableCell>
+                  <TableCell className="font-mono text-xs">{order.order_no}</TableCell>
+                  <TableCell>{order.user_id}</TableCell>
+                  <TableCell>{formatCent(order.total_amount_cent)}</TableCell>
+                  <TableCell><Badge variant="outline">{ORDER_STATUS_LABELS[order.order_status] ?? order.order_status}</Badge></TableCell>
+                  <TableCell><Badge variant="secondary">{PAYMENT_STATUS_LABELS[paymentStatus] ?? paymentStatus}</Badge></TableCell>
+                  <TableCell><Badge variant={reviewStatus === REVIEW_STATUS.passed ? "default" : "secondary"}>{REVIEW_STATUS_LABELS[reviewStatus] ?? reviewStatus}</Badge></TableCell>
+                  <TableCell><Badge variant="secondary">{SHIPPING_STATUS_LABELS[shippingStatus] ?? shippingStatus}</Badge></TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{formatUnix(order.created_at_unix)}</TableCell>
+                  <TableCell>
+                    <OrderRowActions order={order} canReview={canReview} canShip={canShip}
+                      onReview={() => setReviewTarget(order)} onShip={() => setShipTarget(order)} />
+                  </TableCell>
                 </TableRow>
               )
             })}

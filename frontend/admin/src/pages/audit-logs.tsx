@@ -18,11 +18,8 @@ import { type AdminAuditLogView } from "@/api/modules/admin"
 import { useAuditLogsQuery } from "@/hooks/admin/use-audit-hooks"
 import { useAdminPermission } from "@/hooks/auth/use-admin-permission"
 import { useApiError } from "@/hooks/common/use-api-error"
+import { formatUnix } from "@/lib/format"
 
-function formatUnix(unix: number) {
-  if (!unix) return "-"
-  return new Date(unix * 1000).toLocaleString("zh-CN")
-}
 
 export function AuditLogPage() {
   const { isDataScopeAll } = useAdminPermission()

@@ -17,6 +17,7 @@ import { useAdminListQuery, useCreateAdminMutation } from "@/hooks/admin/use-adm
 import { useRoleListQuery } from "@/hooks/admin/use-role-hooks"
 import { useAdminPermission } from "@/hooks/auth/use-admin-permission"
 import { useApiError } from "@/hooks/common/use-api-error"
+import { formatUnix } from "@/lib/format"
 
 import {
   AdminEditForm, DeleteAdminDialog, ResetPwdDialog, BindRolesDialog, AdminRowActions,
@@ -24,10 +25,6 @@ import {
 
 const STATUS_MAP: Record<number, string> = { 1: "启用", 2: "禁用" }
 
-function formatUnix(unix: number) {
-  if (!unix) return "-"
-  return new Date(unix * 1000).toLocaleString("zh-CN")
-}
 
 export function AdminListPage() {
   const { isDataScopeAll } = useAdminPermission()

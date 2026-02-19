@@ -9,13 +9,10 @@ import { Search, UserX, Pencil } from "lucide-react"
 
 import { useManagedUserProfileQuery } from "@/hooks/biz/use-user-mgmt-hooks"
 import { useApiError } from "@/hooks/common/use-api-error"
+import { formatUnix } from "@/lib/format"
 
 import { NicknameDialog, DeleteUserDialog } from "@/components/user"
 
-function formatUnix(unix: number) {
-  if (!unix) return "-"
-  return new Date(unix * 1000).toLocaleString("zh-CN")
-}
 
 export function UserManagementPage() {
   const { toUserMessage } = useApiError()

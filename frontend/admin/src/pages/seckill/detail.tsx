@@ -25,11 +25,11 @@ import {
 } from "@/components/seckill"
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/features/order/status"
 import { cdnUrl } from "@/lib/cdn"
+import { formatCent, formatUnix } from "@/lib/format"
 
 const ITEM_STATUS: Record<number, string> = { 1: "启用", 2: "禁用" }
 const LIMIT_MODE: Record<number, string> = { 0: "不限", 1: "按窗口", 2: "按活动" }
-function formatCent(cent: number) { return `¥${(cent / 100).toFixed(2)}` }
-function formatUnix(unix: number) { if (!unix) return "-"; return new Date(unix * 1000).toLocaleString("zh-CN") }
+
 
 export function SeckillActivityDetailPage() {
   const { activityId } = useParams<{ activityId: string }>()

@@ -1,4 +1,5 @@
-// 管理端会话 Hooks：统一登录、续期、退出、资料同步与会话清理。
+// 管理端会话 Hooks：统一登录、续期、退出、资料同步。
+// 注：AUTH_UNAUTHORIZED / ADMIN_NOT_FOUND 由 http.ts interceptor 全局处理，hooks 无需重复。
 import { useEffect } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
@@ -11,7 +12,6 @@ import {
   type ChangeMyPasswordReq,
   persistAdminTokens,
 } from "@/api/modules/auth"
-import { useApiError } from "@/hooks/common/use-api-error"
 import { adminQueryKeys } from "@/hooks/query-keys"
 import { useAdminAuthStore } from "@/stores/auth-store"
 
@@ -89,11 +89,8 @@ export function useAdminLogoutMutation() {
 }
 
 export function useMyAdminProfileQuery() {
-  const queryClient = useQueryClient()
-  const { isCode } = useApiError()
   const accessToken = useAdminAuthStore((state) => state.accessToken)
   const setProfile = useAdminAuthStore((state) => state.setProfile)
-  const clearSession = useAdminAuthStore((state) => state.clearSession)
 
   const profileQuery = useQuery({
     queryKey: adminQueryKeys.profile("self"),
@@ -108,13 +105,6 @@ export function useMyAdminProfileQuery() {
     }
   }, [profileQuery.data, setProfile])
 
-  useEffect(() => {
-    if (profileQuery.error && isCode(profileQuery.error, "AUTH_UNAUTHORIZED")) {
-      clearSession()
-      queryClient.clear()
-    }
-  }, [clearSession, isCode, profileQuery.error, queryClient])
-
   return profileQuery
 }
 
@@ -123,14 +113,4 @@ export function useChangeMyPasswordMutation() {
     mutationFn: (req: ChangeMyPasswordReq) => adminAuthApi.changeMyPassword(req),
     retry: 0,
   })
-}
-
-export function useClearAdminSessionAction() {
-  const queryClient = useQueryClient()
-  const clearSession = useAdminAuthStore((state) => state.clearSession)
-
-  return () => {
-    clearSession()
-    queryClient.clear()
-  }
 }

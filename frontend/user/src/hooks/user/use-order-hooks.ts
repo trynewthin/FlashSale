@@ -9,7 +9,6 @@ import {
   type CreateOrderReq,
   type ListOrdersQuery,
 } from "@/api/modules/order"
-import { useApiError } from "@/hooks/common/use-api-error"
 import { userQueryKeys } from "@/hooks/query-keys"
 import { useUserAuthStore } from "@/stores/auth-store"
 
@@ -55,8 +54,6 @@ export function useCreateOrderMutation() {
 export function useConfirmPaymentAndInfoMutation(orderId: Int64Like) {
   const queryClient = useQueryClient()
   const userId = useUserAuthStore((state) => state.profile?.user_id)
-  const { isCode } = useApiError()
-  const clearSession = useUserAuthStore((state) => state.clearSession)
 
   return useMutation({
     mutationFn: (req: ConfirmPaymentAndInfoReq) => userOrderApi.confirmPaymentAndInfo(orderId, req),
@@ -68,12 +65,6 @@ export function useConfirmPaymentAndInfoMutation(orderId: Int64Like) {
       queryClient.invalidateQueries({
         queryKey: userQueryKeys.ordersList(userId),
       })
-    },
-    onError: (error) => {
-      if (isCode(error, "AUTH_UNAUTHORIZED")) {
-        clearSession()
-        queryClient.clear()
-      }
     },
   })
 }

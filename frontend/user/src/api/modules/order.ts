@@ -89,6 +89,7 @@ export interface GetOrderResp {
 
 export interface ListOrdersQuery extends PaginationParams {
   order_status?: number
+  order_no?: string
 }
 
 export type ListOrdersResp = PaginatedList<OrderView>

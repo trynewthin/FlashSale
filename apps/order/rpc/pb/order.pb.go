@@ -731,6 +731,7 @@ type ListOrdersUserReq struct {
 	Page          int64                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	PageSize      int64                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	OrderStatus   int32                  `protobuf:"varint,4,opt,name=order_status,json=orderStatus,proto3" json:"order_status,omitempty"`
+	OrderNo       string                 `protobuf:"bytes,5,opt,name=order_no,json=orderNo,proto3" json:"order_no,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -791,6 +792,13 @@ func (x *ListOrdersUserReq) GetOrderStatus() int32 {
 		return x.OrderStatus
 	}
 	return 0
+}
+
+func (x *ListOrdersUserReq) GetOrderNo() string {
+	if x != nil {
+		return x.OrderNo
+	}
+	return ""
 }
 
 type ListOrdersUserResp struct {
@@ -1720,12 +1728,13 @@ const file_apps_order_rpc_order_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x19\n" +
 	"\border_id\x18\x02 \x01(\x03R\aorderId\":\n" +
 	"\x10GetOrderUserResp\x12&\n" +
-	"\x05order\x18\x01 \x01(\v2\x10.order.OrderViewR\x05order\"\x80\x01\n" +
+	"\x05order\x18\x01 \x01(\v2\x10.order.OrderViewR\x05order\"\x9b\x01\n" +
 	"\x11ListOrdersUserReq\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x03R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x03R\bpageSize\x12!\n" +
-	"\forder_status\x18\x04 \x01(\x05R\vorderStatus\"\x81\x01\n" +
+	"\forder_status\x18\x04 \x01(\x05R\vorderStatus\x12\x19\n" +
+	"\border_no\x18\x05 \x01(\tR\aorderNo\"\x81\x01\n" +
 	"\x12ListOrdersUserResp\x12$\n" +
 	"\x04list\x18\x01 \x03(\v2\x10.order.OrderViewR\x04list\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\x12\x12\n" +

@@ -1,10 +1,12 @@
-# FlashSale 后端容器镜像（多服务同镜像，并行编译）
+# FlashSale 后端容器镜像（多服务同镜像）
 #
-# 优化：
-# - 所有 Go 二进制在一个 RUN 内并行编译（利用 shell & + wait）
-# - Go 编译器自身的并行性（-p=N）叠加多目标并行 = 充分利用 CPU
-# - 共享 build cache 和 mod cache
-# - 单次 COPY . . 后一次性编译，减少 layer 和 context 开销
+# 构建模式（通过 BUILD_MODE 控制）：
+#   parallel（默认）: 9 个二进制并行编译，快但吃内存（建议 ≥ 8GB RAM）
+#   serial          : 逐个串行编译 + GOMAXPROCS=2，低内存安全（适合 ≤ 4GB 云服务器）
+#
+# 用法：
+#   docker build .                                    # 并行模式
+#   docker build --build-arg BUILD_MODE=serial .      # 串行模式
 
 FROM golang:1.25-alpine AS build
 
@@ -23,12 +25,28 @@ RUN mkdir -p /out
 
 ENV CGO_ENABLED=0
 
-# 并行编译所有目标二进制
-# 每个 go build 后台执行（&），最后 wait 等待全部完成
-# 如果任何一个失败，wait 会返回非零退出码
+ARG BUILD_MODE=parallel
+
+# ── 编译所有目标二进制 ──
+# parallel: 全部后台并行（& + wait），最大化 CPU 利用率
+# serial:   逐个串行 + GOMAXPROCS=2，峰值内存 ~500MB
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     set -e && \
+    if [ "$BUILD_MODE" = "serial" ]; then \
+    echo ">>> Serial build mode (low-mem)" && \
+    export GOMAXPROCS=2 && \
+    go build -buildvcs=false -trimpath -p 2 -o /out/user-rpc       ./apps/user/rpc         && \
+    go build -buildvcs=false -trimpath -p 2 -o /out/product-rpc    ./apps/product/rpc      && \
+    go build -buildvcs=false -trimpath -p 2 -o /out/order-rpc      ./apps/order/rpc        && \
+    go build -buildvcs=false -trimpath -p 2 -o /out/seckill-rpc    ./apps/seckill/rpc      && \
+    go build -buildvcs=false -trimpath -p 2 -o /out/admin-rpc      ./apps/admin/rpc        && \
+    go build -buildvcs=false -trimpath -p 2 -o /out/user-gateway   ./apps/gateway/user     && \
+    go build -buildvcs=false -trimpath -p 2 -o /out/admin-gateway  ./apps/gateway/admin    && \
+    go build -buildvcs=false -trimpath -p 2 -o /out/fs             ./cmd/fs                && \
+    go build -buildvcs=false -trimpath -p 2 -o /out/seckillload    ./cmd/perf/seckillload  ; \
+    else \
+    echo ">>> Parallel build mode" && \
     go build -buildvcs=false -trimpath -o /out/user-rpc       ./apps/user/rpc         & \
     go build -buildvcs=false -trimpath -o /out/product-rpc    ./apps/product/rpc      & \
     go build -buildvcs=false -trimpath -o /out/order-rpc      ./apps/order/rpc        & \
@@ -38,7 +56,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -buildvcs=false -trimpath -o /out/admin-gateway  ./apps/gateway/admin    & \
     go build -buildvcs=false -trimpath -o /out/fs             ./cmd/fs                & \
     go build -buildvcs=false -trimpath -o /out/seckillload    ./cmd/perf/seckillload  & \
-    wait
+    wait; \
+    fi
 
 FROM alpine:3.20
 

@@ -30,11 +30,12 @@ export function AdminEditForm({ admin, onClose }: { admin: AdminView; onClose: (
       </div>
       <div className="space-y-2">
         <Label>数据范围</Label>
-        <Select value={dataScope} onValueChange={(v) => v && setDataScope(v as "all" | "self")}>
+        <Select value={dataScope} onValueChange={(v) => v && setDataScope(v as "all" | "self")}
+          items={[{ value: "all", label: "全部数据" }, { value: "self", label: "仅本人" }]}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">all</SelectItem>
-            <SelectItem value="self">self</SelectItem>
+            <SelectItem value="all">全部数据</SelectItem>
+            <SelectItem value="self">仅本人</SelectItem>
           </SelectContent>
         </Select>
       </div>

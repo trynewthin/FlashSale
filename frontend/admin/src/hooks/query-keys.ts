@@ -7,6 +7,7 @@ import {
   type ListActivitiesQuery,
   type ListActivityOrdersQuery,
 } from "@/api/modules/seckill"
+import { type ListUsersQuery } from "@/api/modules/user"
 
 export const adminQueryKeys = {
   session: () => ["admin", "session"] as const,
@@ -23,6 +24,8 @@ export const adminQueryKeys = {
     ["admin", operatorAdminId ?? "anonymous", "audit", params ?? {}] as const,
   managedUserProfile: (operatorAdminId: Int64 | undefined, userId: string | number) =>
     ["mgmt", operatorAdminId ?? "anonymous", "users", String(userId)] as const,
+  usersList: (operatorAdminId?: Int64, params?: ListUsersQuery) =>
+    ["mgmt", operatorAdminId ?? "anonymous", "users", "list", params ?? {}] as const,
   productsList: (operatorAdminId?: Int64, params?: ListAdminProductsQuery) =>
     ["mgmt", operatorAdminId ?? "anonymous", "products", "list", params ?? {}] as const,
   productDetail: (operatorAdminId: Int64 | undefined, productId: string | number) =>

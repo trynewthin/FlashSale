@@ -10,7 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Search, X } from "lucide-react"
+import { Plus, Search, X, ShieldCheck, UserCog, AlertCircle } from "lucide-react"
 
 import { type AdminView } from "@/api/modules/auth"
 import { useAdminListQuery, useCreateAdminMutation } from "@/hooks/admin/use-admin-account-hooks"
@@ -23,8 +23,25 @@ import {
   AdminEditForm, DeleteAdminDialog, ResetPwdDialog, BindRolesDialog, AdminRowActions,
 } from "@/components/admin"
 
-const STATUS_MAP: Record<number, string> = { 1: "启用", 2: "禁用" }
+const STATUS_MAP: Record<number, { label: string; variant: "default" | "secondary" }> = {
+  1: { label: "启用", variant: "default" },
+  2: { label: "禁用", variant: "secondary" },
+}
 
+const SCOPE_MAP: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
+  all: { label: "全部数据", variant: "default" },
+  self: { label: "仅本人", variant: "outline" },
+}
+
+// ── 用户头像字母 ──────────────────────────────────────────
+function AdminAvatar({ admin }: { admin: AdminView }) {
+  const letter = (admin.display_name || admin.username).charAt(0).toUpperCase()
+  return (
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+      {letter}
+    </span>
+  )
+}
 
 export function AdminListPage() {
   const { isDataScopeAll } = useAdminPermission()
@@ -95,9 +112,7 @@ export function AdminListPage() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (editTarget) {
-      // update handled via AdminFormDialog
-    } else {
+    if (!editTarget) {
       createMutation.mutate(
         {
           username: formData.username,
@@ -111,139 +126,186 @@ export function AdminListPage() {
     }
   }
 
-  const handleSearch = () => {
-    setSearchKeyword(keyword)
-    setPage(1)
-  }
-
-  const handleReset = () => {
-    setKeyword("")
-    setSearchKeyword("")
-    setStatusFilter("")
-    setPage(1)
-  }
-
+  const handleSearch = () => { setSearchKeyword(keyword); setPage(1) }
+  const handleReset = () => { setKeyword(""); setSearchKeyword(""); setStatusFilter(""); setPage(1) }
   const openBindRoles = (admin: AdminView) => {
     setBindRolesTarget(admin)
     setSelectedRoleIds(admin.role_ids?.map(String) ?? [])
   }
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-5 p-6">
+
+      {/* ── 顶部 ── */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">管理员列表</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">管理员</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">共 {total} 位管理员</p>
+        </div>
         <Button onClick={openCreate} size="sm">
-          <Plus className="mr-1 size-4" />
-          新建管理员
+          <Plus className="mr-1.5 size-3.5" />新建管理员
         </Button>
       </div>
 
-      <div className="flex items-end gap-3">
+      {/* ── 筛选栏 ── */}
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-card px-4 py-3">
         <div className="space-y-1">
-          <Label className="text-xs">关键字</Label>
+          <Label className="text-xs text-muted-foreground">关键字</Label>
           <Input
-            placeholder="用户名/昵称"
+            placeholder="用户名 / 昵称"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            className="w-48"
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            className="h-8 w-44 text-sm"
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">状态</Label>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "")}>
-            <SelectTrigger className="w-28">
-              <SelectValue placeholder="全部" />
-            </SelectTrigger>
+          <Label className="text-xs text-muted-foreground">状态</Label>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "")}
+            items={[{ value: "1", label: "启用" }, { value: "2", label: "禁用" }]}>
+            <SelectTrigger className="h-8 w-28 text-sm"><SelectValue placeholder="全部" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="1">启用</SelectItem>
               <SelectItem value="2">禁用</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        <Button size="sm" onClick={handleSearch}>
-          <Search className="mr-1 size-4" />
-          查询
-        </Button>
-        <Button size="sm" variant="outline" onClick={handleReset}>
-          <X className="mr-1 size-4" />
-          重置
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" className="h-8" onClick={handleSearch}>
+            <Search className="mr-1 size-3.5" />查询
+          </Button>
+          <Button size="sm" variant="outline" className="h-8" onClick={handleReset}>
+            <X className="mr-1 size-3.5" />重置
+          </Button>
+        </div>
       </div>
 
+      {/* ── 错误 ── */}
       {listQuery.isError && (
-        <Alert variant="destructive">
-          <AlertDescription>{toUserMessage(listQuery.error)}</AlertDescription>
-        </Alert>
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <AlertCircle className="size-4 shrink-0" />
+          {toUserMessage(listQuery.error)}
+        </div>
       )}
 
-      <div className="rounded-md border">
+      {/* ── 表格 ── */}
+      <div className="rounded-lg border overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>用户名</TableHead>
-              <TableHead>昵称</TableHead>
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="pl-4">管理员</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>数据范围</TableHead>
-              <TableHead>角色数</TableHead>
+              <TableHead>权限域</TableHead>
+              <TableHead>最近登录</TableHead>
               <TableHead>创建时间</TableHead>
-              <TableHead className="w-16">操作</TableHead>
+              <TableHead className="w-14 pr-4">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  {listQuery.isLoading ? "加载中…" : "暂无数据"}
+                <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                  {listQuery.isLoading
+                    ? <span className="flex items-center justify-center gap-2"><span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />加载中…</span>
+                    : "暂无数据"}
                 </TableCell>
               </TableRow>
             )}
-            {items.map((admin) => (
-              <TableRow key={admin.admin_id}>
-                <TableCell className="font-medium">{admin.username}</TableCell>
-                <TableCell>{admin.display_name || "-"}</TableCell>
-                <TableCell>
-                  <Badge variant={admin.status === 1 ? "default" : "secondary"}>
-                    {STATUS_MAP[admin.status] ?? admin.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">{admin.data_scope}</Badge>
-                </TableCell>
-                <TableCell>{admin.role_ids?.length ?? 0}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatUnix(admin.created_at_unix)}
-                </TableCell>
-                <TableCell>
-                  <AdminRowActions
-                    admin={admin}
-                    onEdit={() => openEdit(admin)}
-                    onDelete={() => setDeleteTarget(admin)}
-                    onResetPwd={() => { setResetPwdTarget(admin); setNewPassword("") }}
-                    onBindRoles={() => openBindRoles(admin)}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
+            {items.map((admin) => {
+              const statusInfo = STATUS_MAP[admin.status] ?? { label: String(admin.status), variant: "outline" as const }
+              const scopeInfo = SCOPE_MAP[admin.data_scope] ?? { label: admin.data_scope, variant: "outline" as const }
+              return (
+                <TableRow key={admin.admin_id} className="group">
+                  {/* 管理员 */}
+                  <TableCell className="pl-4">
+                    <div className="flex items-center gap-3">
+                      <AdminAvatar admin={admin} />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-medium leading-none">{admin.display_name || admin.username}</span>
+                          {admin.is_super_admin && (
+                            <span title="超级管理员">
+                              <ShieldCheck className="size-3.5 text-amber-500" />
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground">{admin.username}</span>
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  {/* 状态 */}
+                  <TableCell>
+                    <Badge variant={statusInfo.variant} className="text-xs">{statusInfo.label}</Badge>
+                  </TableCell>
+
+                  {/* 数据范围 */}
+                  <TableCell>
+                    <Badge variant={scopeInfo.variant} className="text-xs">{scopeInfo.label}</Badge>
+                  </TableCell>
+
+                  {/* 权限域 */}
+                  <TableCell>
+                    {admin.domains?.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {admin.domains.slice(0, 2).map((d) => (
+                          <Badge key={d} variant="outline" className="text-[10px] px-1.5 py-0">
+                            <UserCog className="mr-0.5 size-2.5" />
+                            {d.replace("_management", "")}
+                          </Badge>
+                        ))}
+                        {admin.domains.length > 2 && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            +{admin.domains.length - 2}
+                          </Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+
+                  {/* 最近登录 */}
+                  <TableCell className="text-xs text-muted-foreground">
+                    {admin.last_login_at_unix ? formatUnix(admin.last_login_at_unix) : "—"}
+                  </TableCell>
+
+                  {/* 创建时间 */}
+                  <TableCell className="text-xs text-muted-foreground">
+                    {formatUnix(admin.created_at_unix)}
+                  </TableCell>
+
+                  {/* 操作 */}
+                  <TableCell className="pr-4">
+                    <AdminRowActions
+                      admin={admin}
+                      onEdit={() => openEdit(admin)}
+                      onDelete={() => setDeleteTarget(admin)}
+                      onResetPwd={() => { setResetPwdTarget(admin); setNewPassword("") }}
+                      onBindRoles={() => openBindRoles(admin)}
+                    />
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </div>
 
+      {/* ── 分页 ── */}
       <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">共 {total} 条</span>
+        <span className="text-muted-foreground">
+          第 {page} 页 · 共 {total} 条
+        </span>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            上一页
-          </Button>
-          <span className="flex items-center px-2">
-            {page} / {totalPages || 1}
-          </span>
-          <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
-            下一页
-          </Button>
+          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</Button>
+          <span className="flex items-center px-2 text-muted-foreground">{page} / {totalPages || 1}</span>
+          <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>下一页</Button>
         </div>
       </div>
 
+      {/* ── 新建/编辑 Dialog ── */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent>
           <DialogHeader>
@@ -283,13 +345,12 @@ export function AdminListPage() {
                 <Select
                   value={formData.data_scope}
                   onValueChange={(v) => v && setFormData({ ...formData, data_scope: v as "all" | "self" })}
+                  items={[{ value: "all", label: "全部数据" }, { value: "self", label: "仅本人" }]}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">all</SelectItem>
-                    <SelectItem value="self">self</SelectItem>
+                    <SelectItem value="all">全部数据</SelectItem>
+                    <SelectItem value="self">仅本人</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -299,9 +360,7 @@ export function AdminListPage() {
                 </Alert>
               )}
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
-                  取消
-                </Button>
+                <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>取消</Button>
                 <Button type="submit" disabled={createMutation.isPending}>
                   {createMutation.isPending ? "保存中…" : "保存"}
                 </Button>
@@ -314,7 +373,6 @@ export function AdminListPage() {
       {deleteTarget && (
         <DeleteAdminDialog admin={deleteTarget} onClose={() => setDeleteTarget(null)} />
       )}
-
       {resetPwdTarget && (
         <ResetPwdDialog
           admin={resetPwdTarget}
@@ -323,7 +381,6 @@ export function AdminListPage() {
           onClose={() => { setResetPwdTarget(null); setNewPassword("") }}
         />
       )}
-
       {bindRolesTarget && (
         <BindRolesDialog
           admin={bindRolesTarget}
@@ -336,4 +393,3 @@ export function AdminListPage() {
     </div>
   )
 }
-

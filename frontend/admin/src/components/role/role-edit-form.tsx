@@ -21,7 +21,8 @@ export function RoleEditForm({ role, onClose }: { role: RoleView; onClose: () =>
       <div className="space-y-2"><Label>角色名称</Label><Input value={roleName} onChange={(e) => setRoleName(e.target.value)} required /></div>
       <div className="space-y-2">
         <Label>状态</Label>
-        <Select value={String(status)} onValueChange={(v) => v && setStatus(Number(v))}>
+        <Select value={String(status)} onValueChange={(v) => v && setStatus(Number(v))}
+          items={[{ value: "1", label: "启用" }, { value: "2", label: "禁用" }]}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="1">启用</SelectItem><SelectItem value="2">禁用</SelectItem></SelectContent>
         </Select>

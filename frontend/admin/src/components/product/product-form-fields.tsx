@@ -24,7 +24,8 @@ export function ProductFormFields({ formData, setFormData }: { formData: Product
       </div>
       <div className="space-y-2">
         <Label>状态</Label>
-        <Select value={String(formData.status)} onValueChange={(v) => v && setFormData({ ...formData, status: Number(v) })}>
+        <Select value={String(formData.status)} onValueChange={(v) => v && setFormData({ ...formData, status: Number(v) })}
+          items={[{ value: "1", label: "上架" }, { value: "2", label: "下架" }]}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="1">上架</SelectItem><SelectItem value="2">下架</SelectItem></SelectContent>
         </Select>

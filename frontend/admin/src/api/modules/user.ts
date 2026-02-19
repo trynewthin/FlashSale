@@ -1,12 +1,20 @@
 import { adminApiClient } from "@/api/core/http"
-import { type Int64, type Int64Like } from "@/api/core/types"
+import { type Int64, type Int64Like, type PaginatedList, type PaginationParams } from "@/api/core/types"
 
 export interface ManagedUserView {
   user_id: Int64
   phone: string
   nickname: string
+  status: number
+  last_login_at_unix: number
+  last_login_ip: string
   created_at_unix: number
   updated_at_unix: number
+}
+
+export interface ListUsersQuery extends PaginationParams {
+  keyword?: string
+  status?: number
 }
 
 export interface UpdateManagedUserNicknameReq {
@@ -27,5 +35,11 @@ export const adminUserApi = {
 
   deleteUser(userId: Int64Like): Promise<{ user_id: Int64 }> {
     return adminApiClient.delete<{ user_id: Int64 }>(`/users/${userId}`)
+  },
+
+  listUsers(query?: ListUsersQuery): Promise<PaginatedList<ManagedUserView>> {
+    return adminApiClient.get<PaginatedList<ManagedUserView>>("/users", {
+      params: query,
+    })
   },
 }

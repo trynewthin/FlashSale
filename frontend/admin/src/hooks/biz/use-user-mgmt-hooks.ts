@@ -2,9 +2,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { type Int64Like } from "@/api/core/types"
-import { adminUserApi, type UpdateManagedUserNicknameReq } from "@/api/modules/user"
+import { adminUserApi, type ListUsersQuery, type UpdateManagedUserNicknameReq } from "@/api/modules/user"
 import { adminQueryKeys } from "@/hooks/query-keys"
 import { useAdminAuthStore } from "@/stores/auth-store"
+
+export function useUserListQuery(params: ListUsersQuery) {
+  const operatorAdminId = useAdminAuthStore((state) => state.profile?.admin_id)
+  return useQuery({
+    queryKey: adminQueryKeys.usersList(operatorAdminId, params),
+    queryFn: () => adminUserApi.listUsers(params),
+    retry: 1,
+  })
+}
 
 export function useManagedUserProfileQuery(userId: Int64Like | undefined) {
   const operatorAdminId = useAdminAuthStore((state) => state.profile?.admin_id)

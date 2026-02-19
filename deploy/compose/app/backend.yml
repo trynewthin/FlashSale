@@ -1,0 +1,225 @@
+# ─── 后端服务：构建镜像 / 迁移 / RPC 微服务 / API 网关 ───
+services:
+  backend-image:
+    # 仅用于复用 build 缓存，不实际启动
+    image: flashsale-backend:local
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    profiles: [ "build" ]
+
+  migrate:
+    image: flashsale-backend:local
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    depends_on:
+      mysql-init-user:
+        condition: service_completed_successfully
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+    command: [ "/app/bin/fs", "env", "migrate-up", "--env-file", "-" ]
+
+  # ─── RPC 微服务 ───
+
+  user-rpc:
+    image: flashsale-backend:local
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      etcd:
+        condition: service_healthy
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_REDIS_ADDR: redis:6379
+      FLASHSALE_KAFKA_BROKERS: kafka:9092
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+    command: [ "/app/bin/user-rpc", "-f", "/app/apps/user/rpc/etc/user.docker.yaml" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  product-rpc:
+    image: flashsale-backend:local
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_REDIS_ADDR: redis:6379
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+    command: [ "/app/bin/product-rpc", "-f", "/app/apps/product/rpc/etc/product.docker.yaml" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  admin-rpc:
+    image: flashsale-backend:local
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      etcd:
+        condition: service_healthy
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+    command: [ "/app/bin/admin-rpc", "-f", "/app/apps/admin/rpc/etc/admin.docker.yaml" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  order-rpc:
+    image: flashsale-backend:local
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      etcd:
+        condition: service_healthy
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_KAFKA_BROKERS: kafka:9092
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+    command: [ "/app/bin/order-rpc", "-f", "/app/apps/order/rpc/etc/order.docker.yaml" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  seckill-rpc:
+    image: flashsale-backend:local
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      etcd:
+        condition: service_healthy
+    environment:
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_REDIS_ADDR: redis:6379
+      FLASHSALE_KAFKA_BROKERS: kafka:9092
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+    command: [ "/app/bin/seckill-rpc", "-f", "/app/apps/seckill/rpc/etc/seckill.docker.yaml" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  # ─── API 网关 ───
+
+  user-gateway:
+    image: flashsale-backend:local
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      etcd:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_REDIS_ADDR: redis:6379
+      FLASHSALE_KAFKA_BROKERS: kafka:9092
+    command: [ "/app/bin/user-gateway", "-f", "/app/apps/gateway/user/etc/user-gateway.docker.yaml" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:8082/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  admin-gateway:
+    image: flashsale-backend:local
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      etcd:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
+      FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
+      FLASHSALE_MYSQL_HOST: mysql
+      FLASHSALE_MYSQL_PORT: 3306
+      FLASHSALE_MYSQL_USER: ${FLASH_MYSQL_APP_USER:-flash}
+      FLASHSALE_MYSQL_PASSWORD: ${FLASH_MYSQL_APP_PASSWORD:-flashsale_app_dev}
+      FLASHSALE_REDIS_ADDR: redis:6379
+      FLASHSALE_KAFKA_BROKERS: kafka:9092
+    command: [ "/app/bin/admin-gateway", "-f", "/app/apps/gateway/admin/etc/admin-gateway.docker.yaml" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:8083/healthz || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12

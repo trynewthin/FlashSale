@@ -1,0 +1,95 @@
+# ─── 代理 / 静态资源 / 运维控制 ───
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: flashsale-app-nginx
+    restart: unless-stopped
+    ports:
+      - "${FLASH_NGINX_HTTP_PORT:-18000}:80"
+    volumes:
+      - ../../nginx/nginx.app.conf:/etc/nginx/nginx.conf:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      user-gateway:
+        condition: service_healthy
+      admin-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/nginx-healthz" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  ops-control:
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/ops.Dockerfile
+    container_name: flashsale-app-ops-control
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+    ports:
+      - "${FLASH_OPS_PORT:-9100}:9100"
+    environment:
+      FLASHSALE_ETCD_ENDPOINT: etcd:2379
+      FLASHSALE_PROMETHEUS_ENDPOINT: http://prometheus:9090
+      FLASHSALE_APP_COMPOSE_FILE: /app/deploy/compose/docker-compose.app.yml
+      FLASHSALE_APP_ENV_FILE: /app/configs/local/docker-app.env
+    command:
+      - --addr=0.0.0.0:9100
+      - --repo-root=/app
+      - --default-env-file=configs/local/docker-app.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../../../log:/app/log
+      - ../../../configs:/app/configs:ro
+      - ../../compose:/app/deploy/compose:ro
+      - ../../nginx:/app/deploy/nginx:ro
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:9100/healthz" ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  cdn:
+    image: nginx:1.27-alpine
+    container_name: flashsale-app-cdn
+    restart: unless-stopped
+    ports:
+      - "${FLASH_CDN_PORT:-19000}:80"
+    volumes:
+      - ../../nginx/nginx.cdn.conf:/etc/nginx/nginx.conf:ro
+      - ../../cdn/assets:/srv/cdn/assets:ro
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/healthz" ]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  media-store:
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/media-store.Dockerfile
+    container_name: flashsale-app-media-store
+    restart: unless-stopped
+    ports:
+      - "${FLASH_MEDIA_STORE_PORT:-19001}:9200"
+    environment:
+      MEDIA_STORE_ADDR: "0.0.0.0:9200"
+      MEDIA_STORE_DIR: "/srv/cdn/assets"
+      MEDIA_STORE_SECRET: "${FLASH_MEDIA_STORE_SECRET:-flashsale-media-dev}"
+    volumes:
+      - ../../cdn/assets:/srv/cdn/assets:rw
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:9200/healthz" ]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+volumes:
+  nginx_logs:

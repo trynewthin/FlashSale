@@ -24,6 +24,7 @@ import {
   ItemEditForm, DeleteItemDialog, ItemRowActions,
 } from "@/components/seckill"
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/features/order/status"
+import { cdnUrl } from "@/lib/cdn"
 
 const ITEM_STATUS: Record<number, string> = { 1: "启用", 2: "禁用" }
 const LIMIT_MODE: Record<number, string> = { 0: "不限", 1: "按窗口", 2: "按活动" }
@@ -137,7 +138,7 @@ export function SeckillActivityDetailPage() {
                 <TableRow key={item.item_id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {item.snapshot_main_image && <img src={item.snapshot_main_image} alt="" className="size-8 rounded object-cover" />}
+                      {item.snapshot_main_image && <img src={cdnUrl(item.snapshot_main_image)} alt="" className="size-8 rounded object-cover" />}
                       <span className="text-sm">{item.snapshot_name}</span>
                     </div>
                   </TableCell>
@@ -183,13 +184,13 @@ export function SeckillActivityDetailPage() {
                 const paymentStatus = Number(o.payment_status ?? 0)
                 return (
                   <TableRow key={o.link_id}>
-                  <TableCell className="font-mono text-xs">{o.order_no}</TableCell>
-                  <TableCell>{o.user_id}</TableCell>
-                  <TableCell>{o.quantity}</TableCell>
-                  <TableCell><Badge variant="outline">{ORDER_STATUS_LABELS[o.order_status] ?? o.order_status}</Badge></TableCell>
-                  <TableCell><Badge variant="secondary">{PAYMENT_STATUS_LABELS[paymentStatus] ?? paymentStatus}</Badge></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{o.close_reason || "-"}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{formatUnix(o.created_at_unix)}</TableCell>
+                    <TableCell className="font-mono text-xs">{o.order_no}</TableCell>
+                    <TableCell>{o.user_id}</TableCell>
+                    <TableCell>{o.quantity}</TableCell>
+                    <TableCell><Badge variant="outline">{ORDER_STATUS_LABELS[o.order_status] ?? o.order_status}</Badge></TableCell>
+                    <TableCell><Badge variant="secondary">{PAYMENT_STATUS_LABELS[paymentStatus] ?? paymentStatus}</Badge></TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{o.close_reason || "-"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{formatUnix(o.created_at_unix)}</TableCell>
                   </TableRow>
                 )
               })}

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { mediaApi } from "@/api/modules/media"
+import { cdnUrl } from "@/lib/cdn"
 
 interface ImageUploaderProps {
     value: string
@@ -75,7 +76,7 @@ export function ImageUploader({
                 <div className="relative group">
                     <div className="relative overflow-hidden rounded-lg border bg-muted/30">
                         <img
-                            src={value}
+                            src={cdnUrl(value)}
                             alt="商品主图"
                             className="h-40 w-full object-contain"
                             onError={(e) => {

@@ -1,24 +1,17 @@
 import { useParams, useNavigate } from "react-router-dom"
-
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { ArrowLeft } from "lucide-react"
 
+import { Skeleton } from "@/components/ui/skeleton"
+import { SeckillItemCard } from "@/components/seckill"
+import { SeckillCountdown } from "@/components/seckill/seckill-countdown"
 import { useSeckillActivityDetailQuery } from "@/hooks/user/use-seckill-hooks"
 import { useApiError } from "@/hooks/common/use-api-error"
 
-import { SeckillItemCard } from "@/components/seckill"
-
-function formatUnix(unix: number) { if (!unix) return "-"; return new Date(unix * 1000).toLocaleString("zh-CN") }
-
-function getActivityStatus(startUnix: number, endUnix: number): { label: string; variant: "default" | "secondary" | "destructive"; active: boolean } {
+function getActivityStatus(startUnix: number, endUnix: number) {
   const now = Math.floor(Date.now() / 1000)
-  if (now < startUnix) return { label: "未开始", variant: "secondary", active: false }
-  if (now > endUnix) return { label: "已结束", variant: "destructive", active: false }
-  return { label: "进行中", variant: "default", active: true }
+  if (now < startUnix) return { active: false }
+  if (now > endUnix) return { active: false }
+  return { active: true }
 }
 
 export function SeckillDetailPage() {
@@ -30,60 +23,85 @@ export function SeckillDetailPage() {
   const activity = detailQuery.data?.activity
 
   if (detailQuery.isLoading) {
-    return <div className="flex items-center justify-center py-12 text-muted-foreground">加载中…</div>
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-32" />
+        <div className="rounded-xl border border-border/60 p-4 space-y-3">
+          <Skeleton className="h-10 w-64 mx-auto" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="aspect-4/3 rounded-xl" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (detailQuery.isError) {
-    return <Alert variant="destructive"><AlertDescription>{toUserMessage(detailQuery.error)}</AlertDescription></Alert>
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="text-sm text-destructive">{toUserMessage(detailQuery.error)}</p>
+        <button
+          onClick={() => navigate(-1)}
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          ← 返回
+        </button>
+      </div>
+    )
   }
 
   if (!activity) return null
 
-  const status = getActivityStatus(activity.start_at_unix, activity.end_at_unix)
+  const { active } = getActivityStatus(activity.start_at_unix, activity.end_at_unix)
+  const items = activity.items ?? []
 
   return (
-    <div className="space-y-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate("/seckill")}>
-        <ArrowLeft className="mr-1 size-4" />返回活动列表
-      </Button>
+    <div className="space-y-6">
+      {/* 返回按钮 */}
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="size-4" />
+        返回
+      </button>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <CardTitle className="text-lg">{activity.title}</CardTitle>
-              {activity.description && <p className="text-sm text-muted-foreground">{activity.description}</p>}
-            </div>
-            <Badge variant={status.variant}>{status.label}</Badge>
+      {/* 活动区块 —— 与主页一致 */}
+      <section className="rounded-xl border border-border/60 p-4 space-y-3">
+        {/* 倒计时行 */}
+        <div className="flex items-center justify-center">
+          <SeckillCountdown endUnix={activity.end_at_unix} />
+        </div>
+
+        {/* 商品网格 */}
+        {items.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">暂无秒杀商品</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {items.map((item) => (
+              <SeckillItemCard
+                key={item.item_id}
+                activityId={activityId!}
+                item={item}
+                active={active}
+              />
+            ))}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div className="flex gap-4 text-muted-foreground">
-            <span>开始: {formatUnix(activity.start_at_unix)}</span>
-            <span>结束: {formatUnix(activity.end_at_unix)}</span>
-          </div>
-        </CardContent>
-      </Card>
+        )}
 
-      <Separator />
-
-      <h2 className="text-base font-medium">秒杀商品</h2>
-
-      {(!activity.items || activity.items.length === 0) && (
-        <p className="text-center text-muted-foreground py-8">暂无秒杀商品</p>
-      )}
-
-      <div className="space-y-3">
-        {activity.items?.map((item) => (
-          <SeckillItemCard
-            key={item.item_id}
-            activityId={activityId!}
-            item={item}
-            active={status.active}
-          />
-        ))}
-      </div>
+        {/* 底部商品数量 */}
+        {items.length > 0 && (
+          <p className="text-center text-xs text-muted-foreground pt-1">
+            共 {items.length} 件商品
+          </p>
+        )}
+      </section>
     </div>
   )
 }
-

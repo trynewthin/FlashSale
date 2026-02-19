@@ -1,8 +1,9 @@
-import { createBrowserRouter, Navigate } from "react-router-dom"
+import { createBrowserRouter } from "react-router-dom"
 
 import { UserLayout } from "@/components/layout/user-layout"
 import { AuthGuard } from "@/components/layout/auth-guard"
 import { LoginPage } from "@/pages/login"
+import { HomePage } from "@/pages/home"
 import { ProductListPage } from "@/pages/products/list"
 import { ProductDetailPage } from "@/pages/products/detail"
 import { OrderListPage } from "@/pages/orders/list"
@@ -24,7 +25,7 @@ export const router = createBrowserRouter([
       </AuthGuard>
     ),
     children: [
-      { index: true, element: <Navigate to="/products" replace /> },
+      { index: true, element: <HomePage /> },
       { path: "products", element: <ProductListPage /> },
       { path: "products/:productId", element: <ProductDetailPage /> },
       { path: "orders", element: <OrderListPage /> },

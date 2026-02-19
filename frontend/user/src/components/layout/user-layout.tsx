@@ -40,7 +40,7 @@ export function UserLayout() {
           {/* Logo */}
           <span
             className="text-sm font-semibold tracking-tight cursor-pointer select-none"
-            onClick={() => navigate("/products")}
+            onClick={() => navigate("/")}
           >
             FlashSale
           </span>

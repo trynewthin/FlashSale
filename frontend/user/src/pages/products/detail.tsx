@@ -10,7 +10,8 @@ import { useProductDetailQuery } from "@/hooks/user/use-product-hooks"
 import { useCreateOrderMutation } from "@/hooks/user/use-order-hooks"
 import { useApiError } from "@/hooks/common/use-api-error"
 
-function formatCent(cent: number) { return `¥${(cent / 100).toFixed(2)}` }
+import { formatCent } from "@/lib/format"
+import { cdnUrl } from "@/lib/cdn"
 
 export function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>()
@@ -47,7 +48,7 @@ export function ProductDetailPage() {
       <Card>
         {product.main_image && (
           <div className="aspect-video w-full bg-muted">
-            <img src={product.main_image} alt={product.name} className="size-full object-contain" />
+            <img src={cdnUrl(product.main_image)} alt={product.name} className="size-full object-contain" />
           </div>
         )}
         <CardHeader>

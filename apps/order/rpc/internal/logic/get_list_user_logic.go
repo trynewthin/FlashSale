@@ -8,6 +8,7 @@ import (
 	"flashsale/apps/order/rpc/internal/svc"
 	"flashsale/apps/order/rpc/pb"
 	"flashsale/pkg/base/errorx"
+
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -66,6 +67,7 @@ func (l *ListOrdersUserLogic) ListOrdersUser(in *pb.ListOrdersUserReq) (*pb.List
 		Page:        page,
 		PageSize:    pageSize,
 		OrderStatus: status,
+		OrderNo:     in.OrderNo,
 	})
 	if err != nil {
 		return nil, errorx.Wrap(errorx.CodeDBError, "查询订单列表失败", err)

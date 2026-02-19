@@ -1,9 +1,11 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { Search } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -20,10 +22,18 @@ export function OrderListPage() {
   const { toUserMessage } = useApiError()
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState("")
+  const [orderNoInput, setOrderNoInput] = useState("")
+  const [orderNoSearch, setOrderNoSearch] = useState("")
+
+  const handleSearch = () => {
+    setOrderNoSearch(orderNoInput.trim())
+    setPage(1)
+  }
 
   const listQuery = useOrderListQuery({
     page, page_size: 10,
     order_status: statusFilter ? Number(statusFilter) : undefined,
+    order_no: orderNoSearch || undefined,
   })
 
   const items = listQuery.data?.list ?? []
@@ -35,6 +45,22 @@ export function OrderListPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">我的订单</h1>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <Input
+              placeholder="搜索订单号"
+              className="h-8 w-40 pr-8 text-xs"
+              value={orderNoInput}
+              onChange={(e) => setOrderNoInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSearch() }}
+            />
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={handleSearch}
+            >
+              <Search className="size-3.5" />
+            </button>
+          </div>
           <Label className="text-xs">状态</Label>
           <Select value={statusFilter || "all"} onValueChange={(v: string | null) => { setStatusFilter(!v || v === "all" ? "" : v); setPage(1) }}>
             <SelectTrigger className="w-24">

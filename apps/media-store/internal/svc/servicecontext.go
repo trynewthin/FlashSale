@@ -23,7 +23,7 @@ func NewServiceContext(cfg config.Config) (*ServiceContext, error) {
 		Level: slog.LevelInfo,
 	}))
 
-	store, err := storage.NewLocalStore(cfg.StorageDir, cfg.CDNOrigin)
+	store, err := storage.NewLocalStore(cfg.StorageDir)
 	if err != nil {
 		return nil, fmt.Errorf("init storage: %w", err)
 	}

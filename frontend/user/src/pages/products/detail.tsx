@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom"
 
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -13,6 +13,7 @@ import { useCreateOrderMutation } from "@/hooks/user/use-order-hooks"
 import { useApiError } from "@/hooks/common/use-api-error"
 import { formatCent } from "@/lib/format"
 import { cdnUrl } from "@/lib/cdn"
+import { toast } from "sonner"
 
 export function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>()
@@ -43,7 +44,15 @@ export function ProductDetailPage() {
   }
 
   if (detailQuery.isError) {
-    return <Alert variant="destructive"><AlertDescription>{toUserMessage(detailQuery.error)}</AlertDescription></Alert>
+    return (
+      <EmptyState
+        icon={XCircle}
+        title="加载商品失败"
+        description={toUserMessage(detailQuery.error)}
+        actionLabel="返回重试"
+        onAction={() => navigate("/products")}
+      />
+    )
   }
 
   if (!product) return null
@@ -51,7 +60,10 @@ export function ProductDetailPage() {
   const handleBuy = () => {
     createOrderMutation.mutate(
       { product_id: product.product_id, order_source: 1 },
-      { onSuccess: (data) => navigate(`/orders/${data.order.order_id}`) }
+      {
+        onSuccess: (data) => navigate(`/orders/${data.order.order_id}`),
+        onError: (err) => toast.error(toUserMessage(err))
+      }
     )
   }
 
@@ -145,11 +157,6 @@ export function ProductDetailPage() {
           </div>
 
           <Separator />
-
-          {/* 下单错误 */}
-          {createOrderMutation.isError && (
-            <Alert variant="destructive"><AlertDescription>{toUserMessage(createOrderMutation.error)}</AlertDescription></Alert>
-          )}
 
           {/* 购买区 */}
           <div className="flex items-center gap-4 pt-1">

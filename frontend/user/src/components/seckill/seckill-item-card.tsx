@@ -7,6 +7,7 @@ import { useSeckillPurchaseMutation } from "@/hooks/user/use-seckill-hooks"
 import { useApiError } from "@/hooks/common/use-api-error"
 import { cdnUrl } from "@/lib/cdn"
 import { formatCent } from "@/lib/format"
+import { toast } from "sonner"
 
 function discountText(origin: number, seckill: number) {
   const pct = Math.round((1 - seckill / origin) * 100)
@@ -50,7 +51,10 @@ export function SeckillItemCard({
     e.stopPropagation()
     purchaseMutation.mutate(
       { activity_item_id: item.item_id, quantity: 1 },
-      { onSuccess: (data) => navigate(`/orders/${data.order_id}`) }
+      {
+        onSuccess: (data) => navigate(`/orders/${data.order_id}`),
+        onError: (err) => toast.error(toUserMessage(err))
+      }
     )
   }
 
@@ -147,13 +151,6 @@ export function SeckillItemCard({
             </>
           )}
         </button>
-
-        {/* 错误提示 */}
-        {purchaseMutation.isError && (
-          <p className="text-[11px] text-red-500 text-center leading-tight">
-            {toUserMessage(purchaseMutation.error)}
-          </p>
-        )}
       </div>
     </div>
   )

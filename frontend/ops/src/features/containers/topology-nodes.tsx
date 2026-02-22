@@ -259,8 +259,16 @@ export const ServiceGroupNodeView = memo(({ data }: NodeProps<Node<ServiceGroupN
         data.focused ? "border-sky-500 ring-2 ring-sky-200" : "border-slate-300"
       )}
     >
-      <Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border-0 !bg-slate-400" />
-      <Handle type="source" position={Position.Right} className="!h-2.5 !w-2.5 !border-0 !bg-slate-400" />
+      {/* Invisible handles for ReactFlow edges (4 sides for smart routing) */}
+      <Handle id="top-s" type="source" position={Position.Top} className="opacity-0!" />
+      <Handle id="right-s" type="source" position={Position.Right} className="opacity-0!" />
+      <Handle id="bottom-s" type="source" position={Position.Bottom} className="opacity-0!" />
+      <Handle id="left-s" type="source" position={Position.Left} className="opacity-0!" />
+
+      <Handle id="top-t" type="target" position={Position.Top} className="opacity-0!" />
+      <Handle id="right-t" type="target" position={Position.Right} className="opacity-0!" />
+      <Handle id="bottom-t" type="target" position={Position.Bottom} className="opacity-0!" />
+      <Handle id="left-t" type="target" position={Position.Left} className="opacity-0!" />
 
       {/* ── Area 1: Name + Actions ── */}
       <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-2.5">

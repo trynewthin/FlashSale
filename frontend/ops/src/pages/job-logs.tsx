@@ -6,7 +6,8 @@ import type { JobSummary, SSELogLineFrame } from "@/api/types"
 import { LogStreamViewer } from "@/components/common/log-stream-viewer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
+import { PageShell } from "@/components/layout/page-shell"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useEventSource } from "@/hooks/use-event-source"
 import { useOpsApiError } from "@/hooks/use-ops-api-error"
@@ -109,86 +110,84 @@ export function JobLogsPage() {
   })
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[1.2fr_1.8fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>最近任务</CardTitle>
-          <CardDescription>支持选择任务并查看日志。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => void loadJobs()} disabled={loading}>
-              <RefreshCcw className="size-4" />
-              刷新列表
-            </Button>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Job ID</TableHead>
-                <TableHead>Task</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {jobs.map((job) => (
-                <TableRow key={job.id} data-state={selectedJobId === job.id ? "selected" : undefined}>
-                  <TableCell className="max-w-[220px] truncate">{job.id}</TableCell>
-                  <TableCell>{job.task_id}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedJobId(job.id)
-                        void loadJobLog(job.id)
-                      }}
-                    >
-                      查看日志
-                    </Button>
-                  </TableCell>
+    <PageShell
+      title="任务日志"
+      actions={
+        <>
+          <Button variant="secondary" size="sm" onClick={() => void loadJobs()} disabled={loading}>
+            <RefreshCcw className="size-4" />
+            刷新列表
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setStreaming((v) => !v)}
+            disabled={!selectedJobId}
+          >
+            {streaming ? <Pause className="size-4" /> : <Play className="size-4" />}
+            {streaming ? "停止流" : "开始流"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => { if (selectedJobId) void loadJobLog(selectedJobId) }}
+            disabled={!selectedJobId}
+          >
+            <RefreshCcw className="size-4" />
+            重载快照
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_1.8fr]">
+        <Card>
+          <CardContent className="pt-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">最近任务</p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Job ID</TableHead>
+                  <TableHead>Task</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>操作</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {jobs.map((job) => (
+                  <TableRow key={job.id} data-state={selectedJobId === job.id ? "selected" : undefined}>
+                    <TableCell className="max-w-[220px] truncate">{job.id}</TableCell>
+                    <TableCell>{job.task_id}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedJobId(job.id)
+                          void loadJobLog(job.id)
+                        }}
+                      >
+                        查看日志
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>任务日志</CardTitle>
-          <CardDescription>{selectedJobId ? `Job: ${selectedJobId}` : "请选择任务"}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setStreaming((value) => !value)}
-              disabled={!selectedJobId}
-            >
-              {streaming ? <Pause className="size-4" /> : <Play className="size-4" />}
-              {streaming ? "停止流" : "开始流"}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (selectedJobId) {
-                  void loadJobLog(selectedJobId)
-                }
-              }}
-              disabled={!selectedJobId}
-            >
-              <RefreshCcw className="size-4" />
-              重载快照
-            </Button>
-          </div>
-          <LogStreamViewer value={logText} emptyText="请选择任务并查看日志" />
-        </CardContent>
-      </Card>
-    </div>
+        <Card>
+          <CardContent className="pt-5 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {selectedJobId ? `Job: ${selectedJobId}` : "请选择任务"}
+            </p>
+            <LogStreamViewer value={logText} emptyText="请选择任务并查看日志" />
+          </CardContent>
+        </Card>
+      </div>
+    </PageShell>
   )
 }

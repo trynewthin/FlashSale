@@ -233,6 +233,17 @@ func ContainerAction(repoRoot, containerID, action string) (string, error) {
 	return RunCmdWithErr(repoRoot, 30*time.Second, "docker", action, containerID)
 }
 
+// GetContainerLogs 获取指定容器的日志尾部输出。
+func GetContainerLogs(repoRoot, containerID string, tailLines int) (string, error) {
+	if tailLines <= 0 {
+		tailLines = 200
+	}
+	if tailLines > 10000 {
+		tailLines = 10000
+	}
+	return RunCmdWithErr(repoRoot, 15*time.Second, "docker", "logs", "--tail", strconv.Itoa(tailLines), containerID)
+}
+
 // ScaleService 对指定服务执行扩缩容。
 // --no-recreate：仅创建/销毁副本，不因其他服务配置变更而级联 Recreate 已有容器。
 func ScaleService(repoRoot string, composeCtx model.ComposeContext, service string, replicas int) (string, error) {

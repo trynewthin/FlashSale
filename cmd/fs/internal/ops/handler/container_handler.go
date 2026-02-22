@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"flashsale/cmd/fs/internal/ops/service"
@@ -95,5 +96,29 @@ func (h *ContainerHandler) ScaleService(w http.ResponseWriter, r *http.Request) 
 		"service":  svcName,
 		"replicas": req.Replicas,
 		"output":   strings.TrimSpace(out),
+	})
+}
+
+func (h *ContainerHandler) GetContainerLogs(w http.ResponseWriter, r *http.Request) {
+	containerID := strings.TrimSpace(r.PathValue("container_id"))
+	if !service.ContainerNamePattern.MatchString(containerID) {
+		WriteErr(w, http.StatusBadRequest, "container_id 非法")
+		return
+	}
+	tailStr := r.URL.Query().Get("tail")
+	tailLines := 200
+	if tailStr != "" {
+		if n, err := strconv.Atoi(tailStr); err == nil && n > 0 {
+			tailLines = n
+		}
+	}
+	out, err := service.GetContainerLogs(h.RepoRoot, containerID, tailLines)
+	if err != nil {
+		WriteErr(w, http.StatusBadRequest, "获取日志失败: "+strings.TrimSpace(out))
+		return
+	}
+	WriteOK(w, map[string]any{
+		"container_id": containerID,
+		"text":         out,
 	})
 }

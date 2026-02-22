@@ -109,6 +109,12 @@ export const opsApi = {
     return data.status
   },
 
+  async getContainerLogs(containerName: string, tail = 200): Promise<string> {
+    const safeName = encodeURIComponent(containerName)
+    const data = await requestJSON<{ text: string }>(`api/v1/containers/${safeName}/logs?tail=${tail}`)
+    return data.text || ""
+  },
+
   async getObservabilityLinks(): Promise<ObservabilityLinks> {
     const data = await requestJSON<{ links: ObservabilityLinks }>("api/v1/observability/links")
     return data.links

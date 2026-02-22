@@ -6,8 +6,9 @@ import { opsApi } from "@/api/modules/ops"
 import type { SSELogLineFrame, ServiceLogFile } from "@/api/types"
 import { LogStreamViewer } from "@/components/common/log-stream-viewer"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { PageShell } from "@/components/layout/page-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useEventSource } from "@/hooks/use-event-source"
 import { useOpsApiError } from "@/hooks/use-ops-api-error"
@@ -173,72 +174,69 @@ export function ServiceLogsPage() {
   })
 
   return (
-    <div className="space-y-4">
+    <PageShell
+      title="服务日志"
+      actions={
+        <>
+          <Select
+            value={selectedFileId || undefined}
+            onValueChange={(value) => {
+              setSelectedFileId(value || "")
+              setStreaming(false)
+              setLogText("")
+            }}
+          >
+            <SelectTrigger className="w-[300px] max-w-full h-8 text-sm">
+              <SelectValue placeholder="选择日志文件" />
+            </SelectTrigger>
+            <SelectContent>
+              {files.map((file) => (
+                <SelectItem key={file.id} value={file.id}>
+                  {file.rel_path}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            type="number"
+            min={10}
+            max={5000}
+            value={tailLines}
+            onChange={(event) => setTailLines(event.target.value)}
+            className="w-[80px] h-8"
+          />
+          <Button variant="secondary" size="sm" onClick={() => void loadTail()} disabled={loadingTail}>
+            Tail
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              if (!selectedFileId) { showNotice("error", "请选择日志文件"); return }
+              setLogText("")
+              setStreaming(true)
+            }}
+            disabled={!selectedFileId}
+          >
+            <Play className="size-4" />
+            实时流
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setStreaming(false)} disabled={!streaming}>
+            <Pause className="size-4" />
+            停止流
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => void loadFiles()} disabled={loadingFiles}>
+            <RefreshCcw className="size-4" />
+          </Button>
+        </>
+      }
+    >
       <Card>
-        <CardHeader>
-          <CardTitle>服务日志</CardTitle>
-          <CardDescription>选择日志文件后可查看 tail 快照或实时流。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={selectedFileId || undefined}
-              onValueChange={(value) => {
-                setSelectedFileId(value || "")
-                setStreaming(false)
-                setLogText("")
-              }}
-            >
-              <SelectTrigger className="w-[420px] max-w-full">
-                <SelectValue placeholder="选择日志文件" />
-              </SelectTrigger>
-              <SelectContent>
-                {files.map((file) => (
-                  <SelectItem key={file.id} value={file.id}>
-                    {file.rel_path}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              min={10}
-              max={5000}
-              value={tailLines}
-              onChange={(event) => setTailLines(event.target.value)}
-              className="w-[120px]"
-            />
-            <Button variant="outline" onClick={() => void loadTail()} disabled={loadingTail}>
-              Tail
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (!selectedFileId) {
-                  showNotice("error", "请选择日志文件")
-                  return
-                }
-                setLogText("")
-                setStreaming(true)
-              }}
-              disabled={!selectedFileId}
-            >
-              <Play className="size-4" />
-              实时流
-            </Button>
-            <Button variant="outline" onClick={() => setStreaming(false)} disabled={!streaming}>
-              <Pause className="size-4" />
-              停止流
-            </Button>
-            <Button variant="outline" onClick={() => void loadFiles()} disabled={loadingFiles}>
-              <RefreshCcw className="size-4" />
-              刷新列表
-            </Button>
-          </div>
+        <CardContent className="pt-5 space-y-3">
           <div className="text-xs text-muted-foreground">{hint || "请选择日志文件"}</div>
           <LogStreamViewer value={logText} emptyText="日志内容为空" />
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   )
 }

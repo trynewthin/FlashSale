@@ -7,6 +7,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/deploy/compose/docker-compose.app.yml"
 
+# ── 默认启用可观测性 profile（设置 FLASH_OBSERVABILITY=0 可关闭） ──
+if [ "${FLASH_OBSERVABILITY:-1}" != "0" ]; then
+    export COMPOSE_PROFILES="${COMPOSE_PROFILES:+${COMPOSE_PROFILES},}observability"
+fi
+
 # ── 颜色 ──
 C_CYAN='\033[0;36m'
 C_GREEN='\033[0;32m'

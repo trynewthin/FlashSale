@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Outlet, useLocation } from "react-router-dom"
+import { Outlet } from "react-router-dom"
 
 import { clearOpsAccessKey, getOpsAccessKey, setOpsAccessKey } from "@/api/core/auth"
 import { verifyOpsAccessKey } from "@/api/core/http"
@@ -8,8 +8,8 @@ import { OpsSidebar } from "@/components/layout/ops-sidebar"
 import { useOpsUIStore } from "@/store/ops-ui-store"
 
 // OpsLayout 负责侧边栏与页面主内容布局。
+// 各页面通过 PageShell 自行管理标题、操作栏与内边距。
 export function OpsLayout() {
-  const location = useLocation()
   const collapsed = useOpsUIStore((state) => state.sidebarCollapsed)
   const setCollapsed = useOpsUIStore((state) => state.setSidebarCollapsed)
   const showNotice = useOpsUIStore((state) => state.showNotice)
@@ -18,8 +18,6 @@ export function OpsLayout() {
   const [keySaved, setKeySaved] = useState(false)
   const [editingKey, setEditingKey] = useState(() => initialAccessKey.length === 0)
   const [savingKey, setSavingKey] = useState(false)
-  const isFullHeightPage = location.pathname === "/containers" || location.pathname === "/realtime" || location.pathname === "/perf-test"
-  const isEdgeToEdgePage = location.pathname === "/containers" || location.pathname === "/perf-test"
 
   useEffect(() => {
     let cancelled = false
@@ -85,10 +83,6 @@ export function OpsLayout() {
     }
   }
 
-  const handleSaveKey = () => {
-    void saveKey()
-  }
-
   return (
     <div className="flex h-screen bg-background">
       <OpsSidebar
@@ -100,13 +94,12 @@ export function OpsLayout() {
         editingKey={editingKey}
         savingKey={savingKey}
         onBeginEdit={() => setEditingKey(true)}
-        onSaveAccessKey={handleSaveKey}
+        onSaveAccessKey={() => void saveKey()}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <main className={isFullHeightPage ? `min-h-0 flex-1 overflow-hidden ${isEdgeToEdgePage ? "p-0" : "p-4"}` : "min-h-0 flex-1 overflow-auto p-4"}>
-          <Outlet />
-        </main>
-      </div>
+      {/* 主内容区：全高无内边距，各页面通过 PageShell 自行决定布局 */}
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <Outlet />
+      </main>
       <StatusToast />
     </div>
   )

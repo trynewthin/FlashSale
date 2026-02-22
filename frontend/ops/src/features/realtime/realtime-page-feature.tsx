@@ -1,9 +1,8 @@
-import { Activity, Clock, Pause, Play, RefreshCcw, Trash2 } from "lucide-react"
+import { Box, Filter, Pause, Play, RefreshCcw, Server, SlidersHorizontal, Trash2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -22,11 +21,10 @@ import {
   type TimeWindow,
 } from "@/features/realtime/use-realtime-monitor"
 
-// RealtimePageFeature — 两段式布局：上方图表 + 下方操作区。
+// RealtimePageFeature — 上下平分：上方图表 + 下方控件。
 export function RealtimePageFeature() {
   const {
     samples,
-    latest,
     loading,
     running,
     timeWindow,
@@ -44,10 +42,17 @@ export function RealtimePageFeature() {
     toggleMetric,
   } = useChartMetrics()
 
+  // 从最新采样点中取容器/副本数据
+  const latest = samples.length > 0 ? samples[samples.length - 1] : null
+  const runningCont = latest?.runningContainers ?? 0
+  const totalCont = latest?.totalContainers ?? 0
+  const runningRep = latest?.runningReplicas ?? 0
+  const totalRep = latest?.totalReplicas ?? 0
+
   return (
-    <div className="flex h-full flex-col gap-4">
-      {/* ─── 上方：图表区域 ─── */}
-      <div className="min-h-0 flex-1 rounded-xl border bg-card p-4">
+    <div className="flex h-full flex-col">
+      {/* ─── 上方：图表区域（占 60%） ─── */}
+      <div className="min-h-0 flex-1 bg-card p-4">
         <RealtimeUnifiedChart
           samples={samples}
           visibleKeys={visibleKeys}
@@ -55,75 +60,88 @@ export function RealtimePageFeature() {
         />
       </div>
 
-      {/* ─── 下方：操作卡片区 ─── */}
-      <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2 xl:grid-cols-3">
-        {/* 采样控制 */}
-        <Card className="flex flex-col">
-          <CardContent className="flex flex-1 flex-col py-4">
-            {/* 状态指示 */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Badge variant={running ? "secondary" : "outline"} className="text-[11px]">
-                <Activity className="mr-1 size-3" />
-                {running ? "采样中" : "已暂停"}
-              </Badge>
-              {latest ? (
-                <Badge variant="outline" className="text-[11px]">
-                  <Clock className="mr-1 size-3" />
-                  {latest.label}
-                </Badge>
-              ) : null}
-              <Badge variant="outline" className="text-[11px]">{samples.length} 点</Badge>
-            </div>
+      {/* ─── 下方：控制区域（占 40%） ─── */}
+      <div className="shrink-0 border-t border-border/30 bg-background/60 px-6 py-3">
+        {/* 顶行：控制按钮 + 状态徽章 */}
+        <div className="flex items-center justify-between gap-4">
+          {/* 左侧：采样控制 + 指标筛选 */}
+          <div className="flex items-center gap-2">
+            {/* 采样控制 Popover */}
+            <Popover>
+              <PopoverTrigger
+                className="inline-flex items-center gap-1.5 rounded-lg bg-background px-3 py-2 text-sm font-medium shadow-sm border border-border/50 hover:bg-muted/50 transition-colors cursor-pointer"
+              >
+                <SlidersHorizontal className="size-4" />
+                采样控制
+              </PopoverTrigger>
+              <PopoverContent side="bottom" align="start" sideOffset={8} className="w-[340px] p-4">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant={running ? "outline" : "secondary"}
+                      onClick={() => setRunning(!running)}
+                    >
+                      {running ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+                      {running ? "暂停" : "继续"}
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={loading} onClick={() => void refreshNow()}>
+                      <RefreshCcw className="size-3.5" />
+                      刷新
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={clearSamples}>
+                      <Trash2 className="size-3.5" />
+                      清空
+                    </Button>
+                  </div>
+                  <Select value={timeWindow} onValueChange={(v) => setTimeWindow(v as TimeWindow)}>
+                    <SelectTrigger className="h-8 w-full text-xs">
+                      <SelectValue placeholder="时间窗口" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {TIME_WINDOWS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value} className="rounded-lg text-xs">
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </PopoverContent>
+            </Popover>
 
-            <div className="mt-auto space-y-3">
-              <Separator />
-              {/* 操作区域 */}
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant={running ? "outline" : "secondary"}
-                  onClick={() => setRunning(!running)}
-                >
-                  {running ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
-                  {running ? "暂停" : "继续"}
-                </Button>
-                <Button size="sm" variant="outline" disabled={loading} onClick={() => void refreshNow()}>
-                  <RefreshCcw className="size-3.5" />
-                  刷新
-                </Button>
-                <Button size="sm" variant="outline" onClick={clearSamples}>
-                  <Trash2 className="size-3.5" />
-                  清空
-                </Button>
-                <Select value={timeWindow} onValueChange={(v) => setTimeWindow(v as TimeWindow)}>
-                  <SelectTrigger className="ml-auto h-8 w-[130px] text-xs">
-                    <SelectValue placeholder="时间窗口" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {TIME_WINDOWS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value} className="rounded-lg text-xs">
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            {/* 指标筛选 Popover */}
+            <Popover>
+              <PopoverTrigger
+                className="inline-flex items-center gap-1.5 rounded-lg bg-background px-3 py-2 text-sm font-medium shadow-sm border border-border/50 hover:bg-muted/50 transition-colors cursor-pointer"
+              >
+                <Filter className="size-4" />
+                指标筛选
+              </PopoverTrigger>
+              <PopoverContent side="bottom" align="start" sideOffset={8} className="w-[420px] p-4">
+                <MetricFilterPanel
+                  activeGroup={activeGroup}
+                  groupMetrics={groupMetrics}
+                  visibleKeys={visibleKeys}
+                  onGroupChange={handleGroupChange}
+                  onToggleMetric={toggleMetric}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
 
-        {/* 显示筛选 */}
-        <Card className="md:col-span-1 xl:col-span-2">
-          <CardContent className="py-4">
-            <MetricFilterPanel
-              activeGroup={activeGroup}
-              groupMetrics={groupMetrics}
-              visibleKeys={visibleKeys}
-              onGroupChange={handleGroupChange}
-              onToggleMetric={toggleMetric}
-            />
-          </CardContent>
-        </Card>
+          {/* 右侧：容器 / 副本 状态徽章 */}
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="gap-1.5 text-xs py-1 px-2.5">
+              <Box className="size-3.5 text-blue-500" />
+              容器 {runningCont}/{totalCont}
+            </Badge>
+            <Badge variant="outline" className="gap-1.5 text-xs py-1 px-2.5">
+              <Server className="size-3.5 text-emerald-500" />
+              副本 {runningRep}/{totalRep}
+            </Badge>
+          </div>
+        </div>
       </div>
     </div>
   )

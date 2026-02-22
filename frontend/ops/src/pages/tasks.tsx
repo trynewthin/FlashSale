@@ -7,8 +7,9 @@ import { useOpsApiError } from "@/hooks/use-ops-api-error"
 import { useOpsUIStore } from "@/store/ops-ui-store"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { PageShell } from "@/components/layout/page-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
@@ -77,83 +78,84 @@ export function TasksPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>任务执行</CardTitle>
-          <CardDescription>按白名单触发任务，并将输出写入任务日志流。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={selectedTask || undefined}
-              onValueChange={(value) => setSelectedTask(value || "")}
-            >
-              <SelectTrigger className="w-[360px] max-w-full">
-                <SelectValue placeholder="选择任务" />
-              </SelectTrigger>
-              <SelectContent>
-                {tasks.map((task) => (
-                  <SelectItem key={task.id} value={task.id}>
-                    {task.id} - {task.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              value={argsText}
-              onChange={(event) => setArgsText(event.target.value)}
-              placeholder="额外参数，例如: -rate 120 -open-duration 30s"
-              className="w-[440px] max-w-full"
-            />
-            <Button onClick={() => void runTask()} disabled={running || loading}>
-              执行任务
-            </Button>
-            <Button variant="outline" onClick={() => void loadTasks()} disabled={loading}>
-              <RefreshCcw className="size-4" />
-              刷新
-            </Button>
-          </div>
-          {selectedTaskDef ? (
-            <div className="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-              {selectedTaskDef.description}
+    <PageShell
+      title="任务执行"
+      actions={
+        <>
+          <Button variant="secondary" size="sm" onClick={() => void loadTasks()} disabled={loading}>
+            <RefreshCcw className="size-4" />
+            刷新
+          </Button>
+          <Button size="sm" onClick={() => void runTask()} disabled={running || loading}>
+            执行任务
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="pt-5 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Select
+                value={selectedTask || undefined}
+                onValueChange={(value) => setSelectedTask(value || "")}
+              >
+                <SelectTrigger className="w-[360px] max-w-full">
+                  <SelectValue placeholder="选择任务" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tasks.map((task) => (
+                    <SelectItem key={task.id} value={task.id}>
+                      {task.id} - {task.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                value={argsText}
+                onChange={(event) => setArgsText(event.target.value)}
+                placeholder="额外参数，例如: -rate 120 -open-duration 30s"
+                className="w-[440px] max-w-full"
+              />
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
+            {selectedTaskDef ? (
+              <div className="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                {selectedTaskDef.description}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>任务白名单</CardTitle>
-          <CardDescription>只允许执行此列表中的任务。</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Task ID</TableHead>
-                <TableHead>名称</TableHead>
-                <TableHead>说明</TableHead>
-                <TableHead>危险</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tasks.map((task) => (
-                <TableRow key={task.id}>
-                  <TableCell>{task.id}</TableCell>
-                  <TableCell>{task.name}</TableCell>
-                  <TableCell className="max-w-[460px] whitespace-normal">{task.description}</TableCell>
-                  <TableCell>
-                    <Badge variant={task.dangerous ? "destructive" : "secondary"}>
-                      {task.dangerous ? "Y" : "N"}
-                    </Badge>
-                  </TableCell>
+        <Card>
+          <CardContent className="pt-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">任务白名单（只允许执行此列表中的任务）</p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Task ID</TableHead>
+                  <TableHead>名称</TableHead>
+                  <TableHead>说明</TableHead>
+                  <TableHead>危险</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
+              </TableHeader>
+              <TableBody>
+                {tasks.map((task) => (
+                  <TableRow key={task.id}>
+                    <TableCell>{task.id}</TableCell>
+                    <TableCell>{task.name}</TableCell>
+                    <TableCell className="max-w-[460px] whitespace-normal">{task.description}</TableCell>
+                    <TableCell>
+                      <Badge variant={task.dangerous ? "destructive" : "secondary"}>
+                        {task.dangerous ? "Y" : "N"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </PageShell>
   )
 }

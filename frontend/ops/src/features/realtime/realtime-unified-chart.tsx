@@ -27,15 +27,11 @@ type ChartMetricKey =
   | "portRate"
   | "httpRate"
   | "replicaRate"
-  | "runningContainers"
-  | "totalContainers"
-  | "runningReplicas"
-  | "totalReplicas"
   | "promQps"
   | "promP99LatencyMs"
   | "promErrorRate"
 
-type MetricGroupKey = "server_metrics" | "infra_health" | "capacity" | "all"
+type MetricGroupKey = "server_metrics" | "infra_health" | "all"
 
 interface MetricDef {
   key: ChartMetricKey
@@ -56,10 +52,6 @@ const METRICS: MetricDef[] = [
   { key: "portRate", label: "端口可用率", color: "var(--chart-1)", axis: "percent", unit: "%" },
   { key: "httpRate", label: "HTTP 健康率", color: "var(--chart-2)", axis: "percent", unit: "%" },
   { key: "replicaRate", label: "副本运行率", color: "var(--chart-8)", axis: "percent", unit: "%" },
-  { key: "runningContainers", label: "运行容器数", color: "var(--chart-4)", axis: "count", unit: "" },
-  { key: "totalContainers", label: "总容器数", color: "var(--chart-10)", axis: "count", unit: "" },
-  { key: "runningReplicas", label: "运行副本数", color: "var(--chart-6)", axis: "count", unit: "" },
-  { key: "totalReplicas", label: "总副本数", color: "var(--chart-9)", axis: "count", unit: "" },
   { key: "promQps", label: "服务端 RPC QPS", color: "var(--chart-3)", axis: "count", unit: " req/s" },
   { key: "promP99LatencyMs", label: "服务端 RPC P99", color: "var(--chart-7)", axis: "count", unit: " ms" },
   { key: "promErrorRate", label: "服务端错误率", color: "var(--chart-5)", axis: "percent", unit: "%" },
@@ -77,12 +69,6 @@ const GROUPS: MetricGroupDef[] = [
     label: "系统健康",
     description: "关注端口与健康检查可用性。",
     metrics: ["portRate", "httpRate", "replicaRate"],
-  },
-  {
-    key: "capacity",
-    label: "容量状态",
-    description: "观察容器与副本容量变化。",
-    metrics: ["runningContainers", "totalContainers", "runningReplicas", "totalReplicas"],
   },
   {
     key: "all",

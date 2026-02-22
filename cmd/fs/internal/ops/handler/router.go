@@ -46,6 +46,7 @@ func RegisterRoutes(mux *http.ServeMux, deps RouterDeps) {
 	// ─── Containers ───
 	mux.HandleFunc("GET /api/v1/containers/status", auth(containerH.GetContainersStatus))
 	mux.HandleFunc("POST /api/v1/containers/{container_id}/action", auth(containerH.ContainerAction))
+	mux.HandleFunc("GET /api/v1/containers/{container_id}/logs", auth(containerH.GetContainerLogs))
 	mux.HandleFunc("POST /api/v1/services/{service}/scale", auth(containerH.ScaleService))
 
 	// ─── etcd Registry ───

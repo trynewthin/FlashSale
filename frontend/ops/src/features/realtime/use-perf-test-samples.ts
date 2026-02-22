@@ -11,7 +11,14 @@ import type { RealtimeSample } from "@/features/realtime/types"
 import { useOpsApiError } from "@/hooks/use-ops-api-error"
 
 const SAMPLE_INTERVAL_MS = 2000
-const REALTIME_METRIC_NAMES = ["rpc_request_rate", "rpc_error_rate", "rpc_p99_latency"]
+const REALTIME_METRIC_NAMES = [
+    "rpc_request_rate",
+    "rpc_error_rate",
+    "rpc_p99_latency",
+    "seckill_purchase_task_queue_depth",
+    "seckill_purchase_task_queue_cap",
+    "seckill_purchase_task_dropped_total",
+]
 
 // 将持久化采样点转换为前端 RealtimeSample
 function persistedToRealtime(p: PersistedSample): RealtimeSample {
@@ -28,6 +35,9 @@ function persistedToRealtime(p: PersistedSample): RealtimeSample {
         promQps: p.promQps,
         promP99LatencyMs: p.promP99LatencyMs,
         promErrorRate: p.promErrorRate,
+        purchaseTaskQueueDepth: p.purchaseTaskQueueDepth,
+        purchaseTaskQueueCap: p.purchaseTaskQueueCap,
+        purchaseTaskDropped: p.purchaseTaskDropped,
     }
 }
 

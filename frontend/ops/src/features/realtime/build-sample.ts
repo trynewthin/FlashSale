@@ -57,6 +57,9 @@ export function buildRealtimeSample(
     sample.promQps = extractScalar(metricsSnapshot.rpc_request_rate)
     sample.promErrorRate = extractScalar(metricsSnapshot.rpc_error_rate)
     sample.promP99LatencyMs = extractScalar(metricsSnapshot.rpc_p99_latency)
+    sample.purchaseTaskQueueDepth = extractScalar(metricsSnapshot.seckill_purchase_task_queue_depth)
+    sample.purchaseTaskQueueCap = extractScalar(metricsSnapshot.seckill_purchase_task_queue_cap)
+    sample.purchaseTaskDropped = extractScalar(metricsSnapshot.seckill_purchase_task_dropped_total)
   }
 
   return sample

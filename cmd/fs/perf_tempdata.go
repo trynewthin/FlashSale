@@ -20,12 +20,14 @@ type perfTempData struct {
 	AdminBaseURL string
 	UserBaseURL  string
 
-	AdminToken string
-	ProductID  int64
-	ActivityID int64
-	ItemID     int64
-	UserIDs    []int64
-	TokenFile  string
+	AdminToken   string
+	ProductID    int64
+	ActivityID   int64
+	ItemID       int64
+	UserIDs      []int64
+	TokenFile    string
+	UniqueSuffix string // 用于 DB 清理时定位测试用户
+	UsedDBPath   bool   // true 表示用户通过 DB 直插创建
 }
 
 // setupPerfTempData 创建临时商品/活动/活动商品与测试用户，用于单次压测。
@@ -92,15 +94,25 @@ func setupPerfTempData(repoRoot, scenario string, perfArgs []string, options per
 		needUsers = resolveTempUserCount(scenario, options.TempUsers, perfArgs)
 	}
 	if needUsers > 0 {
-		userIDs, tokenFile, err := createTempUsersAndTokensForPerf(userBaseURL, repoRoot, needUsers, uniqueSuffix)
-		if err != nil {
-			finalErr = err
-			return nil, err
+		temp.UniqueSuffix = uniqueSuffix
+		// 优先尝试 DB 直插（万级用户秒级完成），失败则回退 HTTP 注册。
+		userIDs, tokenFile, dbErr := createTempUsersDirectDB(repoRoot, needUsers, uniqueSuffix)
+		if dbErr == nil {
+			temp.UserIDs = userIDs
+			temp.TokenFile = tokenFile
+			temp.UsedDBPath = true
+		} else {
+			fmt.Printf("[perf.temp] db direct insert failed (%v), falling back to HTTP\n", dbErr)
+			userIDs, tokenFile, err := createTempUsersAndTokensForPerf(userBaseURL, repoRoot, needUsers, uniqueSuffix)
+			if err != nil {
+				finalErr = err
+				return nil, err
+			}
+			temp.UserIDs = userIDs
+			temp.TokenFile = tokenFile
 		}
-		temp.UserIDs = userIDs
-		temp.TokenFile = tokenFile
 		_ = os.Unsetenv("FLASHSALE_USER_TOKEN")
-		_ = os.Setenv("FLASHSALE_TOKENS_FILE", tokenFile)
+		_ = os.Setenv("FLASHSALE_TOKENS_FILE", temp.TokenFile)
 	}
 
 	fmt.Printf("[perf.temp] ready product_id=%d activity_id=%d item_id=%d users=%d\n", temp.ProductID, temp.ActivityID, temp.ItemID, len(temp.UserIDs))
@@ -123,12 +135,21 @@ func cleanupPerfTempData(temp *perfTempData) error {
 			errs = append(errs, "delete product: "+err.Error())
 		}
 	}
-	for _, userID := range temp.UserIDs {
-		if userID <= 0 {
-			continue
-		}
-		if err := deleteTempUserForPerf(temp.AdminBaseURL, temp.AdminToken, userID); err != nil {
-			errs = append(errs, fmt.Sprintf("delete user %d: %s", userID, err.Error()))
+	if len(temp.UserIDs) > 0 {
+		if temp.UsedDBPath {
+			// DB 直插的测试用户通过 SQL DELETE 批量清理。
+			if err := cleanupTempUsersDirectDB(temp.UserIDs); err != nil {
+				errs = append(errs, "db cleanup users: "+err.Error())
+			}
+		} else {
+			for _, userID := range temp.UserIDs {
+				if userID <= 0 {
+					continue
+				}
+				if err := deleteTempUserForPerf(temp.AdminBaseURL, temp.AdminToken, userID); err != nil {
+					errs = append(errs, fmt.Sprintf("delete user %d: %s", userID, err.Error()))
+				}
+			}
 		}
 	}
 	if temp.TokenFile != "" {
@@ -602,8 +623,8 @@ func resolveTempUserCount(scenario string, configured int, perfArgs []string) in
 	if concurrency < 1 {
 		concurrency = 1
 	}
-	if concurrency > 500 {
-		return 500
+	if concurrency > 10000 {
+		return 10000
 	}
 	return concurrency
 }

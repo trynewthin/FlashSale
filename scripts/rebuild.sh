@@ -14,7 +14,8 @@
 #                                                          [ops up] → healthy
 #
 # --low-mem 模式（适合 ≤4GB 内存云服务器）：
-#   - Dockerfile 内 Go 二进制串行编译 + GOMAXPROCS=2
+#   - BuildKit 限制并行 stage 数为 1（逐个编译 9 个二进制）
+#   - 每个 go build 限制 -p 2 + GOMAXPROCS=2
 #   - backend 和 proxy 镜像依次构建（不再并行）
 #   - 峰值内存约 800MB（编译） + 基础设施约 800MB = 1.6GB
 #

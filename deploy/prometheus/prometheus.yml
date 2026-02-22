@@ -1,5 +1,5 @@
 global:
-  scrape_interval: 15s
+  scrape_interval: 3s
 
 scrape_configs:
   # 宿主机进程模式（docker-compose.yml + 后端进程在宿主机）

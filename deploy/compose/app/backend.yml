@@ -6,8 +6,6 @@ services:
     build:
       context: ../../..
       dockerfile: deploy/docker/backend.Dockerfile
-      args:
-        BUILD_MODE: ${BUILD_MODE:-parallel}
     profiles: [ "build" ]
 
   migrate:

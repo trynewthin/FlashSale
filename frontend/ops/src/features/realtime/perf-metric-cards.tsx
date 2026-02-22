@@ -145,6 +145,36 @@ export const PERF_METRICS: PerfMetricDef[] = [
         analysis: "服务端 gRPC 返回非 OK 状态码的比例。注意：业务级拒绝（如库存不足）通常返回 OK 状态码 + 业务错误码，所以此指标应很低。若 >5% 说明有真正的 RPC 层错误。",
         serverSide: true,
     },
+    {
+        key: "purchaseTaskQueueDepth",
+        label: "异步队列深度",
+        color: "hsl(200, 80%, 50%)",
+        unit: "",
+        chartKind: "line",
+        description: "异步购买任务队列当前排队数",
+        analysis: "异步购买快路径的待处理任务数。正常运行时应接近 0。若持续增长说明 Worker 消费不过来（order-rpc 慢或 Worker 数不够），最终会触发 queue full → 回退同步路径 → 延迟飙高。",
+        serverSide: true,
+    },
+    {
+        key: "purchaseTaskQueueCap",
+        label: "异步队列容量",
+        color: "hsl(200, 60%, 70%)",
+        unit: "",
+        chartKind: "line",
+        description: "异步购买任务队列总容量",
+        analysis: "队列的最大容量（配置值 AsyncPurchaseQueueSize）。对比 depth 可判断饱和程度：depth/cap > 80% 时应考虑扩容 Worker 或增大队列。",
+        serverSide: true,
+    },
+    {
+        key: "purchaseTaskDropped",
+        label: "任务丢弃数",
+        color: "hsl(0, 85%, 60%)",
+        unit: "",
+        chartKind: "bar",
+        description: "过去 1 分钟异步任务被丢弃次数",
+        analysis: "队列满时新任务被丢弃的次数。>0 表示异步快路径已失效，请求回退到同步 MySQL 路径——这是高延迟的直接原因。紧急程度最高，需立即扩容 Worker 或排查 order-rpc 瓶颈。",
+        serverSide: true,
+    },
 ]
 
 // ─── 工具函数 ───

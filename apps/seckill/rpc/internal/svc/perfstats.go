@@ -6,9 +6,36 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// ─── Prometheus Gauge：暴露异步购买队列指标 ───
+
+var (
+	promPurchaseTaskQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "seckill",
+		Name:      "purchase_task_queue_depth",
+		Help:      "Current depth of the async purchase task queue.",
+	})
+	promPurchaseTaskQueueCap = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "seckill",
+		Name:      "purchase_task_queue_cap",
+		Help:      "Capacity of the async purchase task queue.",
+	})
+	promPurchaseTaskDroppedTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "seckill",
+		Name:      "purchase_task_dropped_total",
+		Help:      "Total number of dropped purchase tasks (queue full).",
+	})
+)
+
+func init() {
+	prometheus.MustRegister(promPurchaseTaskQueueDepth)
+	prometheus.MustRegister(promPurchaseTaskQueueCap)
+	prometheus.MustRegister(promPurchaseTaskDroppedTotal)
+}
 
 // PerfSnapshot 描述秒杀服务当前性能计数快照。
 type PerfSnapshot struct {
@@ -60,6 +87,12 @@ type PerfSnapshot struct {
 	OrderLinkQueueCap          int64
 	TrafficQueueDepth          int64
 	TrafficQueueCap            int64
+	PurchaseTaskEnqueued       int64
+	PurchaseTaskDropped        int64
+	PurchaseTaskFailed         int64
+	PurchaseTaskSuccess        int64
+	PurchaseTaskQueueDepth     int64
+	PurchaseTaskQueueCap       int64
 }
 
 // PerfStats 保存秒杀核心链路计数器。
@@ -107,6 +140,10 @@ type PerfStats struct {
 	orderStateReleaseFailed    atomic.Int64
 	orderStateWindowRecorded   atomic.Int64
 	orderStateLoopErrors       atomic.Int64
+	purchaseTaskEnqueued       atomic.Int64
+	purchaseTaskDropped        atomic.Int64
+	purchaseTaskFailed         atomic.Int64
+	purchaseTaskSuccess        atomic.Int64
 }
 
 func newPerfStats() *PerfStats {
@@ -114,17 +151,19 @@ func newPerfStats() *PerfStats {
 }
 
 // Snapshot 返回当前计数快照，便于日志与观测。
-func (p *PerfStats) Snapshot(orderLinkQueueDepth, orderLinkQueueCap, trafficQueueDepth, trafficQueueCap int) PerfSnapshot {
+func (p *PerfStats) Snapshot(orderLinkQueueDepth, orderLinkQueueCap, trafficQueueDepth, trafficQueueCap, purchaseQueueDepth, purchaseQueueCap int) PerfSnapshot {
 	if p == nil {
 		return PerfSnapshot{
-			AtUnix:              time.Now().Unix(),
-			OrderLinkQueueDepth: int64(orderLinkQueueDepth),
-			OrderLinkQueueCap:   int64(orderLinkQueueCap),
-			TrafficQueueDepth:   int64(trafficQueueDepth),
-			TrafficQueueCap:     int64(trafficQueueCap),
+			AtUnix:                 time.Now().Unix(),
+			OrderLinkQueueDepth:    int64(orderLinkQueueDepth),
+			OrderLinkQueueCap:      int64(orderLinkQueueCap),
+			TrafficQueueDepth:      int64(trafficQueueDepth),
+			TrafficQueueCap:        int64(trafficQueueCap),
+			PurchaseTaskQueueDepth: int64(purchaseQueueDepth),
+			PurchaseTaskQueueCap:   int64(purchaseQueueCap),
 		}
 	}
-	return PerfSnapshot{
+	snap := PerfSnapshot{
 		AtUnix:                     time.Now().Unix(),
 		ReserveCalls:               p.reserveCalls.Load(),
 		ReserveSuccess:             p.reserveSuccess.Load(),
@@ -173,7 +212,19 @@ func (p *PerfStats) Snapshot(orderLinkQueueDepth, orderLinkQueueCap, trafficQueu
 		OrderLinkQueueCap:          int64(orderLinkQueueCap),
 		TrafficQueueDepth:          int64(trafficQueueDepth),
 		TrafficQueueCap:            int64(trafficQueueCap),
+		PurchaseTaskEnqueued:       p.purchaseTaskEnqueued.Load(),
+		PurchaseTaskDropped:        p.purchaseTaskDropped.Load(),
+		PurchaseTaskFailed:         p.purchaseTaskFailed.Load(),
+		PurchaseTaskSuccess:        p.purchaseTaskSuccess.Load(),
+		PurchaseTaskQueueDepth:     int64(purchaseQueueDepth),
+		PurchaseTaskQueueCap:       int64(purchaseQueueCap),
 	}
+
+	// 同步更新 Prometheus Gauge
+	promPurchaseTaskQueueDepth.Set(float64(purchaseQueueDepth))
+	promPurchaseTaskQueueCap.Set(float64(purchaseQueueCap))
+
+	return snap
 }
 
 func (p *PerfStats) MarkReserveCall() {
@@ -435,5 +486,30 @@ func (p *PerfStats) MarkOrderStateWindowRecorded() {
 func (p *PerfStats) MarkOrderStateLoopError() {
 	if p != nil {
 		p.orderStateLoopErrors.Add(1)
+	}
+}
+
+func (p *PerfStats) MarkPurchaseTaskEnqueued() {
+	if p != nil {
+		p.purchaseTaskEnqueued.Add(1)
+	}
+}
+
+func (p *PerfStats) MarkPurchaseTaskDropped() {
+	if p != nil {
+		p.purchaseTaskDropped.Add(1)
+		promPurchaseTaskDroppedTotal.Inc()
+	}
+}
+
+func (p *PerfStats) MarkPurchaseTaskFailed() {
+	if p != nil {
+		p.purchaseTaskFailed.Add(1)
+	}
+}
+
+func (p *PerfStats) MarkPurchaseTaskSuccess() {
+	if p != nil {
+		p.purchaseTaskSuccess.Add(1)
 	}
 }

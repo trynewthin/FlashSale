@@ -33,9 +33,9 @@ OrderRPC:
   Timeout: 4000
 
 ActivityItemCacheTTLMs: 1500
-ReservePurchaseTimeoutMs: 5000
+ReservePurchaseTimeoutMs: 2000
 ReserveDBUserLimitCheck: false
-OrderCreateRPCTimeoutMs: 4200
+OrderCreateRPCTimeoutMs: 2500
 OrderCreateMaxInFlight: 448
 OrderCreateAcquireTimeoutMs: 240
 OrderLinkWriteOnPurchase: false
@@ -47,4 +47,4 @@ TrafficAsyncWorkers: 16
 TrafficAsyncQueueSize: 32768
 TrafficWriteTimeoutMs: 300
 TrafficPublishTimeoutMs: 300
-PerfLogIntervalSec: 30
+PerfLogIntervalSec: 10

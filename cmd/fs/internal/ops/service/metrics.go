@@ -87,6 +87,27 @@ var MetricAllowlist = []model.MetricDef{
 		Desc:   "HTTP 网关请求速率",
 		Format: "scalar",
 	},
+	{
+		Name:   "seckill_purchase_task_queue_depth",
+		Query:  `seckill_purchase_task_queue_depth`,
+		Unit:   "",
+		Desc:   "秒杀异步购买任务队列当前深度",
+		Format: "scalar",
+	},
+	{
+		Name:   "seckill_purchase_task_queue_cap",
+		Query:  `seckill_purchase_task_queue_cap`,
+		Unit:   "",
+		Desc:   "秒杀异步购买任务队列容量",
+		Format: "scalar",
+	},
+	{
+		Name:   "seckill_purchase_task_dropped_total",
+		Query:  `sum(increase(seckill_purchase_task_dropped_total[1m]))`,
+		Unit:   "",
+		Desc:   "秒杀异步购买任务丢弃数（过去 1 分钟）",
+		Format: "scalar",
+	},
 }
 
 // FindMetricDef 按名称查找指标定义。

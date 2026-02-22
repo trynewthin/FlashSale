@@ -56,6 +56,8 @@ deploy/compose/
 
 全量构建时，`rebuild.sh` 自动按此依赖关系编排：infra → backend∥proxy 并行构建 → backend up → proxy up → ops → observability(可选)。
 
+> **构建可见性**：`backend.Dockerfile` 采用多 stage 架构，每个 Go 二进制（共 9 个）拥有独立的 BuildKit stage，编译进度逐个实时可见，且只有变更代码对应的二进制会重新编译。
+
 ---
 
 ## 2. 集群脚本（scripts/clusters/）
@@ -111,6 +113,8 @@ bash scripts/clusters/backend.sh up
 # 无缓存构建
 bash scripts/clusters/backend.sh build --no-cache
 ```
+
+**构建架构**：`backend.Dockerfile` 使用多 stage 设计，9 个 Go 二进制各自拥有独立的 BuildKit stage（`build-user-rpc`、`build-seckill-rpc` 等），编译进度逐个可见。仅修改了某个服务的代码时，其他服务直接走 Docker 层缓存。
 
 **健康检查**：等待两个 gateway 容器 healthy，超时 120 秒。
 
@@ -221,9 +225,11 @@ bash scripts/rebuild.sh --with-test
 | 阶段 | 内容 | 并行性 |
 |------|------|-------|
 | Phase 1/4 | Infra up | 串行 |
-| Phase 2/4 | Backend build ∥ Proxy build | **并行** |
+| Phase 2/4 | Backend build ∥ Proxy build | **并行**（每个镜像内部 9 个 stage 也并行） |
 | Phase 3/4 | Backend up → Proxy up | **串行**（proxy 依赖 gateway healthy） |
 | Phase 4/4 | Ops build + up | 串行（依赖 backend 镜像） |
+
+> `--low-mem` 模式下 Phase 2 改为串行，且 BuildKit 限制为单 stage 串行编译（`--max-parallelism 1` + `-p 2`）。
 
 ### 3.2 reset-env.sh — 完全重置
 
@@ -448,6 +454,7 @@ bash scripts/smoke-test.sh --skip ops,cdn
 
 ---
 
-> 📝 最后更新：2026-02-19  
+> 📝 最后更新：2026-02-22  
 > 📁 源文件目录：`scripts/`、`scripts/clusters/`、`scripts/tests/`、`cmd/fs/data_cmd.go`  
-> 📁 Compose 配置：`deploy/compose/docker-compose.app.yml` → `deploy/compose/app/*.yml`
+> 📁 Compose 配置：`deploy/compose/docker-compose.app.yml` → `deploy/compose/app/*.yml`  
+> 📁 Dockerfile：`deploy/docker/backend.Dockerfile`（多 stage 架构）

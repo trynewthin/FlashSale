@@ -193,6 +193,9 @@ export interface PersistedSample {
   promQps?: number | null
   promP99LatencyMs?: number | null
   promErrorRate?: number | null
+  purchaseTaskQueueDepth?: number | null
+  purchaseTaskQueueCap?: number | null
+  purchaseTaskDropped?: number | null
 }
 
 export interface SamplesResponse {

@@ -56,6 +56,9 @@ function persistedToRealtime(p: PersistedSample): RealtimeSample {
     promQps: p.promQps,
     promP99LatencyMs: p.promP99LatencyMs,
     promErrorRate: p.promErrorRate,
+    purchaseTaskQueueDepth: p.purchaseTaskQueueDepth,
+    purchaseTaskQueueCap: p.purchaseTaskQueueCap,
+    purchaseTaskDropped: p.purchaseTaskDropped,
   }
 }
 
@@ -106,7 +109,14 @@ export function useRealtimeMonitor(): UseRealtimeMonitorResult {
     async (manual: boolean) => {
       try {
         if (manual) setLoading(true)
-        const REALTIME_METRIC_NAMES = ["rpc_request_rate", "rpc_error_rate", "rpc_p99_latency"]
+        const REALTIME_METRIC_NAMES = [
+          "rpc_request_rate",
+          "rpc_error_rate",
+          "rpc_p99_latency",
+          "seckill_purchase_task_queue_depth",
+          "seckill_purchase_task_queue_cap",
+          "seckill_purchase_task_dropped_total",
+        ]
         const [status, containers, metricsResult] = await Promise.all([
           opsApi.getStatus(),
           opsApi.getContainersStatus(),

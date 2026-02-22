@@ -31,7 +31,10 @@ type Config struct {
 	TrafficAsyncQueueSize       int  `json:",default=8192"`
 	TrafficWriteTimeoutMs       int  `json:",default=120"`
 	TrafficPublishTimeoutMs     int  `json:",default=120"`
-	PerfLogIntervalSec          int  `json:",default=30"`
+	PerfLogIntervalSec          int  `json:",default=10"`
+	AsyncPurchase               bool `json:",default=true"`
+	AsyncPurchaseWorkers        int  `json:",default=8"`
+	AsyncPurchaseQueueSize      int  `json:",default=4096"`
 }
 
 const (
@@ -54,6 +57,9 @@ const (
 	seckillTrafficWriteTimeoutMsEnv       = "FLASHSALE_SECKILL_TRAFFIC_WRITE_TIMEOUT_MS"
 	seckillTrafficPublishTimeoutMsEnv     = "FLASHSALE_SECKILL_TRAFFIC_PUBLISH_TIMEOUT_MS"
 	seckillPerfLogIntervalSecEnv          = "FLASHSALE_SECKILL_PERF_LOG_INTERVAL_SEC"
+	seckillAsyncPurchaseEnv               = "FLASHSALE_SECKILL_ASYNC_PURCHASE"
+	seckillAsyncPurchaseWorkersEnv        = "FLASHSALE_SECKILL_ASYNC_PURCHASE_WORKERS"
+	seckillAsyncPurchaseQueueSizeEnv      = "FLASHSALE_SECKILL_ASYNC_PURCHASE_QUEUE_SIZE"
 )
 
 // ApplyEnvOverrides 使用环境变量覆盖关键配置项。
@@ -117,6 +123,15 @@ func ApplyEnvOverrides(c *Config) {
 	}
 	if v, ok := envInt(seckillPerfLogIntervalSecEnv); ok {
 		c.PerfLogIntervalSec = v
+	}
+	if v, ok := envBool(seckillAsyncPurchaseEnv); ok {
+		c.AsyncPurchase = v
+	}
+	if v, ok := envInt(seckillAsyncPurchaseWorkersEnv); ok {
+		c.AsyncPurchaseWorkers = v
+	}
+	if v, ok := envInt(seckillAsyncPurchaseQueueSizeEnv); ok {
+		c.AsyncPurchaseQueueSize = v
 	}
 }
 

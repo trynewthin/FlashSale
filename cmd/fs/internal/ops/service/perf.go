@@ -34,7 +34,7 @@ var perfTaskSpecs = map[string]perfTaskSpec{
 			numberField("rate", true, 1, 5000),
 			durationField("open-duration", true),
 			numberField("concurrency", true, 1, 5000),
-			numberField("temp-users", false, 1, 500),
+			numberField("temp-users", false, 1, 10000),
 			durationField("timeout", true),
 			selectField("output", true, "json", "text"),
 		},
@@ -42,7 +42,7 @@ var perfTaskSpecs = map[string]perfTaskSpec{
 	"perf.purchase_stress": {
 		Fields: []perfFieldSpec{
 			numberField("concurrency", true, 1, 5000),
-			numberField("temp-users", false, 1, 500),
+			numberField("temp-users", false, 1, 10000),
 			numberField("requests", true, 1, 1_000_000),
 			durationField("timeout", true),
 			selectField("output", true, "json", "text"),

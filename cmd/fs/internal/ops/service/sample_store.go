@@ -31,6 +31,10 @@ type MonitorSample struct {
 	PromQps          *float64 `json:"promQps,omitempty"`
 	PromP99LatencyMs *float64 `json:"promP99LatencyMs,omitempty"`
 	PromErrorRate    *float64 `json:"promErrorRate,omitempty"`
+	// 异步购买队列
+	PurchaseTaskQueueDepth *float64 `json:"purchaseTaskQueueDepth,omitempty"`
+	PurchaseTaskQueueCap   *float64 `json:"purchaseTaskQueueCap,omitempty"`
+	PurchaseTaskDropped    *float64 `json:"purchaseTaskDropped,omitempty"`
 }
 
 // ─── SampleStore ───

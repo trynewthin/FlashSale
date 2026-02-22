@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"flashsale/apps/order/rpc/orderrpc"
+	orderpb "flashsale/apps/order/rpc/pb"
 	"flashsale/apps/product/rpc/productrpc"
 	"flashsale/apps/seckill/rpc/internal/config"
 	"flashsale/apps/seckill/rpc/internal/model"
@@ -23,6 +24,7 @@ import (
 	baselog "flashsale/pkg/base/logx"
 	"flashsale/pkg/base/mysqlx"
 	"flashsale/pkg/base/redisx"
+	"flashsale/pkg/base/rpcmeta"
 	"flashsale/pkg/base/snowflakex"
 	basetracing "flashsale/pkg/base/tracing"
 
@@ -36,6 +38,28 @@ const (
 	defaultSnowflakeNode int64 = 6
 	internalAdminID      int64 = 900000001
 )
+
+// rollbackReserveScript 与 logic 包中的同名脚本一致，用于异步 Worker 回滚 Redis 预扣。
+var rollbackReserveScript = redis.NewScript(`
+local qty = tonumber(ARGV[1]) or 0
+local mode = tonumber(ARGV[2]) or 0
+if qty <= 0 then
+  return 0
+end
+if redis.call("DEL", KEYS[3]) == 0 then
+  return 0
+end
+redis.call("INCRBY", KEYS[1], qty)
+if mode == 0 then
+  local bought = tonumber(redis.call("GET", KEYS[2]) or "0")
+  local nextBought = bought - qty
+  if nextBought < 0 then
+    nextBought = 0
+  end
+  redis.call("SET", KEYS[2], nextBought)
+end
+return 1
+`)
 
 // ServiceContext 封装秒杀 RPC 依赖。
 type ServiceContext struct {
@@ -59,6 +83,7 @@ type ServiceContext struct {
 	OrderLinkWriteOnPurchase  bool
 	OrderLinkSyncFallback     bool
 	Perf                      *PerfStats
+	AsyncPurchase             bool
 
 	orderLinkTasks        chan *model.OrderLink
 	orderLinkWG           sync.WaitGroup
@@ -77,6 +102,10 @@ type ServiceContext struct {
 	perfWG                sync.WaitGroup
 	traceShutdown         func(context.Context) error
 	activityItemCache     sync.Map
+	purchaseTasks         chan *model.PurchaseTask
+	purchaseWG            sync.WaitGroup
+	purchaseCtx           context.Context
+	purchaseCancel        context.CancelFunc
 }
 
 // NewServiceContext 初始化秒杀 RPC 依赖。
@@ -212,6 +241,18 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 		perfCtx, perfCancel = context.WithCancel(context.Background())
 	}
 
+	var (
+		purchaseTasks  chan *model.PurchaseTask
+		purchaseCtx    context.Context
+		purchaseCancel context.CancelFunc
+	)
+	asyncPurchaseQueueSize := maxInt(c.AsyncPurchaseQueueSize, 0)
+	asyncPurchaseWorkers := maxInt(c.AsyncPurchaseWorkers, 0)
+	if c.AsyncPurchase && asyncPurchaseQueueSize > 0 && asyncPurchaseWorkers > 0 {
+		purchaseTasks = make(chan *model.PurchaseTask, asyncPurchaseQueueSize)
+		purchaseCtx, purchaseCancel = context.WithCancel(context.Background())
+	}
+
 	out := &ServiceContext{
 		Config:                    c,
 		AppConfig:                 appCfg,
@@ -233,6 +274,7 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 		OrderLinkWriteOnPurchase:  c.OrderLinkWriteOnPurchase,
 		OrderLinkSyncFallback:     c.OrderLinkSyncFallback,
 		Perf:                      newPerfStats(),
+		AsyncPurchase:             c.AsyncPurchase && asyncPurchaseQueueSize > 0 && asyncPurchaseWorkers > 0,
 		orderLinkTasks:            orderLinkTasks,
 		orderLinkCtx:              orderLinkCtx,
 		orderLinkCancel:           orderLinkCancel,
@@ -246,10 +288,14 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 		perfCtx:                   perfCtx,
 		perfCancel:                perfCancel,
 		traceShutdown:             traceShutdown,
+		purchaseTasks:             purchaseTasks,
+		purchaseCtx:               purchaseCtx,
+		purchaseCancel:            purchaseCancel,
 	}
 	out.startOrderLinkWorkers(orderLinkWorkers)
 	out.startTrafficWorkers(trafficWorkers)
 	out.startPerfReporter()
+	out.startPurchaseWorkers(asyncPurchaseWorkers)
 	return out, nil
 }
 
@@ -272,6 +318,9 @@ func (s *ServiceContext) Close() error {
 	}
 	if s.perfCancel != nil {
 		s.perfCancel()
+	}
+	if s.purchaseCancel != nil {
+		s.purchaseCancel()
 	}
 	done := make(chan struct{})
 	go func() {
@@ -302,6 +351,16 @@ func (s *ServiceContext) Close() error {
 	case <-perfDone:
 	case <-time.After(2 * time.Second):
 		errs = append(errs, fmt.Errorf("stop perf reporter timeout"))
+	}
+	purchaseDone := make(chan struct{})
+	go func() {
+		s.purchaseWG.Wait()
+		close(purchaseDone)
+	}()
+	select {
+	case <-purchaseDone:
+	case <-time.After(5 * time.Second):
+		errs = append(errs, fmt.Errorf("stop purchase workers timeout"))
 	}
 	if closer, ok := s.Producer.(interface{ Close() error }); ok {
 		if err := closer.Close(); err != nil {
@@ -512,7 +571,8 @@ func (s *ServiceContext) startPerfReporter() {
 			case <-ticker.C:
 				orderQueueDepth, orderQueueCap := s.orderLinkQueueStats()
 				trafficQueueDepth, trafficQueueCap := s.trafficQueueStats()
-				snap := s.Perf.Snapshot(orderQueueDepth, orderQueueCap, trafficQueueDepth, trafficQueueCap)
+				purchaseQueueDepth, purchaseQueueCap := s.purchaseQueueStats()
+				snap := s.Perf.Snapshot(orderQueueDepth, orderQueueCap, trafficQueueDepth, trafficQueueCap, purchaseQueueDepth, purchaseQueueCap)
 				s.Logger.Info("seckill perf snapshot",
 					zap.Int64("reserve_calls", snap.ReserveCalls),
 					zap.Int64("reserve_success", snap.ReserveSuccess),
@@ -561,6 +621,12 @@ func (s *ServiceContext) startPerfReporter() {
 					zap.Int64("order_state_loop_errors", snap.OrderStateLoopErrors),
 					zap.Int64("traffic_queue_depth", snap.TrafficQueueDepth),
 					zap.Int64("traffic_queue_cap", snap.TrafficQueueCap),
+					zap.Int64("purchase_task_enqueued", snap.PurchaseTaskEnqueued),
+					zap.Int64("purchase_task_dropped", snap.PurchaseTaskDropped),
+					zap.Int64("purchase_task_failed", snap.PurchaseTaskFailed),
+					zap.Int64("purchase_task_success", snap.PurchaseTaskSuccess),
+					zap.Int64("purchase_task_queue_depth", snap.PurchaseTaskQueueDepth),
+					zap.Int64("purchase_task_queue_cap", snap.PurchaseTaskQueueCap),
 				)
 			}
 		}
@@ -586,4 +652,139 @@ func maxInt(v, fallback int) int {
 		return v
 	}
 	return fallback
+}
+
+// EnqueuePurchaseTask 将异步建单任务入队，返回 false 表示队列不可用或已满。
+func (s *ServiceContext) EnqueuePurchaseTask(task *model.PurchaseTask) bool {
+	if s == nil || task == nil || s.purchaseTasks == nil {
+		return false
+	}
+	cp := *task
+	if cp.Item != nil {
+		itemCp := *cp.Item
+		cp.Item = &itemCp
+	}
+	select {
+	case s.purchaseTasks <- &cp:
+		if s.Perf != nil {
+			s.Perf.MarkPurchaseTaskEnqueued()
+		}
+		return true
+	default:
+		if s.Perf != nil {
+			s.Perf.MarkPurchaseTaskDropped()
+		}
+		return false
+	}
+}
+
+func (s *ServiceContext) startPurchaseWorkers(workerCount int) {
+	if s == nil || s.purchaseTasks == nil || workerCount <= 0 {
+		return
+	}
+	for i := 0; i < workerCount; i++ {
+		s.purchaseWG.Add(1)
+		go func(workerID int) {
+			defer s.purchaseWG.Done()
+			for {
+				select {
+				case <-s.purchaseCtx.Done():
+					return
+				case task := <-s.purchaseTasks:
+					if task == nil {
+						continue
+					}
+					s.executePurchaseTask(task)
+				}
+			}
+		}(i)
+	}
+	if s.Logger != nil {
+		s.Logger.Info("purchase async workers started", zap.Int("workers", workerCount), zap.Int("queue_size", cap(s.purchaseTasks)))
+	}
+}
+
+// executePurchaseTask 在 Worker 中直接建单（Redis 已扣减库存，无需 MySQL 行锁事务）。
+func (s *ServiceContext) executePurchaseTask(task *model.PurchaseTask) {
+	if s == nil || task == nil {
+		return
+	}
+	idempotencyKey := task.IdempotencyKey
+
+	// Redis 已原子扣减库存，直接 gRPC 建单，跳过 MySQL ReservePurchase 行锁事务。
+	orderReq := &orderpb.CreateOrderFromSeckillReq{
+		UserId:         task.UserID,
+		ActivityId:     task.ActivityID,
+		ActivityItemId: task.ActivityItemID,
+		Quantity:       task.Quantity,
+		IdempotencyKey: idempotencyKey,
+	}
+	if task.Item != nil {
+		orderReq.ProductId = task.Item.ProductID
+		orderReq.SeckillPriceCent = task.Item.SeckillPriceCent
+		orderReq.SnapshotName = task.Item.SnapshotName
+		orderReq.SnapshotMainImage = task.Item.SnapshotMainImage
+		orderReq.SkuCode = task.Item.SKUCode
+	}
+	orderTimeout := time.Duration(s.Config.OrderCreateRPCTimeoutMs) * time.Millisecond
+	if orderTimeout <= 0 {
+		orderTimeout = 2500 * time.Millisecond
+	}
+	orderCtx, orderCancel := context.WithTimeout(context.Background(), orderTimeout)
+	orderCtx = rpcmeta.WithAccessToken(orderCtx, task.AccessToken)
+	orderResp, err := s.OrderRPCCli.CreateOrderFromSeckill(orderCtx, orderReq)
+	orderCancel()
+	if err != nil || orderResp == nil || orderResp.Order == nil {
+		if s.Logger != nil {
+			s.Logger.Warn("async purchase: order create failed, rolling back Redis",
+				zap.Error(err),
+				zap.Int64("activity_id", task.ActivityID),
+				zap.Int64("item_id", task.ActivityItemID),
+				zap.Int64("user_id", task.UserID),
+				zap.String("idempotency_key", idempotencyKey),
+			)
+		}
+		// 建单失败：回滚 Redis 库存
+		if task.Item != nil && s.Redis != nil {
+			rbCtx, rbCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			keys := []string{
+				fmt.Sprintf("seckill:item:%d:stock", task.Item.ID),
+				fmt.Sprintf("seckill:activity:%d:user:%d:bought", task.Item.ActivityID, task.UserID),
+				fmt.Sprintf("seckill:req:%d:%d:%d:%s:release-token", task.ActivityID, task.ActivityItemID, task.UserID, idempotencyKey),
+			}
+			_, _ = rollbackReserveScript.Run(rbCtx, s.Redis, keys, task.Quantity, task.Item.UserLimitMode).Result()
+			rbCancel()
+		}
+		if s.Perf != nil {
+			s.Perf.MarkPurchaseTaskFailed()
+		}
+		return
+	}
+
+	// 建单成功：写 OrderLink（异步）
+	if s.OrderLinkWriteOnPurchase && orderResp.Order != nil {
+		link := &model.OrderLink{
+			ID:             s.IDNode.Generate().Int64(),
+			OrderID:        orderResp.Order.OrderId,
+			OrderNo:        orderResp.Order.OrderNo,
+			UserID:         task.UserID,
+			ActivityID:     task.ActivityID,
+			ActivityItemID: task.ActivityItemID,
+			Quantity:       task.Quantity,
+			OrderStatus:    int8(orderResp.Order.OrderStatus),
+			PaymentStatus:  int8(orderResp.Order.PaymentStatus),
+			LastSyncedAt:   time.Now(),
+		}
+		s.EnqueueOrderLink(link)
+	}
+	if s.Perf != nil {
+		s.Perf.MarkPurchaseTaskSuccess()
+	}
+}
+
+func (s *ServiceContext) purchaseQueueStats() (depth, capVal int) {
+	if s == nil || s.purchaseTasks == nil {
+		return 0, 0
+	}
+	return len(s.purchaseTasks), cap(s.purchaseTasks)
 }

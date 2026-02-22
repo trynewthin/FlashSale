@@ -100,11 +100,17 @@ func (c *SampleCollector) collectOnce() {
 	sample.ReplicaRate = safeRateFloat(runRep, totalRep)
 
 	// 采集 Prometheus 指标
-	metricNames := []string{"rpc_request_rate", "rpc_error_rate", "rpc_p99_latency"}
+	metricNames := []string{
+		"rpc_request_rate", "rpc_error_rate", "rpc_p99_latency",
+		"seckill_purchase_task_queue_depth", "seckill_purchase_task_queue_cap", "seckill_purchase_task_dropped_total",
+	}
 	snapshot := MetricsSnapshot(c.env, metricNames)
 	sample.PromQps = extractPromScalar(snapshot, "rpc_request_rate")
 	sample.PromErrorRate = extractPromScalar(snapshot, "rpc_error_rate")
 	sample.PromP99LatencyMs = extractPromScalar(snapshot, "rpc_p99_latency")
+	sample.PurchaseTaskQueueDepth = extractPromScalar(snapshot, "seckill_purchase_task_queue_depth")
+	sample.PurchaseTaskQueueCap = extractPromScalar(snapshot, "seckill_purchase_task_queue_cap")
+	sample.PurchaseTaskDropped = extractPromScalar(snapshot, "seckill_purchase_task_dropped_total")
 
 	if err := c.store.Append(sample); err != nil {
 		log.Printf("[sample_collector] write failed: %v", err)

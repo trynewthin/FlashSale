@@ -4,6 +4,7 @@ import {
     ArrowLeft,
     ChevronRight,
     Clock,
+    Download,
     FileText,
     Loader2,
     Play,
@@ -11,7 +12,7 @@ import {
     Zap,
 } from "lucide-react"
 
-import type { JobSummary } from "@/api/types"
+import type { JobDetail, JobSummary } from "@/api/types"
 import { LogStreamViewer } from "@/components/common/log-stream-viewer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,6 +28,9 @@ import {
     PerfMetricChartCard,
     PERF_METRICS,
     hasAnyPerfData,
+    computeAvg,
+    computeMax,
+    computeLatest,
 } from "@/features/realtime/perf-metric-cards"
 import { PerfSummaryCard } from "@/features/realtime/perf-summary-card"
 import { RealtimeTestLauncher } from "@/features/realtime/realtime-test-launcher"
@@ -310,9 +314,9 @@ function GuideView({
                         </Button>
                     </div>
 
-                    <div className="rounded-xl border bg-card shadow-sm">
+                    <div className="max-h-64 overflow-y-auto rounded-xl border bg-card shadow-sm">
                         <div className="divide-y">
-                            {recentTestJobs.slice(0, 10).map((job) => (
+                            {recentTestJobs.map((job) => (
                                 <button
                                     key={job.id}
                                     onClick={() => void onSelectJob(job.id)}
@@ -344,6 +348,55 @@ function GuideView({
     )
 }
 
+// ─── 导出测试报告 ───
+
+function exportTestReport(
+    job: JobDetail | null,
+    samples: import("@/features/realtime/types").RealtimeSample[]
+) {
+    if (!job) return
+    const preset = getRealtimeTestPreset(job.task_id)
+    const report = {
+        exportedAt: new Date().toISOString(),
+        task: {
+            id: job.task_id,
+            name: preset?.title ?? job.task_name ?? job.task_id,
+            jobId: job.id,
+            status: job.status,
+            exitCode: job.exit_code,
+            args: job.args,
+            createdAt: job.created_at,
+            startedAt: job.started_at ?? null,
+            finishedAt: job.finished_at ?? null,
+            durationMs:
+                job.started_at && job.finished_at
+                    ? new Date(job.finished_at).getTime() - new Date(job.started_at).getTime()
+                    : null,
+        },
+        summary: Object.fromEntries(
+            PERF_METRICS.map((m) => [
+                m.key,
+                {
+                    label: m.label,
+                    unit: m.unit,
+                    avg: +computeAvg(samples, m.key).toFixed(2),
+                    max: +computeMax(samples, m.key).toFixed(2),
+                    latest: +computeLatest(samples, m.key).toFixed(2),
+                },
+            ])
+        ),
+        sampleCount: samples.length,
+    }
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `perf-report-${job.task_id}-${job.id.slice(0, 8)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+}
+
 // ─── 图表视图 ───
 
 interface ChartViewProps {
@@ -352,7 +405,7 @@ interface ChartViewProps {
     loading: boolean
     hasData: boolean
     isTestRunning: boolean
-    activeJob: { id: string; status: string; task_id: string } | null
+    activeJob: JobDetail | null
     chartSamples: import("@/features/realtime/types").RealtimeSample[]
     onGoBack: () => void
     onOpenLogSheet: () => void
@@ -417,6 +470,16 @@ function ChartView({
                         disabled={!activeJob}
                     >
                         <RefreshCcw className="size-3" />
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => exportTestReport(activeJob, chartSamples)}
+                        disabled={!activeJob || chartSamples.length === 0}
+                        title="导出测试报告"
+                    >
+                        <Download className="size-3" />
                     </Button>
                     <Button
                         size="sm"

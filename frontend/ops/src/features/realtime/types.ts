@@ -24,4 +24,8 @@ export interface RealtimeSample {
   p95LatencyMs?: number | null
   networkErrorRate?: number | null
   stockDeductionRate?: number | null
+  // 秒杀异步购买队列（服务端 Prometheus）
+  purchaseTaskQueueDepth?: number | null
+  purchaseTaskQueueCap?: number | null
+  purchaseTaskDropped?: number | null
 }

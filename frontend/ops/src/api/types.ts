@@ -28,6 +28,28 @@ export interface JobSummary {
 export interface JobDetail extends JobSummary {
   task_name: string
   args: string[]
+  perf_report?: PerfReport | null
+}
+
+// ─── 压测数据（后端驱动） ───
+
+export interface PerfProgress {
+  timestamp: number
+  label: string
+  qps: number
+  p95LatencyMs: number
+  successRate: number
+  rejectRate: number
+  systemErrorRate: number
+  networkErrorRate: number
+  stockDeductionRate: number
+}
+
+export interface PerfReport {
+  generated_at: string
+  config: Record<string, unknown>
+  summary: Record<string, unknown>
+  samples: PerfProgress[]
 }
 
 export interface PortStatus {

@@ -40,6 +40,7 @@ type JobSummary struct {
 // JobDetail 用于任务详情展示。
 type JobDetail struct {
 	JobSummary
-	TaskName string   `json:"task_name"`
-	Args     []string `json:"args"`
+	TaskName   string      `json:"task_name"`
+	Args       []string    `json:"args"`
+	PerfReport *PerfReport `json:"perf_report,omitempty"`
 }

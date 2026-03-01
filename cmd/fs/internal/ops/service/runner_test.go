@@ -213,14 +213,14 @@ func TestRunner_SubscribeJobLog(t *testing.T) {
 	}
 	defer cancel()
 
-	// 应该收到至少一行日志
+	// 应该收到至少一个事件
 	select {
-	case line := <-ch:
-		if line == "" {
-			t.Fatal("收到空日志行")
+	case event := <-ch:
+		if event.LogLine == "" && event.PerfProgress == nil {
+			t.Fatal("收到空事件")
 		}
 	case <-time.After(10 * time.Second):
-		t.Fatal("10 秒未收到日志")
+		t.Fatal("10 秒未收到事件")
 	}
 }
 

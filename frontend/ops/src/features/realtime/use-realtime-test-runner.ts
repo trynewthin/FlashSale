@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { opsApi } from "@/api/modules/ops"
-import type { JobDetail, JobSummary, SSELogLineFrame, TaskDef } from "@/api/types"
+import type { JobDetail, JobSummary, PerfProgress, PerfReport, SSELogLineFrame, TaskDef } from "@/api/types"
 import {
   getRealtimeTestPreset,
   type RealtimeTestFieldDef,
@@ -33,6 +33,8 @@ interface UseRealtimeTestRunnerResult {
   activeLog: string
   streamEnabled: boolean
   setStreamEnabled: (value: boolean) => void
+  perfSamples: PerfProgress[]
+  perfReport: PerfReport | null
   recentTestJobs: JobSummary[]
   startTest: () => Promise<boolean>
   refreshTasks: () => Promise<void>
@@ -84,6 +86,8 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
   const [activeLog, setActiveLog] = useState("")
   const [streamEnabled, setStreamEnabled] = useState(false)
   const [recentTestJobs, setRecentTestJobs] = useState<JobSummary[]>([])
+  const [perfSamples, setPerfSamples] = useState<PerfProgress[]>([])
+  const [perfReport, setPerfReport] = useState<PerfReport | null>(null)
 
   const selectedTask = useMemo(
     () => tasks.find((item) => item.id === selectedTaskID) ?? null,
@@ -151,6 +155,9 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
         const [detail, logSnapshot] = await Promise.all([opsApi.getJob(jobID), opsApi.getJobLog(jobID)])
         setActiveJob(detail)
         setActiveLog(logSnapshot)
+        // 历史任务：直接从 job.perf_report 加载压测数据
+        setPerfSamples(detail.perf_report?.samples ?? [])
+        setPerfReport(detail.perf_report ?? null)
         setStreamEnabled(true)
       } catch (error) {
         showApiError(error, "切换测试任务失败")
@@ -241,6 +248,8 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
       })
       setActiveJob(job)
       setActiveLog("")
+      setPerfSamples([])
+      setPerfReport(null)
       setStreamEnabled(true)
       setLauncherOpen(false)
       await refreshTestJobs()
@@ -302,9 +311,24 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
           }
           return
         }
+        if (eventType === "perf_progress") {
+          const sample = payload as PerfProgress
+          if (sample && typeof sample.timestamp === "number") {
+            setPerfSamples((prev) => [...prev, sample])
+          }
+          return
+        }
         if (eventType === "done") {
           // 任务正常结束，优雅关闭
           doneReceivedRef.current = true
+          const donePayload = payload as { perf_report?: PerfReport | null }
+          if (donePayload.perf_report) {
+            setPerfReport(donePayload.perf_report)
+            // 确保 samples 完整
+            if (donePayload.perf_report.samples?.length) {
+              setPerfSamples(donePayload.perf_report.samples)
+            }
+          }
           setStreamEnabled(false)
           void refreshActiveJob()
           return
@@ -335,6 +359,8 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
     activeLog,
     streamEnabled,
     setStreamEnabled,
+    perfSamples,
+    perfReport,
     recentTestJobs,
     startTest,
     refreshTasks,

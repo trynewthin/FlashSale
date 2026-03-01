@@ -23,13 +23,23 @@ import (
 	"github.com/google/uuid"
 )
 
+// JobEvent 是 runner 推送给 SSE subscriber 的事件联合体。
+type JobEvent struct {
+	LogLine      string              // 非空 = 普通日志行
+	PerfProgress *model.PerfProgress // 非 nil = 结构化压测进度
+	Done         bool                // true = job 已结束
+}
+
 type jobRecord struct {
 	model.JobDetail
 	log            bytes.Buffer
 	archivedBytes  int64
 	archivedByHour map[string]string
 	archivedHours  []string
-	mu             sync.Mutex
+	// perf 数据
+	perfSamples []model.PerfProgress
+	perfReport  *model.PerfReport
+	mu          sync.Mutex
 }
 
 func (r *jobRecord) appendLog(line string) {
@@ -102,7 +112,7 @@ type Runner struct {
 	mu      sync.RWMutex
 	jobs    map[string]*jobRecord
 	jobList []string
-	subs    map[string]map[string]chan string
+	subs    map[string]map[string]chan JobEvent
 }
 
 const (
@@ -124,7 +134,7 @@ func NewRunner(repoRoot string, tasks map[string]model.TaskDef) *Runner {
 		maxLogSize: defaultMaxLogSize,
 		jobs:       make(map[string]*jobRecord),
 		jobList:    make([]string, 0, 64),
-		subs:       make(map[string]map[string]chan string),
+		subs:       make(map[string]map[string]chan JobEvent),
 	}
 	r.loadPersistedJobs()
 	return r
@@ -218,18 +228,18 @@ func (r *Runner) GetJobLog(id string) (string, bool) {
 	return rec.logText(), true
 }
 
-// SubscribeJobLog 订阅任务日志增量。
-func (r *Runner) SubscribeJobLog(id string) (<-chan string, func(), bool) {
+// SubscribeJobLog 订阅任务事件流（日志行 + 压测进度 + 完成通知）。
+func (r *Runner) SubscribeJobLog(id string) (<-chan JobEvent, func(), bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.jobs[id]; !ok {
 		return nil, nil, false
 	}
 	if _, ok := r.subs[id]; !ok {
-		r.subs[id] = make(map[string]chan string)
+		r.subs[id] = make(map[string]chan JobEvent)
 	}
 	subID := uuid.NewString()
-	ch := make(chan string, 256)
+	ch := make(chan JobEvent, 256)
 	r.subs[id][subID] = ch
 	cancel := func() {
 		r.mu.Lock()
@@ -311,6 +321,7 @@ func (r *Runner) execute(rec *jobRecord, task model.TaskDef) {
 	}
 
 	end := time.Now()
+	r.finalizePerfReport(rec)
 	r.updateJob(rec.ID, func(j *jobRecord) {
 		j.Status = model.JobSuccess
 		j.ExitCode = exitCode
@@ -327,7 +338,30 @@ func (r *Runner) pipeToLog(jobID string, stream io.Reader, source string) {
 	scanner.Buffer(buf, 2*1024*1024)
 	for scanner.Scan() {
 		line := scanner.Text()
-		r.appendJobLog(jobID, fmt.Sprintf("[%s][%s] %s", time.Now().Format(time.RFC3339), source, line))
+		now := time.Now().Format(time.RFC3339)
+
+		// 尝试拦截 seckillload JSON 输出
+		if source == "stdout" && len(line) > 0 && line[0] == '{' {
+			progress, report := model.ParseSeckillloadLine(line)
+			if progress != nil {
+				r.mu.RLock()
+				rec, ok := r.jobs[jobID]
+				r.mu.RUnlock()
+				if ok {
+					rec.mu.Lock()
+					rec.perfSamples = append(rec.perfSamples, *progress)
+					if report != nil {
+						rec.perfReport = report
+					}
+					rec.mu.Unlock()
+				}
+				// 推送结构化 perf_progress 事件给 SSE subscriber
+				r.publishEvent(jobID, JobEvent{PerfProgress: progress})
+			}
+		}
+
+		// 日志行照常追加（保留完整日志）
+		r.appendJobLog(jobID, fmt.Sprintf("[%s][%s] %s", now, source, line))
 	}
 	if err := scanner.Err(); err != nil {
 		r.appendJobLog(jobID, fmt.Sprintf("[%s][%s] scanner error: %v", time.Now().Format(time.RFC3339), source, err))
@@ -372,7 +406,6 @@ func (r *Runner) updateJob(jobID string, fn func(*jobRecord)) {
 }
 
 func (r *Runner) appendJobLog(jobID string, line string) {
-	var outputs []chan string
 	var rec *jobRecord
 	var overflow []byte
 	now := time.Now()
@@ -380,12 +413,6 @@ func (r *Runner) appendJobLog(jobID string, line string) {
 	if item, ok := r.jobs[jobID]; ok {
 		rec = item
 		overflow = rec.appendLogWithTrim(line, r.maxLogSize)
-		if subs, ok := r.subs[jobID]; ok {
-			outputs = make([]chan string, 0, len(subs))
-			for _, ch := range subs {
-				outputs = append(outputs, ch)
-			}
-		}
 	}
 	r.mu.Unlock()
 
@@ -396,12 +423,41 @@ func (r *Runner) appendJobLog(jobID string, line string) {
 		}
 	}
 
+	// 推送日志行事件
+	r.publishEvent(jobID, JobEvent{LogLine: line})
+}
+
+// publishEvent 向 job 的所有 SSE subscriber 推送事件。
+func (r *Runner) publishEvent(jobID string, event JobEvent) {
+	r.mu.RLock()
+	subs := r.subs[jobID]
+	outputs := make([]chan JobEvent, 0, len(subs))
+	for _, ch := range subs {
+		outputs = append(outputs, ch)
+	}
+	r.mu.RUnlock()
+
 	for _, ch := range outputs {
 		select {
-		case ch <- line:
+		case ch <- event:
 		default:
 		}
 	}
+}
+
+// finalizePerfReport 在 job 完成时合并 perf 数据到 JobDetail。
+func (r *Runner) finalizePerfReport(rec *jobRecord) {
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.perfSamples) == 0 {
+		return
+	}
+	if rec.perfReport == nil {
+		rec.perfReport = &model.PerfReport{}
+	}
+	rec.perfReport.Samples = make([]model.PerfProgress, len(rec.perfSamples))
+	copy(rec.perfReport.Samples, rec.perfSamples)
+	rec.PerfReport = rec.perfReport
 }
 
 func (r *Runner) trimJobsLocked() {
@@ -551,6 +607,7 @@ func (r *Runner) loadPersistedJobs() {
 		}
 		// 加载日志：hourly 归档 + final.log（内存 buffer）
 		rec := &jobRecord{JobDetail: item.detail}
+		rec.perfReport = item.detail.PerfReport // 恢复内部 perf 数据
 		logDir := filepath.Join(r.logRootDir, id)
 		logFiles, _ := filepath.Glob(filepath.Join(logDir, "*.log"))
 		sort.Strings(logFiles)

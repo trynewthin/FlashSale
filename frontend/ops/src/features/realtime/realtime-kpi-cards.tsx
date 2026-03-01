@@ -1,6 +1,6 @@
 import { Activity, Cpu, Gauge, Server } from "lucide-react"
 
-import type { PerfTestMetricPoint } from "@/features/realtime/perf-report-parser"
+import type { PerfProgress } from "@/api/types"
 import type { RealtimeSample } from "@/features/realtime/types"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,8 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 interface RealtimeKPICardsProps {
   latest: RealtimeSample | null
   previous: RealtimeSample | null
-  latestTestMetric?: PerfTestMetricPoint | null
-  previousTestMetric?: PerfTestMetricPoint | null
+  latestTestMetric?: PerfProgress | null
+  previousTestMetric?: PerfProgress | null
 }
 
 function deltaText(current: number, previous?: number, unit = ""): string {

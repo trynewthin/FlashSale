@@ -120,6 +120,14 @@ func (h *TaskHandler) StreamJobLog(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	}
 
+	// 推送历史 perf samples（如果 job 已在运行，可能已有中间数据）。
+	if job, ok := h.Runner.GetJob(id); ok && job.PerfReport != nil && len(job.PerfReport.Samples) > 0 {
+		for _, sample := range job.PerfReport.Samples {
+			_ = WriteSSEEvent(w, "perf_progress", sample)
+		}
+		flusher.Flush()
+	}
+
 	heartbeat := time.NewTicker(15 * time.Second)
 	defer heartbeat.Stop()
 
@@ -127,20 +135,27 @@ func (h *TaskHandler) StreamJobLog(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
-		case line, open := <-ch:
+		case event, open := <-ch:
 			if !open {
 				// channel 已关闭：job 结束，发送 done 事件
 				if job, ok := h.Runner.GetJob(id); ok {
 					_ = WriteSSEEvent(w, "done", map[string]any{
-						"status":    job.Status,
-						"exit_code": job.ExitCode,
+						"status":      job.Status,
+						"exit_code":   job.ExitCode,
+						"perf_report": job.PerfReport,
 					})
 					flusher.Flush()
 				}
 				return
 			}
-			_ = WriteSSEEvent(w, "log", map[string]any{"line": line})
-			flusher.Flush()
+			// 根据事件类型派发 SSE event
+			if event.PerfProgress != nil {
+				_ = WriteSSEEvent(w, "perf_progress", event.PerfProgress)
+				flusher.Flush()
+			} else if event.LogLine != "" {
+				_ = WriteSSEEvent(w, "log", map[string]any{"line": event.LogLine})
+				flusher.Flush()
+			}
 		case <-heartbeat.C:
 			_ = WriteSSEEvent(w, "ping", map[string]any{"ts": time.Now().Unix()})
 			flusher.Flush()

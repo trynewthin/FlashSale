@@ -161,9 +161,42 @@ export function parsePerfMetricPointsFromLog(logText: string): PerfTestMetricPoi
   return points
 }
 
+// perfPointToSyntheticSample 将 perf 日志点转换为合成的 RealtimeSample（系统指标置空）。
+// 用于快速完成的测试场景：系统采样间隔（2s）大于测试时长，无法采集到系统样本。
+function perfPointToSyntheticSample(point: PerfTestMetricPoint): RealtimeSample {
+  return {
+    timestamp: point.timestamp,
+    label: point.label,
+    portRate: 0,
+    httpRate: 0,
+    replicaRate: 0,
+    runningContainers: 0,
+    totalContainers: 0,
+    runningReplicas: 0,
+    totalReplicas: 0,
+    promQps: null,
+    promP99LatencyMs: null,
+    promErrorRate: null,
+    purchaseTaskQueueDepth: null,
+    purchaseTaskQueueCap: null,
+    purchaseTaskDropped: null,
+    qps: point.qps,
+    successRate: point.successRate,
+    rejectRate: point.rejectRate,
+    systemErrorRate: point.systemErrorRate,
+    p95LatencyMs: point.p95LatencyMs,
+    networkErrorRate: point.networkErrorRate,
+    stockDeductionRate: point.stockDeductionRate,
+  }
+}
+
 // attachPerfMetricsToSamples 把最新测试指标按时间挂载到实时采样点，形成统一图表数据。
 export function attachPerfMetricsToSamples(samples: RealtimeSample[], points: PerfTestMetricPoint[]): RealtimeSample[] {
   if (samples.length === 0) {
+    // 无系统采样但有测试指标时，从 perf 日志点创建合成样本
+    if (points.length > 0) {
+      return points.map(perfPointToSyntheticSample)
+    }
     return []
   }
   if (points.length === 0) {
@@ -209,8 +242,12 @@ export function mergeRealtimeSamplesWithPerfPoints(
   samples: RealtimeSample[],
   points: PerfTestMetricPoint[]
 ): RealtimeSample[] {
-  if (samples.length === 0) {
+  if (samples.length === 0 && points.length === 0) {
     return []
+  }
+  // 无系统采样但有测试指标 → 从日志点创建合成样本
+  if (samples.length === 0) {
+    return points.map(perfPointToSyntheticSample)
   }
   const base = attachPerfMetricsToSamples(samples, points)
   if (points.length === 0) {

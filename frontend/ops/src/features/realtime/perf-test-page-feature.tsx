@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
     Activity,
     ArrowLeft,
@@ -27,7 +27,6 @@ import {
 import {
     PerfMetricChartCard,
     PERF_METRICS,
-    hasAnyPerfData,
     computeAvg,
     computeMax,
     computeLatest,
@@ -46,10 +45,10 @@ function statusBadgeVariant(status: string) {
 }
 
 const MODE_LABELS: Record<string, string> = {
-    idle: "就绪",
-    collecting: "采集中",
-    frozen: "已冻结",
-    history: "历史回放",
+    running: "采集中",
+    success: "已完成",
+    failed: "已失败",
+    queued: "排队中",
 }
 
 // ─── 视图类型 ───
@@ -74,6 +73,7 @@ export function PerfTestPageFeature() {
         activeLog,
         streamEnabled,
         setStreamEnabled,
+        perfSamples,
         recentTestJobs,
         startTest,
         refreshTasks,
@@ -83,9 +83,10 @@ export function PerfTestPageFeature() {
         clearActiveLog,
     } = useRealtimeTestRunner()
 
-    const { chartSamples, mode, loading, loadHistoricalJob } = usePerfTestSamples(activeJob, activeLog)
+    const { chartSamples, hasData } = usePerfTestSamples(perfSamples)
 
     const isTestRunning = activeJob?.status === "running"
+    const statusMode = activeJob?.status ?? "idle"
 
     // ─── 视图管理 ───
     // 默认引导页；有正在运行的任务或选中了终态任务时自动切换到图表页
@@ -132,19 +133,9 @@ export function PerfTestPageFeature() {
     // Sheet 日志面板状态
     const [logSheetOpen, setLogSheetOpen] = useState(false)
 
-    // 当 activeJob 切换到终态任务时，自动加载历史图表
-    const lastLoadedJobIdRef = useRef<string | null>(null)
-    useEffect(() => {
-        if (!activeJob || activeJob.status === "running" || activeJob.status === "queued") {
-            lastLoadedJobIdRef.current = null
-            return
-        }
-        if (lastLoadedJobIdRef.current === activeJob.id) return
-        lastLoadedJobIdRef.current = activeJob.id
-        void loadHistoricalJob(activeJob, activeLog)
-    }, [activeJob?.id, activeJob?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const hasData = useMemo(() => hasAnyPerfData(chartSamples), [chartSamples])
+
+
 
     // 当前任务显示名
     const activeJobTitle = activeJob
@@ -165,8 +156,7 @@ export function PerfTestPageFeature() {
             ) : (
                 <ChartView
                     title={activeJobTitle}
-                    mode={mode}
-                    loading={loading}
+                    statusMode={statusMode}
                     hasData={hasData}
                     isTestRunning={isTestRunning}
                     activeJob={activeJob}
@@ -401,8 +391,7 @@ function exportTestReport(
 
 interface ChartViewProps {
     title: string
-    mode: string
-    loading: boolean
+    statusMode: string
     hasData: boolean
     isTestRunning: boolean
     activeJob: JobDetail | null
@@ -414,8 +403,7 @@ interface ChartViewProps {
 
 function ChartView({
     title,
-    mode,
-    loading,
+    statusMode,
     hasData,
     isTestRunning,
     activeJob,
@@ -447,11 +435,11 @@ function ChartView({
                         {title}
                     </span>
                     <Badge
-                        variant={mode === "collecting" ? "secondary" : "outline"}
+                        variant={isTestRunning ? "secondary" : "outline"}
                         className="shrink-0 text-[10px]"
                     >
-                        {mode === "collecting" && <Loader2 className="mr-1 size-3 animate-spin" />}
-                        {MODE_LABELS[mode] ?? mode}
+                        {isTestRunning && <Loader2 className="mr-1 size-3 animate-spin" />}
+                        {MODE_LABELS[statusMode] ?? statusMode}
                     </Badge>
                     {isTestRunning && (
                         <Badge variant="secondary" className="shrink-0 text-[10px]">
@@ -493,13 +481,7 @@ function ChartView({
                 </div>
             </div>
 
-            {/* 图表区域 */}
-            {loading ? (
-                <div className="flex h-full min-h-[300px] items-center justify-center rounded-xl border bg-card text-muted-foreground">
-                    <Loader2 className="mr-2 size-5 animate-spin" />
-                    加载历史数据…
-                </div>
-            ) : hasData ? (
+            {hasData ? (
                 <div className="grid auto-rows-[180px] grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-4">
                     {/* ① 测试摘要 */}
                     <PerfSummaryCard samples={chartSamples} />
@@ -515,10 +497,18 @@ function ChartView({
                 </div>
             ) : (
                 <div className="flex h-full min-h-[300px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20">
-                    <Loader2 className="size-6 animate-spin text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">
-                        等待测试数据…
-                    </span>
+                    {isTestRunning ? (
+                        <>
+                            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
+                                等待测试数据…
+                            </span>
+                        </>
+                    ) : (
+                        <span className="text-sm text-muted-foreground">
+                            无测试数据
+                        </span>
+                    )}
                 </div>
             )}
         </>

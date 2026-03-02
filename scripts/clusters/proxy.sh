@@ -17,6 +17,21 @@ source "$(dirname "$0")/_common.sh"
 SERVICES=(cdn media-store nginx)
 CONTAINERS=(flashsale-app-cdn flashsale-app-media-store flashsale-app-nginx)
 
+# media-store 容器以 uid=1000(app) 运行，但 bind-mount 的宿主机目录可能是 root 所有。
+# Dockerfile 中的 chown 对 bind-mount 无效，因此在启动前修正宿主机目录权限。
+CDN_ASSETS_DIR="$(cd "$(dirname "$0")/../.." && pwd)/cdn/assets"
+ensure_cdn_writable() {
+    if [ -d "$CDN_ASSETS_DIR" ]; then
+        local owner
+        owner=$(stat -c '%u' "$CDN_ASSETS_DIR" 2>/dev/null || echo "unknown")
+        if [ "$owner" != "1000" ]; then
+            step "FIX" "Fixing CDN assets ownership (current uid=$owner, need 1000)"
+            sudo chown -R 1000:1000 "$CDN_ASSETS_DIR" 2>/dev/null \
+                || warn "chown failed — media-store may lack write permission"
+        fi
+    fi
+}
+
 echo -e "${C_BOLD}=== [Cluster: proxy] ===${C_RESET}"
 
 CMD="${1:-all}"
@@ -30,6 +45,7 @@ case "$CMD" in
         ok "media-store image built"
         ;;
     up)
+        ensure_cdn_writable
         step "UP" "Starting nginx + cdn + media-store"
         dc_up "${SERVICES[@]}"
 
@@ -41,6 +57,7 @@ case "$CMD" in
         step "BUILD" "Building media-store image"
         dc_build "$@" media-store
 
+        ensure_cdn_writable
         step "UP" "Starting nginx + cdn + media-store"
         dc_up "${SERVICES[@]}"
 

@@ -76,7 +76,7 @@ func BuildTasks(env *EnvContext) map[string]model.TaskDef {
 		"data.seed_products": {
 			ID:          "data.seed_products",
 			Name:        "注入演示商品（含图片）",
-			Description: "通过 admin-gateway 上传 SVG 图片并创建 20 个演示商品，不清空现有数据。",
+			Description: "上传内嵌高清 PNG 图片并创建 20 个演示商品，不清空现有数据。",
 			Command:     []string{"self", "data", "seed-products"},
 			DefaultArgs: withContext("--force", "--count=20",
 				"--admin-base-url="+env.AdminGatewayURL,

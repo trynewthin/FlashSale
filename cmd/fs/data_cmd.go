@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"flashsale/cmd/fs/internal/assets"
 	"flashsale/cmd/fs/internal/devenv"
 
 	"github.com/google/uuid"
@@ -74,6 +75,7 @@ func runDataSeedOverwrite(args []string) error {
 	fs := flag.NewFlagSet("data seed-overwrite", flag.ContinueOnError)
 	force := fs.Bool("force", false, "确认覆写填充")
 	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
+	nginxBaseURL := fs.String("nginx-base-url", "", "Nginx 地址（用于图片上传，留空则与 admin-base-url 相同）")
 	adminBaseURL := fs.String("admin-base-url", "http://127.0.0.1:8083", "管理网关地址")
 	userBaseURL := fs.String("user-base-url", "http://127.0.0.1:8082", "用户网关地址")
 	adminUsername := fs.String("admin-username", "admin_root", "管理员用户名")
@@ -88,6 +90,9 @@ func runDataSeedOverwrite(args []string) error {
 	outputDir := fs.String("output-dir", "log/data", "输出目录")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*nginxBaseURL) == "" {
+		*nginxBaseURL = *adminBaseURL
 	}
 	if !*force {
 		return fmt.Errorf("seed-overwrite is destructive, pass --force")
@@ -196,11 +201,14 @@ VALUES (?, 'super_admin', 'Super Admin', 1, 1, ?, ?);
 	}
 	userToken := userLoginData.AccessToken
 
-	// 2. 创建商品（图片使用相对路径，前端拼接 CDN 域名）。
-	productDefs := []map[string]any{
-		{"name": "无线耳机 Pro", "main_image": "/assets/products/product-a.svg", "description": "高保真降噪无线耳机，续航 30 小时，轻盈舒适。", "price_cent": 19900, "stock": 80000, "status": 1},
-		{"name": "智能手表 S3", "main_image": "/assets/products/product-b.svg", "description": "全天健康监测，NFC 支付，IP68 防水，轻薄时尚。", "price_cent": 25900, "stock": 60000, "status": 1},
-		{"name": "便携蓝牙音箱", "main_image": "/assets/products/product-c.svg", "description": "360° 环绕立体声，防水防尘，一键配对，随身携带。", "price_cent": 9900, "stock": 50000, "status": 1},
+	// 2. 创建商品（读取内置高清图片并上传到 CDN）。
+	productDefs := []struct {
+		Name, LocalImg, Desc string
+		Price, Stock         int
+	}{
+		{"无线耳机 Pro", "product-a.png", "高保真降噪无线耳机，续航 30 小时，轻盈舒适。", 19900, 80000},
+		{"智能手表 S3", "product-b.png", "全天健康监测，NFC 支付，IP68 防水，轻薄时尚。", 25900, 60000},
+		{"便携蓝牙音箱", "product-c.png", "360° 环绕立体声，防水防尘，一键配对，随身携带。", 9900, 50000},
 	}
 	type productOut struct {
 		Product struct {
@@ -210,8 +218,20 @@ VALUES (?, 'super_admin', 'Super Admin', 1, 1, ?, ?);
 	}
 	products := make([]productOut, 0, len(productDefs))
 	for _, def := range productDefs {
+		imgBytes, err := assets.FS.ReadFile("products/" + def.LocalImg)
+		if err != nil {
+			return fmt.Errorf("read embedded image %s: %w", def.LocalImg, err)
+		}
+		uploadName := fmt.Sprintf("%s-%s.png", strings.TrimSuffix(def.LocalImg, ".png"), uuid.NewString()[:8])
+		imageURL, err := uploadProductImage(client, *nginxBaseURL, adminToken, uploadName, imgBytes)
+		if err != nil {
+			return fmt.Errorf("upload image %s: %w", def.LocalImg, err)
+		}
 		var out productOut
-		if err := callAPI(client, http.MethodPost, strings.TrimRight(*adminBaseURL, "/")+"/api/v1/admin/products", adminToken, def, &out); err != nil {
+		if err := callAPI(client, http.MethodPost, strings.TrimRight(*adminBaseURL, "/")+"/api/v1/admin/products", adminToken, map[string]any{
+			"name": def.Name, "main_image": imageURL, "description": def.Desc,
+			"price_cent": def.Price, "stock": def.Stock, "status": 1,
+		}, &out); err != nil {
 			return err
 		}
 		products = append(products, out)
@@ -663,15 +683,18 @@ func runDataSeedProducts(args []string) error {
 		def := productNames[i]
 		fmt.Printf("[seed-products] [%d/%d] %s\n", i+1, *count, def.Name)
 
-		// 2. 生成 SVG 并上传
-		svgContent := buildProductSVG(i, def.Name)
-		filename := fmt.Sprintf("seed-product-%02d-%s.svg", i+1, uuid.NewString()[:8])
-
-		imageURL, err := uploadProductImage(client, *nginxBaseURL, adminToken, filename, svgContent)
+		// 2. 读取预置高清 PNG 并上传
+		paddedIdx := (i % 20) + 1
+		localImg := fmt.Sprintf("seed-product-%02d.png", paddedIdx)
+		imgBytes, err := assets.FS.ReadFile("products/" + localImg)
 		if err != nil {
-			return fmt.Errorf("upload image [%d] failed: %w", i+1, err)
+			return fmt.Errorf("read embedded image %s: %w", localImg, err)
 		}
-		// media-store 现在统一返回相对路径 /assets/...
+		uploadName := fmt.Sprintf("seed-product-%02d-%s.png", paddedIdx, uuid.NewString()[:8])
+		imageURL, err := uploadProductImage(client, *nginxBaseURL, adminToken, uploadName, imgBytes)
+		if err != nil {
+			return fmt.Errorf("upload image [%d]: %w", i+1, err)
+		}
 		fmt.Printf("  image: %s\n", imageURL)
 
 		// 3. 创建商品

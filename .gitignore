@@ -37,9 +37,6 @@ AGENTS.md
 
 .gitdoc
 
-# CDN assets：忽略动态上传文件，保留预置 seed 图片（product-a/b/c.svg）和目录占位符
+# CDN assets：忽略动态上传文件，保留目录占位符
 deploy/cdn/assets/**
 !deploy/cdn/assets/**/.gitkeep
-!deploy/cdn/assets/products/product-a.svg
-!deploy/cdn/assets/products/product-b.svg
-!deploy/cdn/assets/products/product-c.svg

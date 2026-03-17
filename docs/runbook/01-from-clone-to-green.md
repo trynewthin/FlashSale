@@ -23,6 +23,14 @@ Copy-Item configs/deploy.env.example configs/deploy.env
 
 > 非生产环境可直接使用默认值；如端口冲突，修改 `configs/deploy.env` 的 `FLASH_*` 端口。
 
+## 3.1 交互式运维入口
+
+当前默认的 shell 运维入口为根目录的 `ops.sh`，用于版本更新、容器 / 集群管理等外围操作：
+
+```powershell
+bash ./ops.sh
+```
+
 ## 4. 启动 Docker 基础环境
 
 ```powershell

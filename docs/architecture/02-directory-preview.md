@@ -4,6 +4,9 @@
 
 ```text
 FlashSale/
+├─ ops.sh                  # 当前默认的交互式运维入口
+├─ ops/
+│  └─ cli/                 # shell-native 运维 CLI 实现
 ├─ apps/                  # 业务服务与网关
 │  ├─ user/rpc
 │  ├─ product/rpc

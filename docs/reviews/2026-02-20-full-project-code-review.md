@@ -5,6 +5,8 @@
 **评审范围**: 全项目（架构 / 后端 / 前端 / 基础设施 / 安全 / 文档）
 **项目分支**: dev
 
+> 注：本报告是 2026-02-20 的历史评审快照，文中提到的旧 shell 运维体系已在当前仓库中下线，不代表当前入口结构。
+
 ---
 
 ## 一、总体评价
@@ -116,8 +118,8 @@
 |---|------|
 | Compose 架构 | ✅ `docker-compose.app.yml` 通过 include 拆分为 4 个子文件（infra / backend / proxy / observability），职责清晰 |
 | Dockerfile | ✅ 多阶段构建 + parallel/serial 双模式（`BUILD_MODE` 环境变量控制）+ go-build-cache 挂载 |
-| 脚本体系 | ✅ `rebuild.sh` 支持 8 个参数：`--scope` / `--low-mem` / `--no-cache` / `--hot` / `--with-obs` / `--with-test`，极其完善 |
-| 冒烟测试 | ✅ 6 section（infra / ops / user / auth / admin / cdn），参数化、可跳过、彩色输出、计数统计 |
+| 旧运维脚本体系 | ✅ 当时的 shell 运维入口支持全量/分组/热更新等多种模式，完整度较高 |
+| 旧冒烟测试体系 | ✅ 当时的自动化测试按 infra / ops / user / auth / admin / cdn 分段组织，参数化程度较高 |
 | Nginx 配置 | ✅ JSON 日志、Docker DNS resolver、keepalive upstream、auth_request 子请求鉴权 |
 | 迁移管理 | ✅ `golang-migrate` + 独立迁移容器，串行先于业务容器启动（compose depends_on + service_healthy） |
 | 低内存模式 | ✅ `--low-mem` 支持 ≤4GB RAM 的云服务器，自动串行编译 + GOMAXPROCS=2 |
@@ -277,9 +279,9 @@
 - **补偿回滚**：每个失败路径都有对应的库存补偿和缓存回滚
 - **性能埋点**：每个关键步骤都有 `Perf.Mark*()` 调用
 
-### 2. 运维脚本体系
+### 2. 旧运维脚本体系
 
-`scripts/rebuild.sh` + `scripts/clusters/*` + `scripts/tests/*` 构成了一个完整的 CI/CD 替代方案：
+当时的 legacy shell 运维体系构成了一套完整的 CI/CD 替代方案：
 - 支持全量/单集群/热更新三种模式
 - 低内存模式适配 ≤4GB 云服务器
 - 冒烟测试 6 section 全自动化

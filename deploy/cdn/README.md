@@ -21,6 +21,8 @@
 
 对外提供静态文件访问。
 
+仓库当前不再跟踪默认示例商品图文件；`/assets/products/` 下的内容应由运行时上传或由部署物料提供。
+
 ```
 GET http://localhost:19000/assets/products/xxx.svg
 GET http://localhost:19000/assets/banners/yyy.jpg

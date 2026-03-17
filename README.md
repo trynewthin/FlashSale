@@ -72,23 +72,16 @@ docker compose -f deploy/compose/docker-compose.app.yml --profile observability 
 docker compose -f deploy/compose/docker-compose.app.yml up -d --scale seckill-rpc=3
 ```
 
-## 🛠️ 自动化开发脚本
+## 交互式运维入口
 
-在 `scripts/` 目录下提供了一些方便开发的脚本，用于处理频繁的重构或环境重置：
+当前默认的运维入口为根目录脚本 `ops.sh`，用于承接版本更新、容器/集群管理等外围操作。
 
-| 脚本 | 功能 |
-| --- | --- |
-| `rebuild-ops.sh/ps1` | **一键重构 Ops**：编译 Go 代码、更新基础镜像、重启 Ops 容器、验证健康状态。 |
-| `reset-env.sh/ps1` | **全量环境重置**：清理所有容器/数据卷，全量重编译，重新启动整套环境。 |
-
-使用示例：
 ```powershell
-# Bash (Git Bash / WSL)
-./scripts/rebuild-ops.sh
-
-# PowerShell (Windows)
-.\scripts\rebuild-ops.ps1
+# Git Bash
+bash ./ops.sh
 ```
+
+旧的 shell 脚本入口已从当前运维入口中移除，相关能力已切换到 `ops.sh`。
 
 ## 独立运维控制台（第一版）
 

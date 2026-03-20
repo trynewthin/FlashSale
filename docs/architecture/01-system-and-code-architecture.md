@@ -8,7 +8,7 @@ FlashSale 褰撳墠鍚庣閲囩敤鈥?*鍙岀綉鍏?+ 澶?RPC 寰湇鍔?+ 
 - 绠＄悊娴侀噺缁熶竴杩涘叆 `apps/gateway/admin`
 - 涓氬姟鑳藉姏鐢?`user/product/order/seckill/admin` 浜斾釜 RPC 鎻愪緵
 - 鍏叡鑳藉姏缁熶竴娌夋穩鍦?`pkg/base/*`
-- 杩愮淮涓庢祴璇曞叆鍙ｇ粺涓€閫氳繃 `ops/cmd/fs`
+- 杩愮淮涓庢祴璇曞叆鍙ｇ粺涓€閫氳繃 `ops/cmd`
 
 ## 2. 杩愯鏃舵灦鏋勫浘
 
@@ -71,3 +71,4 @@ flowchart TD
 ## 5. 鍏抽敭宸ョ▼绾︽潫
 
 - 閲戦缁熶竴 `int64` 鍒嗭紙`*_cent`锛夈€?- ID 浣跨敤闆姳 ID锛圚TTP 灞傚厑璁?`number|string` 鍏煎瑙ｆ瀽锛夈€?- 閿欒鐮佺粺涓€鐢?`pkg/base/errorx` 瀹氫箟锛実RPC 鏄犲皠鐢?`pkg/base/grpcerr` 缁存姢銆?- 绠＄悊绔潈闄愰噰鐢?`domain + data_scope(all/self)` 鍙岀淮绾︽潫銆?- 绉掓潃閾捐矾閲囩敤鈥淩edis 鐑矾寰?+ MySQL 杩芥函 + Kafka 浜嬩欢鈥濇ā寮忋€?
+

@@ -28,25 +28,25 @@ bash ./ops.sh
 ## 4. 鍚姩 Docker 鍩虹鐜
 
 ```powershell
-go run ./ops/cmd/fs env up
+go run ./ops/cmd env up
 ```
 
 鍙€夛紙甯﹀彲瑙傛祴缁勪欢锛夛細
 
 ```powershell
-go run ./ops/cmd/fs env up --observability
+go run ./ops/cmd env up --observability
 ```
 
 ## 5. 鎵ц杩佺Щ涓庤繛閫氭€ф鏌?
 ```powershell
-go run ./ops/cmd/fs env migrate-up
-go run ./ops/cmd/fs env smoke
+go run ./ops/cmd env migrate-up
+go run ./ops/cmd env smoke
 ```
 
 ## 6. 鍚姩鍚庣鏈嶅姟
 
 ```powershell
-go run ./ops/cmd/fs runtime start-backend
+go run ./ops/cmd runtime start-backend
 ```
 
 鏈嶅姟绔彛榛樿锛?
@@ -60,7 +60,7 @@ go run ./ops/cmd/fs runtime start-backend
 
 ## 7. 鍒濆鍖栨紨绀烘暟鎹紙瑕嗗啓锛?
 ```powershell
-go run ./ops/cmd/fs data seed-overwrite --force
+go run ./ops/cmd data seed-overwrite --force
 ```
 
 璇ュ懡浠や細锛?
@@ -71,10 +71,10 @@ go run ./ops/cmd/fs data seed-overwrite --force
 
 ```powershell
 # 瀹夎渚濊禆锛堥娆★級
-go run ./ops/cmd/fs runtime start-frontend --install-deps
+go run ./ops/cmd runtime start-frontend --install-deps
 
 # 闈為娆″彲鐩存帴鍚姩
-go run ./ops/cmd/fs runtime start-frontend
+go run ./ops/cmd runtime start-frontend
 ```
 
 璁块棶鍦板潃锛?
@@ -108,25 +108,26 @@ bun run build
 
 ```powershell
 # 闂幆璐拱鍘嬫祴
-go run ./ops/cmd/fs perf purchase-stress -concurrency 200 -requests 4000 -timeout 7s -output json
+go run ./ops/cmd perf purchase-stress -concurrency 200 -requests 4000 -timeout 7s -output json
 
 # 骞傜瓑鍘嬫祴
-go run ./ops/cmd/fs perf idempotency -concurrency 50 -requests 200 -expect-max-success 1 -output json
+go run ./ops/cmd perf idempotency -concurrency 50 -requests 200 -expect-max-success 1 -output json
 
-# 寮€鐜喘涔板帇娴?go run ./ops/cmd/fs perf purchase-open -rate 120 -open-duration 30s -concurrency 300 -output json
+# 寮€鐜喘涔板帇娴?go run ./ops/cmd perf purchase-open -rate 120 -open-duration 30s -concurrency 300 -output json
 ```
 
 ## 11. 鍋滄鏈嶅姟
 
 ```powershell
-go run ./ops/cmd/fs runtime stop-frontend
-go run ./ops/cmd/fs runtime stop-backend
-go run ./ops/cmd/fs env down
+go run ./ops/cmd runtime stop-frontend
+go run ./ops/cmd runtime stop-backend
+go run ./ops/cmd env down
 ```
 
 濡傞渶鍒犻櫎瀹瑰櫒鍗凤細
 
 ```powershell
-go run ./ops/cmd/fs env down --remove-volumes
+go run ./ops/cmd env down --remove-volumes
 ```
+
 

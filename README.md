@@ -18,30 +18,30 @@
 ## 蹇€熷紑濮?
 1. 鍚姩鍩虹鐜锛?
 ```powershell
-go run ./ops/cmd/fs env up
+go run ./ops/cmd env up
 ```
 
 2. 鎵ц鏁版嵁搴撹縼绉伙細
 
 ```powershell
-go run ./ops/cmd/fs env migrate-up
+go run ./ops/cmd env migrate-up
 ```
 
 3. 鎵ц smoke 妫€鏌ワ細
 
 ```powershell
-go run ./ops/cmd/fs env smoke
+go run ./ops/cmd env smoke
 ```
 
 4. 鍋滄鍩虹鐜锛?
 ```powershell
-go run ./ops/cmd/fs env down
+go run ./ops/cmd env down
 ```
 
 鍚敤鍙娴嬫€х粍浠讹細
 
 ```powershell
-go run ./ops/cmd/fs env up --observability
+go run ./ops/cmd env up --observability
 ```
 
 ## 闆嗙兢绾у井鏈嶅姟鑳藉姏
@@ -56,7 +56,7 @@ go run ./ops/cmd/fs env up --observability
 
 ```powershell
 # 鍚姩鍏ㄩ儴鏈嶅姟
-go run ./ops/cmd/fs env app-up
+go run ./ops/cmd env app-up
 
 # 甯﹁娴嬫€х粍浠?docker compose -f deploy/compose/docker-compose.app.yml --profile observability up -d
 
@@ -80,9 +80,9 @@ bash ./ops.sh
 # 0) 閰嶇疆璁块棶瀵嗛挜锛堝缓璁啓鍏?configs/deploy.env锛?$env:FLASHSALE_OPS_ACCESS_KEY="replace_me_strong_key"
 
 # 1) 鍚姩鐙珛鍙鍖栫粍浠讹紙瀹瑰櫒鏃ュ織涓庡鍣ㄧ鐞嗭級
-go run ./ops/cmd/fs env ops-up
+go run ./ops/cmd env ops-up
 
-# 2) 鍚姩 ops-control锛堜换鍔＄紪鎺?API + Web 椤甸潰锛?go run ./ops/cmd/fs ops server --addr 0.0.0.0:18080 --repo-root . --auth-key-env FLASHSALE_OPS_ACCESS_KEY
+# 2) 鍚姩 ops-control锛堜换鍔＄紪鎺?API + Web 椤甸潰锛?go run ./ops/cmd ops server --addr 0.0.0.0:18080 --repo-root . --auth-key-env FLASHSALE_OPS_ACCESS_KEY
 
 # 3) 璁块棶
 # ops-control: http://127.0.0.1:18080
@@ -134,4 +134,5 @@ docker image inspect --format='{{index .RepoDigests 0}}' confluentinc/cp-kafka:7
 - 璁㈠崟妯″潡锛歚docs/architecture/modules/order-module.md`
 - 绉掓潃妯″潡锛歚docs/architecture/modules/seckill-module.md`
 - 绠＄悊鍛樻ā鍧楋細`docs/architecture/modules/admin-module.md`
+
 

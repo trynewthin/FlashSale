@@ -25,10 +25,10 @@
 鐜拌薄锛?
 - `migrate-up` 鎶ヨ繛鎺ユ垨鐗堟湰閿欒銆?
 鎺掓煡锛?
-1. `go run ./ops/cmd/fs env up` 纭繚 MySQL 宸插氨缁€?2. 妫€鏌?`configs/deploy.env` 鐨?MySQL 鐢ㄦ埛涓庡瘑鐮併€?3. 濡傝剰鐗堟湰锛屽厛璇勪及鏄惁闇€瑕?`migrate-down --all` 鍚庨噸寤恒€?
+1. `go run ./ops/cmd env up` 纭繚 MySQL 宸插氨缁€?2. 妫€鏌?`configs/deploy.env` 鐨?MySQL 鐢ㄦ埛涓庡瘑鐮併€?3. 濡傝剰鐗堟湰锛屽厛璇勪及鏄惁闇€瑕?`migrate-down --all` 鍚庨噸寤恒€?
 ## 6. 蹇€熷仴搴锋鏌ュ懡浠?
 ```powershell
-# 鍩虹杩為€氭€?go run ./ops/cmd/fs env smoke
+# 鍩虹杩為€氭€?go run ./ops/cmd env smoke
 
 # 缃戝叧鍋ュ悍
 curl http://127.0.0.1:8082/healthz
@@ -36,4 +36,5 @@ curl http://127.0.0.1:8083/healthz
 
 # 浠诲姟鍒楄〃
 ```
+
 

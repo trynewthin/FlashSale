@@ -291,7 +291,7 @@ func StartOpsControl(opts StartOpsControlOptions) error {
 		repoRoot,
 		filepath.Join(logsDir, "ops-control.stdout.log"),
 		filepath.Join(logsDir, "ops-control.stderr.log"),
-		"go", "run", "./ops/cmd/fs", "ops", "server", "--addr", opts.Addr, "--repo-root", repoRoot, "--auth-key-env", opts.AuthKeyEnv,
+		"go", "run", "./ops/cmd", "ops", "server", "--addr", opts.Addr, "--repo-root", repoRoot, "--auth-key-env", opts.AuthKeyEnv,
 	)
 	if err != nil {
 		return err
@@ -428,4 +428,5 @@ func writeJSON(path string, value any) error {
 	}
 	return os.WriteFile(path, data, 0o644)
 }
+
 

@@ -48,9 +48,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     echo "[7/9] Building admin-gateway..." && \
     go build -buildvcs=false -trimpath -p 2 -o /out/admin-gateway  ./apps/gateway/admin    && \
     echo "[8/9] Building fs..." && \
-    go build -buildvcs=false -trimpath -p 2 -o /out/fs             ./ops/cmd/fs                && \
+    go build -buildvcs=false -trimpath -p 2 -o /out/fs             ./ops/cmd                && \
     echo "[9/9] Building seckillload..." && \
-    go build -buildvcs=false -trimpath -p 2 -o /out/seckillload    ./ops/executor/seckillload  && \
+    go build -buildvcs=false -trimpath -p 2 -o /out/seckillload    ./ops/executor  && \
     echo ">>> All 9 binaries built (serial mode)"
 
 # 鈹€鈹€ 涓茶璺緞鐨勮繍琛屾椂闀滃儚 鈹€鈹€
@@ -118,12 +118,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 FROM base AS build-fs
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath ${GO_BUILD_FLAGS} -o /out/fs ./ops/cmd/fs
+    go build -buildvcs=false -trimpath ${GO_BUILD_FLAGS} -o /out/fs ./ops/cmd
 
 FROM base AS build-seckillload
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath ${GO_BUILD_FLAGS} -o /out/seckillload ./ops/executor/seckillload
+    go build -buildvcs=false -trimpath ${GO_BUILD_FLAGS} -o /out/seckillload ./ops/executor
 
 # 鈹€鈹€ 鏀堕泦 stage锛氭眹鑱氭墍鏈変簩杩涘埗鍒颁竴涓洰褰?鈹€鈹€
 FROM alpine:3.20 AS collect
@@ -161,5 +161,7 @@ COPY --from=base /src/apps/product/rpc/etc/ /app/apps/product/rpc/etc/
 COPY --from=base /src/apps/admin/rpc/etc/ /app/apps/admin/rpc/etc/
 
 USER app
+
+
 
 

@@ -16,7 +16,7 @@ bash ./ops.sh
 ### 2.1 鍚姩鍙鍖栬繍缁村鍣紙鍙€夛級
 
 ```powershell
-go run ./ops/cmd/fs env ops-up
+go run ./ops/cmd env ops-up
 ```
 
 榛樿绔彛锛?
@@ -27,7 +27,7 @@ go run ./ops/cmd/fs env ops-up
 
 ```powershell
 $env:FLASHSALE_OPS_ACCESS_KEY="replace_me"
-go run ./ops/cmd/fs runtime start-ops-control --addr 0.0.0.0:18080 --auth-key-env FLASHSALE_OPS_ACCESS_KEY
+go run ./ops/cmd runtime start-ops-control --addr 0.0.0.0:18080 --auth-key-env FLASHSALE_OPS_ACCESS_KEY
 ```
 
 璁块棶锛歚http://127.0.0.1:18080`
@@ -54,3 +54,4 @@ go run ./ops/cmd/fs runtime start-ops-control --addr 0.0.0.0:18080 --auth-key-en
 
 ## 6. 杩滅▼璁块棶寤鸿锛堥潪鐢熶骇婕旂ず鐜锛?
 - 浠呮毚闇插繀瑕佺鍙ｏ紙濡?`18080`锛夈€?- 浣跨敤鐜鍙橀噺瀵嗛挜鎺у埗璁块棶锛屼笉灏嗗瘑閽ュ啓鍏ヤ粨搴撱€?- 鑻ユ寕 Nginx锛屽澶栫粺涓€璧?HTTPS 涓庡弽鍚戜唬鐞嗐€?
+

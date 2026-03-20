@@ -1,6 +1,6 @@
 ﻿# ops.Dockerfile 鈥?ops-control 瀹瑰櫒鍖栬繍琛屻€?# 澶氶樁娈垫瀯寤猴細
 #   1. frontend: 鐢?node 鏋勫缓 ops 鍓嶇
-#   2. rebuild:  灏嗗墠绔?dist 宓屽叆 fs 浜岃繘鍒讹紙閲嶆柊缂栬瘧 ops/cmd/fs锛?#   3. final:    鍩轰簬 alpine锛屽畨瑁?docker CLI + compose + git
+#   2. rebuild:  灏嗗墠绔?dist 宓屽叆 fs 浜岃繘鍒讹紙閲嶆柊缂栬瘧 ops/cmd锛?#   3. final:    鍩轰簬 alpine锛屽畨瑁?docker CLI + compose + git
 
 # 鈹€鈹€ Stage 1: 鏋勫缓 ops 鍓嶇 鈹€鈹€
 FROM oven/bun:alpine AS frontend
@@ -30,7 +30,7 @@ COPY --from=frontend /app/dist/ /src/ops/web/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath -o /out/fs ./ops/cmd/fs
+    go build -buildvcs=false -trimpath -o /out/fs ./ops/cmd
 
 # 鈹€鈹€ Stage 3: 鏈€缁堥暅鍍?鈹€鈹€
 FROM alpine:3.20
@@ -55,5 +55,6 @@ EXPOSE 9100
 
 ENTRYPOINT ["/app/bin/fs", "ops", "server"]
 CMD ["--addr", "0.0.0.0:9100", "--repo-root", "/app"]
+
 
 

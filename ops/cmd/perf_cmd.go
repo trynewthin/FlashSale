@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"context"
@@ -104,7 +104,7 @@ func runPerf(args []string) error {
 		cmdArgs = append(cmdArgs, perfArgs...)
 		return platform.Run(context.Background(), repoRoot, seckillloadBin, cmdArgs...)
 	}
-	cmdArgs := []string{"run", "./ops/executor/seckillload", "-scenario", scenario}
+	cmdArgs := []string{"run", "./ops/executor", "-scenario", scenario}
 	cmdArgs = append(cmdArgs, perfArgs...)
 	return platform.Run(context.Background(), repoRoot, "go", cmdArgs...)
 }
@@ -159,4 +159,5 @@ Notes:
 func findSeckillloadBinary() string {
 	return perfaction.FindSeckillloadBinary()
 }
+
 

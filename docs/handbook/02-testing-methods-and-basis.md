@@ -17,9 +17,9 @@ flowchart TD
 | 闈欐€佹鏌?| 鍙戠幇鏄庢樉浠ｇ爜闂 | `go vet ./...` |
 | 鍗曞厓娴嬭瘯 | 閫昏緫涓庡伐鍏峰嚱鏁版纭€?| `go test ./... -short` |
 | 浠撳偍闆嗘垚娴嬭瘯 | SQL 涓庣储寮曡涓烘纭€?| `go test ./apps/*/rpc/internal/repository/...` |
-| Smoke | 涓棿浠惰繛閫氭€ч獙璇?| `go run ./ops/cmd/fs env smoke` |
+| Smoke | 涓棿浠惰繛閫氭€ч獙璇?| `go run ./ops/cmd env smoke` |
 | 鍓嶇鏋勫缓涓庢祴璇?| API 濂戠害涓?hooks 琛屼负 | `bun run lint && bun run test:run && bun run build` |
-| 鍘嬪姏娴嬭瘯 | 绉掓潃閾捐矾鍚炲悙銆佸け璐ョ巼銆佸箓绛変笌閫€鍖?| `go run ./ops/cmd/fs perf <scenario>` |
+| 鍘嬪姏娴嬭瘯 | 绉掓潃閾捐矾鍚炲悙銆佸け璐ョ巼銆佸箓绛変笌閫€鍖?| `go run ./ops/cmd perf <scenario>` |
 
 ## 3. 绉掓潃涓撻」娴嬭瘯渚濇嵁
 
@@ -45,3 +45,4 @@ flowchart TD
   - `network_errors`
   - `business_code` 鍒嗗竷
 - 鍥炲綊鎶ュ憡寤鸿涓?commit 瀵归綈锛屼究浜庡洖婧€滃摢娆′紭鍖栧甫鏉ュ摢椤规寚鏍囧彉鍖栤€濄€?
+

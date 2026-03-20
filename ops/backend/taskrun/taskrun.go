@@ -1,4 +1,4 @@
-package taskrun
+﻿package taskrun
 
 import (
 	"context"
@@ -333,7 +333,7 @@ func runPerfScenario(repoRoot, scenario string, args []string) error {
 		cmdArgs := append([]string{"-scenario", scenario}, perfArgs...)
 		return platform.Run(context.Background(), repoRoot, seckillloadBin, cmdArgs...)
 	}
-	cmdArgs := append([]string{"run", "./ops/executor/seckillload", "-scenario", scenario}, perfArgs...)
+	cmdArgs := append([]string{"run", "./ops/executor", "-scenario", scenario}, perfArgs...)
 	return platform.Run(context.Background(), repoRoot, "go", cmdArgs...)
 }
 
@@ -364,3 +364,4 @@ func RepoRootAbs(repoRoot string) (string, error) {
 	}
 	return filepath.Abs(repoRoot)
 }
+

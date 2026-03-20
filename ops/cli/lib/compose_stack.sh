@@ -10,6 +10,13 @@ BACKEND_RUNTIME_SERVICES=(migrate user-rpc product-rpc order-rpc seckill-rpc adm
 PROXY_SERVICES=(cdn media-store nginx)
 OPS_SERVICES=(ops-control)
 OBSERVABILITY_SERVICES=(jaeger prometheus grafana)
+ALL_MANAGED_SERVICES=(
+    "${INFRA_SERVICES[@]}"
+    "${BACKEND_RUNTIME_SERVICES[@]}"
+    "${PROXY_SERVICES[@]}"
+    "${OPS_SERVICES[@]}"
+    "${OBSERVABILITY_SERVICES[@]}"
+)
 
 INFRA_HEALTH_CONTAINERS=(
     flashsale-app-mysql

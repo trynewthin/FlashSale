@@ -39,6 +39,7 @@ func TestBuildTasks_SeedInjectsGatewayURLs(t *testing.T) {
 		DefaultEnvFile:  "configs/prod/server.env",
 		AdminGatewayURL: "http://admin-gateway:8083",
 		UserGatewayURL:  "http://user-gateway:8082",
+		NginxBaseURL:    "http://nginx:80",
 		DeploymentMode:  model.DeploymentModeDockerApp,
 		InDocker:        true,
 	}
@@ -55,6 +56,9 @@ func TestBuildTasks_SeedInjectsGatewayURLs(t *testing.T) {
 	}
 	if !strings.Contains(args, "--user-base-url=http://user-gateway:8082") {
 		t.Fatalf("seed 任务缺少 --user-base-url 注入，args=%q", args)
+	}
+	if !strings.Contains(args, "--nginx-base-url=http://nginx:80") {
+		t.Fatalf("seed 任务缺少 --nginx-base-url 注入，args=%q", args)
 	}
 	if !strings.Contains(args, "--env-file=configs/prod/server.env") {
 		t.Fatalf("seed 任务缺少 --env-file 注入，args=%q", args)

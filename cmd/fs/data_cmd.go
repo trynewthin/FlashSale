@@ -91,9 +91,6 @@ func runDataSeedOverwrite(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if strings.TrimSpace(*nginxBaseURL) == "" {
-		*nginxBaseURL = *adminBaseURL
-	}
 	if !*force {
 		return fmt.Errorf("seed-overwrite is destructive, pass --force")
 	}
@@ -106,6 +103,9 @@ func runDataSeedOverwrite(args []string) error {
 		if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
 			return err
 		}
+	}
+	if strings.TrimSpace(*nginxBaseURL) == "" {
+		*nginxBaseURL = defaultNginxBaseURL(*adminBaseURL)
 	}
 
 	// 约定：部署环境不使用 .memory 作为运行输出目录；这里兜底修正到 log/data。
@@ -630,10 +630,6 @@ func runDataSeedProducts(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	// nginx-base-url 默认与 admin-base-url 相同（本地开发场景两者一致）
-	if strings.TrimSpace(*nginxBaseURL) == "" {
-		*nginxBaseURL = *adminBaseURL
-	}
 	if !*force {
 		return fmt.Errorf("seed-products requires --force")
 	}
@@ -652,6 +648,9 @@ func runDataSeedProducts(args []string) error {
 		if err := devenv.Load(devenv.ResolvePath(repoRoot, *envFile)); err != nil {
 			return err
 		}
+	}
+	if strings.TrimSpace(*nginxBaseURL) == "" {
+		*nginxBaseURL = defaultNginxBaseURL(*adminBaseURL)
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -823,4 +822,17 @@ func printDataUsage() {
   fs data clear --force [--clear-admin]
   fs data seed-overwrite --force
   fs data seed-products --force [--count 20]` + "\n")
+}
+
+func defaultNginxBaseURL(adminBaseURL string) string {
+	if v := strings.TrimSpace(os.Getenv("FLASHSALE_NGINX_URL")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	if v := strings.TrimSpace(os.Getenv("FLASH_NGINX_HTTP_PORT")); v != "" {
+		return "http://127.0.0.1:" + v
+	}
+	if strings.TrimSpace(adminBaseURL) != "" {
+		return strings.TrimRight(adminBaseURL, "/")
+	}
+	return "http://127.0.0.1:18000"
 }

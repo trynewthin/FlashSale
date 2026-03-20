@@ -70,7 +70,7 @@ func BuildTasks(env *EnvContext) map[string]model.TaskDef {
 			Name:        "覆写填充数据",
 			Description: "清空业务数据并重建演示数据。",
 			Command:     []string{"self", "data", "seed-overwrite"},
-			DefaultArgs: withGatewayContext("--force"),
+			DefaultArgs: withGatewayContext("--force", "--nginx-base-url="+env.NginxBaseURL),
 			Dangerous:   true,
 		},
 		"data.seed_products": {

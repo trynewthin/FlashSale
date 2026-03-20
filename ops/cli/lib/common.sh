@@ -10,6 +10,10 @@ REPO_ROOT="$(cd "$OPS_CLI_DIR/../.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/deploy/compose/docker-compose.app.yml"
 DEPLOY_ENV_FILE="$REPO_ROOT/configs/deploy.env"
 PROXY_ASSETS_DIR="$REPO_ROOT/deploy/cdn/assets"
+OPS_CLI_CACHE_DIR="$REPO_ROOT/.memory/ops_cli"
+COMPOSE_STATUS_CACHE_FILE="$OPS_CLI_CACHE_DIR/compose_running_services.txt"
+COMPOSE_STATUS_LOCK_FILE="$OPS_CLI_CACHE_DIR/compose_status_refresh.lock"
+COMPOSE_STATUS_TTL="${OPS_CLI_COMPOSE_STATUS_TTL:-5}"
 OPS_UPDATE_REMOTE="${OPS_UPDATE_REMOTE:-origin}"
 OPS_UPDATE_BRANCH="${OPS_UPDATE_BRANCH:-dev}"
 if command -v git.exe >/dev/null 2>&1; then
@@ -34,13 +38,13 @@ clear_screen() {
 
 print_logo() {
     cat <<'EOF'
-   U  ___ u   ____      ____     
-    \/"_ \/ U|  _"\ u  / __"| u  
-    | | | | \| |_) |/ <\___ \/   
-.-,_| |_| |  |  __/    u___) |   
- \_)-\___/   |_|       |____/>>  
-      \\     ||>>_      )(  (__) 
-     (__)   (__)__)    (__)            
+   U  ___ u   ____      ____
+    \/"_ \/ U|  _"\ u  / __"| u
+    | | | | \| |_) |/ <\___ \/
+.-,_| |_| |  |  __/    u___) |
+ \_)-\___/   |_|       |____/>>
+      \\     ||>>_      )(  (__)
+     (__)   (__)__)    (__)
 EOF
 }
 
@@ -78,6 +82,85 @@ confirm_action() {
     esac
 }
 
+ensure_ops_cli_cache_dir() {
+    if [[ ! -d "$OPS_CLI_CACHE_DIR" ]]; then
+        mkdir -p "$OPS_CLI_CACHE_DIR"
+    fi
+}
+
+file_age_seconds() {
+    local path="$1"
+    if [[ ! -f "$path" ]]; then
+        printf '999999'
+        return 0
+    fi
+
+    local now mtime
+    now="$(date +%s)"
+    mtime="$(stat -c '%Y' "$path" 2>/dev/null || stat -f '%m' "$path" 2>/dev/null || echo 0)"
+    if [[ ! "$mtime" =~ ^[0-9]+$ ]]; then
+        printf '999999'
+        return 0
+    fi
+
+    printf '%s' "$(( now - mtime ))"
+}
+
+invalidate_compose_status_cache() {
+    rm -f "$COMPOSE_STATUS_CACHE_FILE" "$COMPOSE_STATUS_LOCK_FILE"
+}
+
+schedule_compose_status_refresh() {
+    ensure_ops_cli_cache_dir
+
+    local cache_age lock_age
+    cache_age="$(file_age_seconds "$COMPOSE_STATUS_CACHE_FILE")"
+    lock_age="$(file_age_seconds "$COMPOSE_STATUS_LOCK_FILE")"
+
+    if [[ -f "$COMPOSE_STATUS_LOCK_FILE" && "$lock_age" -lt 15 ]]; then
+        return 0
+    fi
+
+    if [[ -f "$COMPOSE_STATUS_CACHE_FILE" && "$cache_age" -lt "$COMPOSE_STATUS_TTL" ]]; then
+        return 0
+    fi
+
+    (
+        date +%s > "$COMPOSE_STATUS_LOCK_FILE"
+        tmp_file="${COMPOSE_STATUS_CACHE_FILE}.tmp.$$"
+        (
+            cd "$REPO_ROOT" &&
+            compose_cmd ps --services --status running 2>/dev/null
+        ) > "$tmp_file" || : > "$tmp_file"
+        mv -f "$tmp_file" "$COMPOSE_STATUS_CACHE_FILE"
+        rm -f "$COMPOSE_STATUS_LOCK_FILE"
+    ) >/dev/null 2>&1 &
+}
+
+cached_running_services() {
+    ensure_ops_cli_cache_dir
+    if [[ ! -f "$COMPOSE_STATUS_CACHE_FILE" ]]; then
+        return 1
+    fi
+    cat "$COMPOSE_STATUS_CACHE_FILE"
+}
+
+compose_status_hint() {
+    if [[ -f "$COMPOSE_STATUS_LOCK_FILE" ]]; then
+        printf '后台刷新中'
+        return 0
+    fi
+
+    local cache_age
+    cache_age="$(file_age_seconds "$COMPOSE_STATUS_CACHE_FILE")"
+    if [[ "$cache_age" -ge 999999 ]]; then
+        printf '等待首次刷新'
+        return 0
+    fi
+
+    printf '缓存 %ss 前' "$cache_age"
+}
+
 run_action() {
     local title="$1"
     shift
@@ -100,6 +183,8 @@ run_action() {
     else
         echo -e "${C_RED}执行失败，退出码 ${rc}。${C_RESET}"
     fi
+    invalidate_compose_status_cache
+    schedule_compose_status_refresh
     pause
     return $rc
 }
@@ -126,6 +211,8 @@ run_shell_action() {
     else
         echo -e "${C_RED}执行失败，退出码 ${rc}。${C_RESET}"
     fi
+    invalidate_compose_status_cache
+    schedule_compose_status_refresh
     pause
     return $rc
 }
@@ -140,7 +227,7 @@ wait_for_containers_healthy() {
     local containers=("$@")
     local deadline=$(( $(date +%s) + timeout ))
     local pending=("${containers[@]}")
-    local current=""
+    local current
     local still_pending=()
 
     [[ ${#containers[@]} -gt 0 ]] || return 0
@@ -154,7 +241,7 @@ wait_for_containers_healthy() {
             local status
             status="$(docker inspect --format '{{.State.Health.Status}}' "$current" 2>/dev/null || echo 'missing')"
             if [[ "$status" == "healthy" ]]; then
-                echo -e "${C_GREEN}  ✔${C_RESET} ${current}"
+                echo -e "${C_GREEN}  OK${C_RESET} ${current}"
             else
                 still_pending+=("$current")
             fi
@@ -164,7 +251,7 @@ wait_for_containers_healthy() {
 
     if [[ ${#pending[@]} -gt 0 ]]; then
         for current in "${pending[@]}"; do
-            echo -e "${C_RED}  ✘${C_RESET} ${current} 未在 ${timeout}s 内变为 healthy"
+            echo -e "${C_RED}  FAIL${C_RESET} ${current} 未在 ${timeout}s 内变为 healthy"
         done
         return 1
     fi
@@ -185,6 +272,13 @@ git_current_branch() {
     )
 }
 
+git_worktree_change_count() {
+    (
+        cd "$REPO_ROOT" &&
+        "$GIT_BIN" status --porcelain 2>/dev/null | wc -l | tr -d ' '
+    )
+}
+
 git_worktree_state() {
     local count
     count="$(git_worktree_change_count)"
@@ -193,13 +287,6 @@ git_worktree_state() {
     else
         printf '有变更（%s）' "$count"
     fi
-}
-
-git_worktree_change_count() {
-    (
-        cd "$REPO_ROOT" &&
-        "$GIT_BIN" status --porcelain 2>/dev/null | wc -l | tr -d ' '
-    )
 }
 
 git_upstream_state() {
@@ -221,7 +308,7 @@ git_upstream_state() {
     )" || true
 
     if [[ -z "$counts" ]]; then
-        printf '无法判断（%s）' "$upstream"
+        printf '无法判断：%s' "$upstream"
         return 0
     fi
 
@@ -252,8 +339,7 @@ print_git_status_block() {
 }
 
 git_update_guard_state() {
-    local current
-    local dirty_count
+    local current dirty_count
     current="$(git_current_branch)"
     dirty_count="$(git_worktree_change_count)"
 
@@ -285,8 +371,7 @@ run_git_action() {
 }
 
 run_fixed_branch_update() {
-    local current
-    local dirty_count
+    local current dirty_count
     current="$(git_current_branch)"
     dirty_count="$(git_worktree_change_count)"
 
@@ -302,7 +387,7 @@ run_fixed_branch_update() {
         echo -e "${C_YELLOW}当前分支: ${current}${C_RESET}"
         echo -e "${C_YELLOW}允许更新的固定分支: ${OPS_UPDATE_BRANCH}${C_RESET}"
         echo
-        echo -e "${C_RED}分支不匹配，已拒绝更新，避免拉错代码。${C_RESET}"
+        echo -e "${C_RED}分支不匹配，已拒绝更新。${C_RESET}"
         pause
         return 1
     fi
@@ -312,7 +397,7 @@ run_fixed_branch_update() {
         echo -e "${C_YELLOW}当前分支: ${current}${C_RESET}"
         echo -e "${C_YELLOW}工作区状态: 有变更（${dirty_count}）${C_RESET}"
         echo
-        echo -e "${C_RED}工作区不是干净状态，已拒绝更新，避免覆盖或冲突。${C_RESET}"
+        echo -e "${C_RED}工作区不是干净状态，已拒绝更新。${C_RESET}"
         pause
         return 1
     fi
@@ -360,8 +445,10 @@ render_group_status() {
 
 print_compose_summary_block() {
     local running
-    running="$(list_running_services)" || {
-        print_status_line "容器状态" "docker compose 状态不可用"
+    schedule_compose_status_refresh
+    running="$(cached_running_services)" || {
+        print_status_line "容器状态" "状态异步刷新中"
+        print_status_line "状态刷新" "$(compose_status_hint)"
         echo
         return 0
     }
@@ -371,16 +458,17 @@ print_compose_summary_block() {
     render_group_status "代理服务" "$running" cdn media-store nginx
     render_group_status "Ops" "$running" ops-control
     render_group_status "可观测" "$running" jaeger prometheus grafana
+    print_status_line "状态刷新" "$(compose_status_hint)"
     echo
 }
 
 compose_running_overview() {
-    local running
-    local total=0
-    local line
+    local running total line
+    total=0
 
-    running="$(list_running_services)" || {
-        printf 'docker compose 状态不可用'
+    schedule_compose_status_refresh
+    running="$(cached_running_services)" || {
+        printf '状态异步刷新中'
         return 0
     }
 
@@ -396,13 +484,16 @@ print_group_status_block() {
     shift
     local running
 
-    running="$(list_running_services)" || {
-        print_status_line "$label" "docker compose 状态不可用"
+    schedule_compose_status_refresh
+    running="$(cached_running_services)" || {
+        print_status_line "$label" "状态异步刷新中"
+        print_status_line "状态刷新" "$(compose_status_hint)"
         echo
         return 0
     }
 
     render_group_status "$label" "$running" "$@"
+    print_status_line "状态刷新" "$(compose_status_hint)"
     echo
 }
 
@@ -428,6 +519,8 @@ run_compose_action() {
     else
         echo -e "${C_RED}执行失败，退出码 ${rc}。${C_RESET}"
     fi
+    invalidate_compose_status_cache
+    schedule_compose_status_refresh
     pause
     return $rc
 }
@@ -436,6 +529,11 @@ show_status_for_services() {
     local title="$1"
     shift
     run_compose_action "$title" ps "$@"
+}
+
+show_plain_message() {
+    local message="$1"
+    printf '%s\n' "$message"
 }
 
 ensure_proxy_assets_writable() {
@@ -465,7 +563,7 @@ ensure_proxy_assets_writable() {
         if [[ $rc -eq 0 ]]; then
             echo -e "${C_GREEN}目录属主已更新。${C_RESET}"
         else
-            echo -e "${C_YELLOW}自动修改属主失败。是否受影响取决于宿主机文件系统权限。${C_RESET}"
+            echo -e "${C_YELLOW}自动修复属主失败。${C_RESET}"
         fi
     else
         echo -e "${C_YELLOW}当前环境没有 sudo，跳过自动修复。${C_RESET}"

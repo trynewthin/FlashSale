@@ -22,6 +22,8 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
+const defaultAppComposeFile = "deploy/compose/docker-compose.app.yml"
+
 func runEnv(args []string) error {
 	if len(args) == 0 {
 		printEnvUsage()
@@ -55,7 +57,7 @@ func runEnv(args []string) error {
 func runEnvUp(args []string) error {
 	fs := flag.NewFlagSet("env up", flag.ContinueOnError)
 	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
-	composeFile := fs.String("compose-file", "deploy/compose/docker-compose.yml", "compose 文件路径")
+	composeFile := fs.String("compose-file", defaultAppComposeFile, "compose 文件路径")
 	observability := fs.Bool("observability", false, "启用可观测 profile")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -87,7 +89,7 @@ func runEnvUp(args []string) error {
 func runEnvDown(args []string) error {
 	fs := flag.NewFlagSet("env down", flag.ContinueOnError)
 	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
-	composeFile := fs.String("compose-file", "deploy/compose/docker-compose.yml", "compose 文件路径")
+	composeFile := fs.String("compose-file", defaultAppComposeFile, "compose 文件路径")
 	removeVolumes := fs.Bool("remove-volumes", false, "删除 volumes")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -150,7 +152,7 @@ func runEnvOpsDown(args []string) error {
 func runEnvStart(args []string) error {
 	fs := flag.NewFlagSet("env start", flag.ContinueOnError)
 	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
-	composeFile := fs.String("compose-file", "deploy/compose/docker-compose.yml", "compose 文件路径")
+	composeFile := fs.String("compose-file", defaultAppComposeFile, "compose 文件路径")
 	observability := fs.Bool("observability", false, "启用可观测 profile")
 	skipMigrate := fs.Bool("skip-migrate", false, "跳过迁移")
 	skipSmoke := fs.Bool("skip-smoke", false, "跳过 smoke")
@@ -180,7 +182,7 @@ func runEnvStart(args []string) error {
 func runEnvRestart(args []string) error {
 	fs := flag.NewFlagSet("env restart", flag.ContinueOnError)
 	envFile := fs.String("env-file", "configs/deploy.env", "环境变量文件")
-	composeFile := fs.String("compose-file", "deploy/compose/docker-compose.yml", "compose 文件路径")
+	composeFile := fs.String("compose-file", defaultAppComposeFile, "compose 文件路径")
 	removeVolumes := fs.Bool("remove-volumes", false, "删除 volumes（会清空 mysql/redis 数据）")
 	observability := fs.Bool("observability", false, "启用可观测 profile")
 	skipMigrate := fs.Bool("skip-migrate", false, "跳过迁移")
@@ -372,8 +374,8 @@ func printEnvUsage() {
   fs env down [--remove-volumes]
   fs env ops-up
   fs env ops-down
-  fs env start [--env-file configs/deploy.env] [--compose-file deploy/compose/docker-compose.yml] [--observability] [--skip-migrate] [--skip-smoke]
-  fs env restart [--env-file configs/deploy.env] [--compose-file deploy/compose/docker-compose.yml] [--remove-volumes] [--observability] [--skip-migrate] [--skip-smoke]
+  fs env start [--env-file configs/deploy.env] [--compose-file deploy/compose/docker-compose.app.yml] [--observability] [--skip-migrate] [--skip-smoke]
+  fs env restart [--env-file configs/deploy.env] [--compose-file deploy/compose/docker-compose.app.yml] [--remove-volumes] [--observability] [--skip-migrate] [--skip-smoke]
   fs env migrate-up
   fs env migrate-down [--steps 1 | --all]
   fs env smoke [--env-file configs/deploy.env]` + "\n")

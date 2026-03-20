@@ -1,63 +1,55 @@
-# 从拉取到跑通（后端 + 前端 + 测试）
+﻿# 浠庢媺鍙栧埌璺戦€氾紙鍚庣 + 鍓嶇 + 娴嬭瘯锛?
+## 1. 鍓嶇疆鐜
 
-## 1. 前置环境
-
-- Go：建议 `1.22+`
-- Docker Desktop（含 compose）
-- Bun（前端）
+- Go锛氬缓璁?`1.22+`
+- Docker Desktop锛堝惈 compose锛?- Bun锛堝墠绔級
 - Git
 
-## 2. 拉取与进入项目
-
+## 2. 鎷夊彇涓庤繘鍏ラ」鐩?
 ```powershell
 git clone <your-repo-url> FlashSale
 cd FlashSale
 ```
 
-## 3. 准备本地环境变量
+## 3. 鍑嗗鏈湴鐜鍙橀噺
 
 ```powershell
-# 首次可复制模板
-Copy-Item configs/deploy.env.example configs/deploy.env
+# 棣栨鍙鍒舵ā鏉?Copy-Item configs/deploy.env.example configs/deploy.env
 ```
 
-> 非生产环境可直接使用默认值；如端口冲突，修改 `configs/deploy.env` 的 `FLASH_*` 端口。
-
-## 3.1 交互式运维入口
-
-当前默认的 shell 运维入口为根目录的 `ops.sh`，用于版本更新、容器 / 集群管理等外围操作：
+> 闈炵敓浜х幆澧冨彲鐩存帴浣跨敤榛樿鍊硷紱濡傜鍙ｅ啿绐侊紝淇敼 `configs/deploy.env` 鐨?`FLASH_*` 绔彛銆?
+## 3.1 浜や簰寮忚繍缁村叆鍙?
+褰撳墠榛樿鐨?shell 杩愮淮鍏ュ彛涓烘牴鐩綍鐨?`ops.sh`锛岀敤浜庣増鏈洿鏂般€佸鍣?/ 闆嗙兢绠＄悊绛夊鍥存搷浣滐細
 
 ```powershell
 bash ./ops.sh
 ```
 
-## 4. 启动 Docker 基础环境
+## 4. 鍚姩 Docker 鍩虹鐜
 
 ```powershell
-go run ./cmd/fs env up
+go run ./ops/cmd/fs env up
 ```
 
-可选（带可观测组件）：
+鍙€夛紙甯﹀彲瑙傛祴缁勪欢锛夛細
 
 ```powershell
-go run ./cmd/fs env up --observability
+go run ./ops/cmd/fs env up --observability
 ```
 
-## 5. 执行迁移与连通性检查
+## 5. 鎵ц杩佺Щ涓庤繛閫氭€ф鏌?
+```powershell
+go run ./ops/cmd/fs env migrate-up
+go run ./ops/cmd/fs env smoke
+```
+
+## 6. 鍚姩鍚庣鏈嶅姟
 
 ```powershell
-go run ./cmd/fs env migrate-up
-go run ./cmd/fs env smoke
+go run ./ops/cmd/fs runtime start-backend
 ```
 
-## 6. 启动后端服务
-
-```powershell
-go run ./cmd/fs runtime start-backend
-```
-
-服务端口默认：
-
+鏈嶅姟绔彛榛樿锛?
 - user-rpc: `8081`
 - user-gateway: `8082`
 - admin-gateway: `8083`
@@ -66,43 +58,39 @@ go run ./cmd/fs runtime start-backend
 - seckill-rpc: `8086`
 - admin-rpc: `8087`
 
-## 7. 初始化演示数据（覆写）
-
+## 7. 鍒濆鍖栨紨绀烘暟鎹紙瑕嗗啓锛?
 ```powershell
-go run ./cmd/fs data seed-overwrite --force
+go run ./ops/cmd/fs data seed-overwrite --force
 ```
 
-该命令会：
+璇ュ懡浠や細锛?
+- 娓呯悊涓氬姟鏁版嵁
+- 閲嶅缓瓒呯骇绠＄悊鍛樸€佺瀛愮敤鎴枫€佸晢鍝併€佹椿鍔ㄣ€佽鍗?- 杈撳嚭缁撴灉鍒?`log/data/seed-overwrite.result.json`
 
-- 清理业务数据
-- 重建超级管理员、种子用户、商品、活动、订单
-- 输出结果到 `log/data/seed-overwrite.result.json`
-
-## 8. 启动两个前端
+## 8. 鍚姩涓や釜鍓嶇
 
 ```powershell
-# 安装依赖（首次）
-go run ./cmd/fs runtime start-frontend --install-deps
+# 瀹夎渚濊禆锛堥娆★級
+go run ./ops/cmd/fs runtime start-frontend --install-deps
 
-# 非首次可直接启动
-go run ./cmd/fs runtime start-frontend
+# 闈為娆″彲鐩存帴鍚姩
+go run ./ops/cmd/fs runtime start-frontend
 ```
 
-访问地址：
+璁块棶鍦板潃锛?
+- 鐢ㄦ埛绔細`http://127.0.0.1:5173`
+- 绠＄悊绔細`http://127.0.0.1:5174`
 
-- 用户端：`http://127.0.0.1:5173`
-- 管理端：`http://127.0.0.1:5174`
+## 9. 杩愯娴嬭瘯
 
-## 9. 运行测试
-
-### 9.1 后端
+### 9.1 鍚庣
 
 ```powershell
 go test ./... -short
 go vet ./...
 ```
 
-### 9.2 前端
+### 9.2 鍓嶇
 
 ```powershell
 cd frontend/user
@@ -116,29 +104,29 @@ bun run test:run
 bun run build
 ```
 
-## 10. 秒杀压测（示例）
+## 10. 绉掓潃鍘嬫祴锛堢ず渚嬶級
 
 ```powershell
-# 闭环购买压测
-go run ./cmd/fs perf purchase-stress -concurrency 200 -requests 4000 -timeout 7s -output json
+# 闂幆璐拱鍘嬫祴
+go run ./ops/cmd/fs perf purchase-stress -concurrency 200 -requests 4000 -timeout 7s -output json
 
-# 幂等压测
-go run ./cmd/fs perf idempotency -concurrency 50 -requests 200 -expect-max-success 1 -output json
+# 骞傜瓑鍘嬫祴
+go run ./ops/cmd/fs perf idempotency -concurrency 50 -requests 200 -expect-max-success 1 -output json
 
-# 开环购买压测
-go run ./cmd/fs perf purchase-open -rate 120 -open-duration 30s -concurrency 300 -output json
+# 寮€鐜喘涔板帇娴?go run ./ops/cmd/fs perf purchase-open -rate 120 -open-duration 30s -concurrency 300 -output json
 ```
 
-## 11. 停止服务
+## 11. 鍋滄鏈嶅姟
 
 ```powershell
-go run ./cmd/fs runtime stop-frontend
-go run ./cmd/fs runtime stop-backend
-go run ./cmd/fs env down
+go run ./ops/cmd/fs runtime stop-frontend
+go run ./ops/cmd/fs runtime stop-backend
+go run ./ops/cmd/fs env down
 ```
 
-如需删除容器卷：
+濡傞渶鍒犻櫎瀹瑰櫒鍗凤細
 
 ```powershell
-go run ./cmd/fs env down --remove-volumes
+go run ./ops/cmd/fs env down --remove-volumes
 ```
+

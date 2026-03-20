@@ -1,21 +1,21 @@
-# 系统与代码总览
+﻿# 绯荤粺涓庝唬鐮佹€昏
 
-## 1. 架构目标
+## 1. 鏋舵瀯鐩爣
 
-FlashSale 当前后端采用“**双网关 + 多 RPC 微服务 + 共享基础能力库**”架构：
+FlashSale 褰撳墠鍚庣閲囩敤鈥?*鍙岀綉鍏?+ 澶?RPC 寰湇鍔?+ 鍏变韩鍩虹鑳藉姏搴?*鈥濇灦鏋勶細
 
-- 用户流量统一进入 `apps/gateway/user`
-- 管理流量统一进入 `apps/gateway/admin`
-- 业务能力由 `user/product/order/seckill/admin` 五个 RPC 提供
-- 公共能力统一沉淀在 `pkg/base/*`
-- 运维与测试入口统一通过 `cmd/fs`
+- 鐢ㄦ埛娴侀噺缁熶竴杩涘叆 `apps/gateway/user`
+- 绠＄悊娴侀噺缁熶竴杩涘叆 `apps/gateway/admin`
+- 涓氬姟鑳藉姏鐢?`user/product/order/seckill/admin` 浜斾釜 RPC 鎻愪緵
+- 鍏叡鑳藉姏缁熶竴娌夋穩鍦?`pkg/base/*`
+- 杩愮淮涓庢祴璇曞叆鍙ｇ粺涓€閫氳繃 `ops/cmd/fs`
 
-## 2. 运行时架构图
+## 2. 杩愯鏃舵灦鏋勫浘
 
 ```mermaid
 flowchart LR
-  U[用户前端] --> UG[User Gateway :8082]
-  A[管理前端] --> AG[Admin Gateway :8083]
+  U[鐢ㄦ埛鍓嶇] --> UG[User Gateway :8082]
+  A[绠＄悊鍓嶇] --> AG[Admin Gateway :8083]
 
   UG --> URPC[User RPC :8081]
   UG --> PRPC[Product RPC :8084]
@@ -52,11 +52,11 @@ flowchart LR
   A --> MS
 ```
 
-## 3. 代码分层模型
+## 3. 浠ｇ爜鍒嗗眰妯″瀷
 
 ```mermaid
 flowchart TD
-  Entry[入口 main/*.go] --> Server[internal/server]
+  Entry[鍏ュ彛 main/*.go] --> Server[internal/server]
   Server --> Logic[internal/logic]
   Logic --> Repo[internal/repository]
   Repo --> Model[internal/model]
@@ -65,21 +65,9 @@ flowchart TD
   Svc --> Infra[(MySQL/Redis/Kafka)]
 ```
 
-## 4. 模块关系（业务视角）
+## 4. 妯″潡鍏崇郴锛堜笟鍔¤瑙掞級
 
-- `user`：用户注册、登录、资料维护；为下单/秒杀提供主体。
-- `product`：商品主数据、库存管理；为订单与秒杀提供库存接口。
-- `order`：交易主线（创建、支付确认、审核、发货、收货、关闭）；可接收秒杀建单。
-- `seckill`：活动化秒杀流程（活动、活动商品、抢购、埋点、活动订单追溯）。
-- `admin`：管理员认证、RBAC、数据范围与审计。
-- `gateway`：HTTP 协议适配、鉴权、限流、参数前置校验、RPC 转发。
-- `cdn`：Nginx 只读静态文件服务（商品主图、横幅等素材）。
-- `media-store`：文件管理服务（上传/删除/列表），与 CDN 共享 volume。
+- `user`锛氱敤鎴锋敞鍐屻€佺櫥褰曘€佽祫鏂欑淮鎶わ紱涓轰笅鍗?绉掓潃鎻愪緵涓讳綋銆?- `product`锛氬晢鍝佷富鏁版嵁銆佸簱瀛樼鐞嗭紱涓鸿鍗曚笌绉掓潃鎻愪緵搴撳瓨鎺ュ彛銆?- `order`锛氫氦鏄撲富绾匡紙鍒涘缓銆佹敮浠樼‘璁ゃ€佸鏍搞€佸彂璐с€佹敹璐с€佸叧闂級锛涘彲鎺ユ敹绉掓潃寤哄崟銆?- `seckill`锛氭椿鍔ㄥ寲绉掓潃娴佺▼锛堟椿鍔ㄣ€佹椿鍔ㄥ晢鍝併€佹姠璐€佸煁鐐广€佹椿鍔ㄨ鍗曡拷婧級銆?- `admin`锛氱鐞嗗憳璁よ瘉銆丷BAC銆佹暟鎹寖鍥翠笌瀹¤銆?- `gateway`锛欻TTP 鍗忚閫傞厤銆侀壌鏉冦€侀檺娴併€佸弬鏁板墠缃牎楠屻€丷PC 杞彂銆?- `cdn`锛歂ginx 鍙闈欐€佹枃浠舵湇鍔★紙鍟嗗搧涓诲浘銆佹í骞呯瓑绱犳潗锛夈€?- `media-store`锛氭枃浠剁鐞嗘湇鍔★紙涓婁紶/鍒犻櫎/鍒楄〃锛夛紝涓?CDN 鍏变韩 volume銆?
+## 5. 鍏抽敭宸ョ▼绾︽潫
 
-## 5. 关键工程约束
-
-- 金额统一 `int64` 分（`*_cent`）。
-- ID 使用雪花 ID（HTTP 层允许 `number|string` 兼容解析）。
-- 错误码统一由 `pkg/base/errorx` 定义，gRPC 映射由 `pkg/base/grpcerr` 维护。
-- 管理端权限采用 `domain + data_scope(all/self)` 双维约束。
-- 秒杀链路采用“Redis 热路径 + MySQL 追溯 + Kafka 事件”模式。
+- 閲戦缁熶竴 `int64` 鍒嗭紙`*_cent`锛夈€?- ID 浣跨敤闆姳 ID锛圚TTP 灞傚厑璁?`number|string` 鍏煎瑙ｆ瀽锛夈€?- 閿欒鐮佺粺涓€鐢?`pkg/base/errorx` 瀹氫箟锛実RPC 鏄犲皠鐢?`pkg/base/grpcerr` 缁存姢銆?- 绠＄悊绔潈闄愰噰鐢?`domain + data_scope(all/self)` 鍙岀淮绾︽潫銆?- 绉掓潃閾捐矾閲囩敤鈥淩edis 鐑矾寰?+ MySQL 杩芥函 + Kafka 浜嬩欢鈥濇ā寮忋€?

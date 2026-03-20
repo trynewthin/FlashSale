@@ -1,308 +1,277 @@
-# FlashSale 全项目深度代码评审报告
+﻿# FlashSale 鍏ㄩ」鐩繁搴︿唬鐮佽瘎瀹℃姤鍛?
+**璇勫鏃ユ湡**: 2026-02-20
+**璇勫浜?*: AI Code Reviewer
+**璇勫鑼冨洿**: 鍏ㄩ」鐩紙鏋舵瀯 / 鍚庣 / 鍓嶇 / 鍩虹璁炬柦 / 瀹夊叏 / 鏂囨。锛?**椤圭洰鍒嗘敮**: dev
 
-**评审日期**: 2026-02-20
-**评审人**: AI Code Reviewer
-**评审范围**: 全项目（架构 / 后端 / 前端 / 基础设施 / 安全 / 文档）
-**项目分支**: dev
-
-> 注：本报告是 2026-02-20 的历史评审快照，文中提到的旧 shell 运维体系已在当前仓库中下线，不代表当前入口结构。
-
+> 娉細鏈姤鍛婃槸 2026-02-20 鐨勫巻鍙茶瘎瀹″揩鐓э紝鏂囦腑鎻愬埌鐨勬棫 shell 杩愮淮浣撶郴宸插湪褰撳墠浠撳簱涓笅绾匡紝涓嶄唬琛ㄥ綋鍓嶅叆鍙ｇ粨鏋勩€?
 ---
 
-## 一、总体评价
+## 涓€銆佹€讳綋璇勪环
 
-> **整体评级: ⭐⭐⭐⭐ (4/5) — 工程成熟度高，少量改进空间**
+> **鏁翠綋璇勭骇: 猸愨瓙猸愨瓙 (4/5) 鈥?宸ョ▼鎴愮啛搴﹂珮锛屽皯閲忔敼杩涚┖闂?*
 
-这是一个工程完成度很高的秒杀电商系统。从架构设计、代码质量、部署体系到文档覆盖，都体现了较高的专业水准。核心亮点是秒杀链路的精密设计和完善的自动化运维脚本体系。
+杩欐槸涓€涓伐绋嬪畬鎴愬害寰堥珮鐨勭鏉€鐢靛晢绯荤粺銆備粠鏋舵瀯璁捐銆佷唬鐮佽川閲忋€侀儴缃蹭綋绯诲埌鏂囨。瑕嗙洊锛岄兘浣撶幇浜嗚緝楂樼殑涓撲笟姘村噯銆傛牳蹇冧寒鐐规槸绉掓潃閾捐矾鐨勭簿瀵嗚璁″拰瀹屽杽鐨勮嚜鍔ㄥ寲杩愮淮鑴氭湰浣撶郴銆?
+### 浠ｇ爜缁熻
 
-### 代码统计
-
-| 维度 | 数量 |
+| 缁村害 | 鏁伴噺 |
 |------|------|
-| Go 源文件（apps/） | ~188 文件 |
-| Go 测试文件 | 44 文件 |
-| Proto 文件 | 5 文件 (~1062 行） |
-| pkg/base 子包 | 15 个 |
-| 前端页面（user） | 9 页 |
-| 前端页面（admin） | 10 页 |
-| 前端 API 模块 | user 11 + admin 16 |
-| Shell 脚本 | 16 文件 |
-| Docker Compose | 1 主入口 + 4 子文件 + 2 辅助 |
-| 文档 | ~48 文件 |
+| Go 婧愭枃浠讹紙apps/锛?| ~188 鏂囦欢 |
+| Go 娴嬭瘯鏂囦欢 | 44 鏂囦欢 |
+| Proto 鏂囦欢 | 5 鏂囦欢 (~1062 琛岋級 |
+| pkg/base 瀛愬寘 | 15 涓?|
+| 鍓嶇椤甸潰锛坲ser锛?| 9 椤?|
+| 鍓嶇椤甸潰锛坅dmin锛?| 10 椤?|
+| 鍓嶇 API 妯″潡 | user 11 + admin 16 |
+| Shell 鑴氭湰 | 16 鏂囦欢 |
+| Docker Compose | 1 涓诲叆鍙?+ 4 瀛愭枃浠?+ 2 杈呭姪 |
+| 鏂囨。 | ~48 鏂囦欢 |
 
 ---
 
-## 二、分维度评审
+## 浜屻€佸垎缁村害璇勫
 
-### 📐 2.1 架构设计 (评分: 9/10)
+### 馃搻 2.1 鏋舵瀯璁捐 (璇勫垎: 9/10)
 
-#### 优点
+#### 浼樼偣
 
-| 项 | 评价 |
+| 椤?| 璇勪环 |
 |---|------|
-| 微服务边界 | ✅ 5+2 (5 RPC + 2 Gateway) 清晰分割，每服务可独立扩缩 |
-| 双网关模式 | ✅ user-gateway / admin-gateway 权限模型完全隔离，安全边界清晰 |
-| 代码分层 | ✅ 统一 6 层结构 (`config→svc→model→repo→logic→server`)，全服务一致 |
-| 服务发现 | ✅ 使用 etcd，go-zero 原生支持，解耦服务地址 |
-| 可观测性 | ✅ Jaeger + Prometheus + Grafana 三件套，Docker profile 可选启停 |
-| CDN 架构 | ✅ Nginx 只读 + media-store 读写的 volume 共享设计，职责清晰 |
-| CLI 集成 | ✅ `cmd/fs` 统一入口，集成部署/种子/压测/迁移等能力 |
+| 寰湇鍔¤竟鐣?| 鉁?5+2 (5 RPC + 2 Gateway) 娓呮櫚鍒嗗壊锛屾瘡鏈嶅姟鍙嫭绔嬫墿缂?|
+| 鍙岀綉鍏虫ā寮?| 鉁?user-gateway / admin-gateway 鏉冮檺妯″瀷瀹屽叏闅旂锛屽畨鍏ㄨ竟鐣屾竻鏅?|
+| 浠ｇ爜鍒嗗眰 | 鉁?缁熶竴 6 灞傜粨鏋?(`config鈫抯vc鈫抦odel鈫抮epo鈫抣ogic鈫抯erver`)锛屽叏鏈嶅姟涓€鑷?|
+| 鏈嶅姟鍙戠幇 | 鉁?浣跨敤 etcd锛実o-zero 鍘熺敓鏀寔锛岃В鑰︽湇鍔″湴鍧€ |
+| 鍙娴嬫€?| 鉁?Jaeger + Prometheus + Grafana 涓変欢濂楋紝Docker profile 鍙€夊惎鍋?|
+| CDN 鏋舵瀯 | 鉁?Nginx 鍙 + media-store 璇诲啓鐨?volume 鍏变韩璁捐锛岃亴璐ｆ竻鏅?|
+| CLI 闆嗘垚 | 鉁?`ops/cmd/fs` 缁熶竴鍏ュ彛锛岄泦鎴愰儴缃?绉嶅瓙/鍘嬫祴/杩佺Щ绛夎兘鍔?|
 
-#### 改进建议
+#### 鏀硅繘寤鸿
 
-| # | 建议 |
+| # | 寤鸿 |
 |---|------|
-| A1 | Gateway 使用原生 `http.ServeMux` 而非 go-zero 的 `rest.Server`，是有意的轻量化选择，但应在架构文档中说明此取舍（失去了 go-zero 内置的熔断/指标/服务发现等 middleware） |
-| A2 | 缺少 API 版本管理策略 — 当前 `/api/v1/` 是硬编码的，没有看到版本迁移计划文档 |
+| A1 | Gateway 浣跨敤鍘熺敓 `http.ServeMux` 鑰岄潪 go-zero 鐨?`rest.Server`锛屾槸鏈夋剰鐨勮交閲忓寲閫夋嫨锛屼絾搴斿湪鏋舵瀯鏂囨。涓鏄庢鍙栬垗锛堝け鍘讳簡 go-zero 鍐呯疆鐨勭啍鏂?鎸囨爣/鏈嶅姟鍙戠幇绛?middleware锛?|
+| A2 | 缂哄皯 API 鐗堟湰绠＄悊绛栫暐 鈥?褰撳墠 `/api/v1/` 鏄‖缂栫爜鐨勶紝娌℃湁鐪嬪埌鐗堟湰杩佺Щ璁″垝鏂囨。 |
 
 ---
 
-### 🔧 2.2 后端 Go 代码 (评分: 8.5/10)
+### 馃敡 2.2 鍚庣 Go 浠ｇ爜 (璇勫垎: 8.5/10)
 
-#### 优点
+#### 浼樼偣
 
-| 项 | 评价 |
+| 椤?| 璇勪环 |
 |---|------|
-| 错误码体系 | ✅ `errorx.Code` 字符串枚举 + `HTTPStatus()` 映射表，覆盖 39 种业务错误码，扩展友好 |
-| gRPC 错误桥接 | ✅ `grpcerr.FromStatus()` 与 `grpcerr.ToStatus()` 双向转换，网关与 RPC 之间零损耗 |
-| JSON 解析安全 | ✅ `DisallowUnknownFields()` + trailing data 检测，防止垃圾字段注入和请求倍增攻击 |
-| 秒杀链路 | ✅ 极其精密：Redis 缓存预扣 → MySQL 事务预扣(dead lock 自动重试) → RPC 建单(channel 闸门) → 失败补偿回滚，全链路幂等保护 |
-| 限流设计 | ✅ 按来源 IP 的 keyed token-bucket limiter，支持 14 个环境变量动态配置 |
-| 测试覆盖 | ✅ 44 个测试文件，覆盖核心 logic / repository / config / authz / cache / benchmark |
-| 幂等设计 | ✅ 全链路 `idempotency_key`，库存预扣和建单都有幂等保护 |
-| 权限鉴权 | ✅ RPC 层 `authorizeTargetUser` 双令牌（user/admin）自动识别 + domain/data_scope 细粒度检查 |
-| 性能指标嵌入 | ✅ 秒杀链路各阶段均有 `Perf.Mark*()` 精细埋点，支持外部性能分析 |
+| 閿欒鐮佷綋绯?| 鉁?`errorx.Code` 瀛楃涓叉灇涓?+ `HTTPStatus()` 鏄犲皠琛紝瑕嗙洊 39 绉嶄笟鍔￠敊璇爜锛屾墿灞曞弸濂?|
+| gRPC 閿欒妗ユ帴 | 鉁?`grpcerr.FromStatus()` 涓?`grpcerr.ToStatus()` 鍙屽悜杞崲锛岀綉鍏充笌 RPC 涔嬮棿闆舵崯鑰?|
+| JSON 瑙ｆ瀽瀹夊叏 | 鉁?`DisallowUnknownFields()` + trailing data 妫€娴嬶紝闃叉鍨冨溇瀛楁娉ㄥ叆鍜岃姹傚€嶅鏀诲嚮 |
+| 绉掓潃閾捐矾 | 鉁?鏋佸叾绮惧瘑锛歊edis 缂撳瓨棰勬墸 鈫?MySQL 浜嬪姟棰勬墸(dead lock 鑷姩閲嶈瘯) 鈫?RPC 寤哄崟(channel 闂搁棬) 鈫?澶辫触琛ュ伩鍥炴粴锛屽叏閾捐矾骞傜瓑淇濇姢 |
+| 闄愭祦璁捐 | 鉁?鎸夋潵婧?IP 鐨?keyed token-bucket limiter锛屾敮鎸?14 涓幆澧冨彉閲忓姩鎬侀厤缃?|
+| 娴嬭瘯瑕嗙洊 | 鉁?44 涓祴璇曟枃浠讹紝瑕嗙洊鏍稿績 logic / repository / config / authz / cache / benchmark |
+| 骞傜瓑璁捐 | 鉁?鍏ㄩ摼璺?`idempotency_key`锛屽簱瀛橀鎵ｅ拰寤哄崟閮芥湁骞傜瓑淇濇姢 |
+| 鏉冮檺閴存潈 | 鉁?RPC 灞?`authorizeTargetUser` 鍙屼护鐗岋紙user/admin锛夎嚜鍔ㄨ瘑鍒?+ domain/data_scope 缁嗙矑搴︽鏌?|
+| 鎬ц兘鎸囨爣宓屽叆 | 鉁?绉掓潃閾捐矾鍚勯樁娈靛潎鏈?`Perf.Mark*()` 绮剧粏鍩嬬偣锛屾敮鎸佸閮ㄦ€ц兘鍒嗘瀽 |
 
-#### 发现的问题
-
-| # | 严重度 | 问题 | 位置 | 验证状态 |
+#### 鍙戠幇鐨勯棶棰?
+| # | 涓ラ噸搴?| 闂 | 浣嶇疆 | 楠岃瘉鐘舵€?|
 |---|--------|------|------|---------|
-| B1 | 🟡 中 | **`writeOK` / `writeFail` / `decodeJSON` 在两个 gateway 中完全重复定义**（~50 行重复代码），应抽取到 `pkg/base/handlerx` | `apps/gateway/user/internal/handler/handler.go` vs `admin/internal/handler/handler.go` | ✅ 已验证 |
-| B2 | 🟡 中 | **`writeRPCFail` 实现不一致** — user gateway 对 `DeadlineExceeded / Unavailable / ResourceExhausted` 返回 503 + 友好消息，admin gateway 没有此处理，直接暴露 gRPC 错误码给前端 | user gateway:267-280 vs admin gateway:410-416 | ✅ 已验证 |
-| B3 | 🟢 低 | **`panic` 用于启动失败** — 11 处 `panic(fmt.Sprintf(...))` 在各服务 main 函数中。虽然启动阶段 panic 是 Go 社区可接受的模式，但统一改为 `log.Fatal` 会更一致 | 各 `main.go` 文件 | ✅ 已验证 |
-| B4 | 🟢 信息 | ~~**`ListUsers` 缺少 token 注入**~~ → **修正：这是有意设计**。RPC Server 端注释 "管理端调用，无用户鉴权"，`ListUsers` 和 `ResetUserPassword` 不需要 access token，其权限由 gateway 层 `middleware.RequireDomain(authz.RoleDomainUserManagement)` 保障 | `userrpcserver.go:96` 和 `:106` 注释 | ✅ 复审修正 |
-| B5 | 🟢 低 | **Dashboard 统计 `OnSale = Total` 近似值** — 注释中说明原因（proto 无 status 过滤字段），但两个值相等对前端体验不好（用户会疑惑） | `dashboard_handler.go:141` | ✅ 已验证 |
-| B6 | 🟢 低 | **keyedLimiterStore 仅在 `len > 1024` 时才触发过期清理** — 低流量场景下过期条目永不清理，有轻微内存泄漏隐患。建议增加定时清理或降低触发阈值 | `rate_limit.go:145` | ✅ 已验证 |
+| B1 | 馃煛 涓?| **`writeOK` / `writeFail` / `decodeJSON` 鍦ㄤ袱涓?gateway 涓畬鍏ㄩ噸澶嶅畾涔?*锛垀50 琛岄噸澶嶄唬鐮侊級锛屽簲鎶藉彇鍒?`pkg/base/handlerx` | `apps/gateway/user/internal/handler/handler.go` vs `admin/internal/handler/handler.go` | 鉁?宸查獙璇?|
+| B2 | 馃煛 涓?| **`writeRPCFail` 瀹炵幇涓嶄竴鑷?* 鈥?user gateway 瀵?`DeadlineExceeded / Unavailable / ResourceExhausted` 杩斿洖 503 + 鍙嬪ソ娑堟伅锛宎dmin gateway 娌℃湁姝ゅ鐞嗭紝鐩存帴鏆撮湶 gRPC 閿欒鐮佺粰鍓嶇 | user gateway:267-280 vs admin gateway:410-416 | 鉁?宸查獙璇?|
+| B3 | 馃煝 浣?| **`panic` 鐢ㄤ簬鍚姩澶辫触** 鈥?11 澶?`panic(fmt.Sprintf(...))` 鍦ㄥ悇鏈嶅姟 main 鍑芥暟涓€傝櫧鐒跺惎鍔ㄩ樁娈?panic 鏄?Go 绀惧尯鍙帴鍙楃殑妯″紡锛屼絾缁熶竴鏀逛负 `log.Fatal` 浼氭洿涓€鑷?| 鍚?`main.go` 鏂囦欢 | 鉁?宸查獙璇?|
+| B4 | 馃煝 淇℃伅 | ~~**`ListUsers` 缂哄皯 token 娉ㄥ叆**~~ 鈫?**淇锛氳繖鏄湁鎰忚璁?*銆俁PC Server 绔敞閲?"绠＄悊绔皟鐢紝鏃犵敤鎴烽壌鏉?锛宍ListUsers` 鍜?`ResetUserPassword` 涓嶉渶瑕?access token锛屽叾鏉冮檺鐢?gateway 灞?`middleware.RequireDomain(authz.RoleDomainUserManagement)` 淇濋殰 | `userrpcserver.go:96` 鍜?`:106` 娉ㄩ噴 | 鉁?澶嶅淇 |
+| B5 | 馃煝 浣?| **Dashboard 缁熻 `OnSale = Total` 杩戜技鍊?* 鈥?娉ㄩ噴涓鏄庡師鍥狅紙proto 鏃?status 杩囨护瀛楁锛夛紝浣嗕袱涓€肩浉绛夊鍓嶇浣撻獙涓嶅ソ锛堢敤鎴蜂細鐤戞儜锛?| `dashboard_handler.go:141` | 鉁?宸查獙璇?|
+| B6 | 馃煝 浣?| **keyedLimiterStore 浠呭湪 `len > 1024` 鏃舵墠瑙﹀彂杩囨湡娓呯悊** 鈥?浣庢祦閲忓満鏅笅杩囨湡鏉＄洰姘镐笉娓呯悊锛屾湁杞诲井鍐呭瓨娉勬紡闅愭偅銆傚缓璁鍔犲畾鏃舵竻鐞嗘垨闄嶄綆瑙﹀彂闃堝€?| `rate_limit.go:145` | 鉁?宸查獙璇?|
 
 ---
 
-### 🎨 2.3 前端代码 (评分: 8/10)
+### 馃帹 2.3 鍓嶇浠ｇ爜 (璇勫垎: 8/10)
 
-#### 优点
+#### 浼樼偣
 
-| 项 | 评价 |
+| 椤?| 璇勪环 |
 |---|------|
-| 技术栈 | ✅ React 19 + Vite 7 + TailwindCSS 4 + shadcn + React Query — 现代且统一 |
-| API 层 | ✅ `JSONbig({ storeAsString: true })` 处理 int64 安全，避免 JS 精度丢失 |
-| 会话管理 | ✅ 自动检测 `AUTH_UNAUTHORIZED` / `USER_NOT_FOUND`，跳转登录且防重复跳转 |
-| 三端统一 | ✅ user / admin / ops 使用相同的组件库(shadcn)、状态管理(zustand)、路由(react-router) |
-| 类型安全 | ✅ TypeScript strict mode + `tsc -b` 构建验证 |
-| 错误处理 | ✅ `ApiError` 统一包装，同时处理 2xx 业务错误和非 2xx HTTP 错误 |
+| 鎶€鏈爤 | 鉁?React 19 + Vite 7 + TailwindCSS 4 + shadcn + React Query 鈥?鐜颁唬涓旂粺涓€ |
+| API 灞?| 鉁?`JSONbig({ storeAsString: true })` 澶勭悊 int64 瀹夊叏锛岄伩鍏?JS 绮惧害涓㈠け |
+| 浼氳瘽绠＄悊 | 鉁?鑷姩妫€娴?`AUTH_UNAUTHORIZED` / `USER_NOT_FOUND`锛岃烦杞櫥褰曚笖闃查噸澶嶈烦杞?|
+| 涓夌缁熶竴 | 鉁?user / admin / ops 浣跨敤鐩稿悓鐨勭粍浠跺簱(shadcn)銆佺姸鎬佺鐞?zustand)銆佽矾鐢?react-router) |
+| 绫诲瀷瀹夊叏 | 鉁?TypeScript strict mode + `tsc -b` 鏋勫缓楠岃瘉 |
+| 閿欒澶勭悊 | 鉁?`ApiError` 缁熶竴鍖呰锛屽悓鏃跺鐞?2xx 涓氬姟閿欒鍜岄潪 2xx HTTP 閿欒 |
 
-#### 发现的问题
-
-| # | 严重度 | 问题 | 位置 | 验证状态 |
+#### 鍙戠幇鐨勯棶棰?
+| # | 涓ラ噸搴?| 闂 | 浣嶇疆 | 楠岃瘉鐘舵€?|
 |---|--------|------|------|---------|
-| F1 | 🟡 中 | **三个前端 `package.json` 的 `name` 都是 `"vite-app"`** — 应该分别命名为 `flashsale-user` / `flashsale-admin` / `flashsale-ops`，否则 npm/yarn 缓存和 monorepo 工具无法区分 | `frontend/*/package.json:2` | ✅ 已验证 |
-| F2 | 🟢 低 | **user 和 admin 的依赖几乎完全一致**（~95% 相同），但没有使用 monorepo（如 workspaces 或 turborepo）来共享依赖和组件，`node_modules` 占用磁盘 ~3x | `frontend/` | ✅ 已验证 |
-| F3 | 🟢 低 | **同时引入 `date-fns` 和 `dayjs` 两个日期库**，增加 bundle size 约 25KB。建议统一选一个 | `frontend/user/package.json` 和 `frontend/admin/package.json` | ✅ 已验证 |
-| F4 | 🟢 低 | **ops 端缺少 vitest / testing-library** — admin 和 user 有测试配置和 `test` / `test:run` 脚本，ops 没有 | `frontend/ops/package.json` | ✅ 已验证 |
+| F1 | 馃煛 涓?| **涓変釜鍓嶇 `package.json` 鐨?`name` 閮芥槸 `"vite-app"`** 鈥?搴旇鍒嗗埆鍛藉悕涓?`flashsale-user` / `flashsale-admin` / `flashsale-ops`锛屽惁鍒?npm/yarn 缂撳瓨鍜?monorepo 宸ュ叿鏃犳硶鍖哄垎 | `frontend/*/package.json:2` | 鉁?宸查獙璇?|
+| F2 | 馃煝 浣?| **user 鍜?admin 鐨勪緷璧栧嚑涔庡畬鍏ㄤ竴鑷?*锛垀95% 鐩稿悓锛夛紝浣嗘病鏈変娇鐢?monorepo锛堝 workspaces 鎴?turborepo锛夋潵鍏变韩渚濊禆鍜岀粍浠讹紝`node_modules` 鍗犵敤纾佺洏 ~3x | `frontend/` | 鉁?宸查獙璇?|
+| F3 | 馃煝 浣?| **鍚屾椂寮曞叆 `date-fns` 鍜?`dayjs` 涓や釜鏃ユ湡搴?*锛屽鍔?bundle size 绾?25KB銆傚缓璁粺涓€閫変竴涓?| `frontend/user/package.json` 鍜?`frontend/admin/package.json` | 鉁?宸查獙璇?|
+| F4 | 馃煝 浣?| **ops 绔己灏?vitest / testing-library** 鈥?admin 鍜?user 鏈夋祴璇曢厤缃拰 `test` / `test:run` 鑴氭湰锛宱ps 娌℃湁 | `frontend/ops/package.json` | 鉁?宸查獙璇?|
 
 ---
 
-### 🏗️ 2.4 基础设施 (评分: 9/10)
+### 馃彈锔?2.4 鍩虹璁炬柦 (璇勫垎: 9/10)
 
-#### 优点
+#### 浼樼偣
 
-| 项 | 评价 |
+| 椤?| 璇勪环 |
 |---|------|
-| Compose 架构 | ✅ `docker-compose.app.yml` 通过 include 拆分为 4 个子文件（infra / backend / proxy / observability），职责清晰 |
-| Dockerfile | ✅ 多阶段构建 + parallel/serial 双模式（`BUILD_MODE` 环境变量控制）+ go-build-cache 挂载 |
-| 旧运维脚本体系 | ✅ 当时的 shell 运维入口支持全量/分组/热更新等多种模式，完整度较高 |
-| 旧冒烟测试体系 | ✅ 当时的自动化测试按 infra / ops / user / auth / admin / cdn 分段组织，参数化程度较高 |
-| Nginx 配置 | ✅ JSON 日志、Docker DNS resolver、keepalive upstream、auth_request 子请求鉴权 |
-| 迁移管理 | ✅ `golang-migrate` + 独立迁移容器，串行先于业务容器启动（compose depends_on + service_healthy） |
-| 低内存模式 | ✅ `--low-mem` 支持 ≤4GB RAM 的云服务器，自动串行编译 + GOMAXPROCS=2 |
+| Compose 鏋舵瀯 | 鉁?`docker-compose.app.yml` 閫氳繃 include 鎷嗗垎涓?4 涓瓙鏂囦欢锛坕nfra / backend / proxy / observability锛夛紝鑱岃矗娓呮櫚 |
+| Dockerfile | 鉁?澶氶樁娈垫瀯寤?+ parallel/serial 鍙屾ā寮忥紙`BUILD_MODE` 鐜鍙橀噺鎺у埗锛? go-build-cache 鎸傝浇 |
+| 鏃ц繍缁磋剼鏈綋绯?| 鉁?褰撴椂鐨?shell 杩愮淮鍏ュ彛鏀寔鍏ㄩ噺/鍒嗙粍/鐑洿鏂扮瓑澶氱妯″紡锛屽畬鏁村害杈冮珮 |
+| 鏃у啋鐑熸祴璇曚綋绯?| 鉁?褰撴椂鐨勮嚜鍔ㄥ寲娴嬭瘯鎸?infra / ops / user / auth / admin / cdn 鍒嗘缁勭粐锛屽弬鏁板寲绋嬪害杈冮珮 |
+| Nginx 閰嶇疆 | 鉁?JSON 鏃ュ織銆丏ocker DNS resolver銆乲eepalive upstream銆乤uth_request 瀛愯姹傞壌鏉?|
+| 杩佺Щ绠＄悊 | 鉁?`golang-migrate` + 鐙珛杩佺Щ瀹瑰櫒锛屼覆琛屽厛浜庝笟鍔″鍣ㄥ惎鍔紙compose depends_on + service_healthy锛?|
+| 浣庡唴瀛樻ā寮?| 鉁?`--low-mem` 鏀寔 鈮?GB RAM 鐨勪簯鏈嶅姟鍣紝鑷姩涓茶缂栬瘧 + GOMAXPROCS=2 |
 
-#### 发现的问题
-
-| # | 严重度 | 问题 | 位置 | 验证状态 |
+#### 鍙戠幇鐨勯棶棰?
+| # | 涓ラ噸搴?| 闂 | 浣嶇疆 | 楠岃瘉鐘舵€?|
 |---|--------|------|------|---------|
-| I1 | 🟡 中 | **`docker-compose.yml` 与 `docker-compose.app.yml` 共存导致混淆** — 前者是早期开发版本（nginx 指向 host.docker.internal），后者是全容器化生产版本。应标注废弃或删除 | `deploy/compose/docker-compose.yml` | ✅ 已验证 |
-| I2 | 🔴 高 | **Kafka topic 不一致** — `docker-compose.yml` 的 kafka-init 仅创建 3 个 topic（`order.create` / `order.create.dlq` / `stock.compensate`），而 `app/infra.yml` 创建 6 个（多出 `seckill.traffic.*` 和 `seckill.order.state`）。使用旧 compose 文件部署会导致秒杀流量事件丢失 | `deploy/compose/docker-compose.yml` vs `deploy/compose/app/infra.yml` | ✅ 已验证 |
-| I3 | — | ~~**ops.Dockerfile 缺失**~~ → **修正：文件存在于 `deploy/docker/ops.Dockerfile`** | `deploy/docker/ops.Dockerfile` | ✅ 复审修正 |
+| I1 | 馃煛 涓?| **`docker-compose.yml` 涓?`docker-compose.app.yml` 鍏卞瓨瀵艰嚧娣锋穯** 鈥?鍓嶈€呮槸鏃╂湡寮€鍙戠増鏈紙nginx 鎸囧悜 host.docker.internal锛夛紝鍚庤€呮槸鍏ㄥ鍣ㄥ寲鐢熶骇鐗堟湰銆傚簲鏍囨敞搴熷純鎴栧垹闄?| `deploy/compose/docker-compose.yml` | 鉁?宸查獙璇?|
+| I2 | 馃敶 楂?| **Kafka topic 涓嶄竴鑷?* 鈥?`docker-compose.yml` 鐨?kafka-init 浠呭垱寤?3 涓?topic锛坄order.create` / `order.create.dlq` / `stock.compensate`锛夛紝鑰?`app/infra.yml` 鍒涘缓 6 涓紙澶氬嚭 `seckill.traffic.*` 鍜?`seckill.order.state`锛夈€備娇鐢ㄦ棫 compose 鏂囦欢閮ㄧ讲浼氬鑷寸鏉€娴侀噺浜嬩欢涓㈠け | `deploy/compose/docker-compose.yml` vs `deploy/compose/app/infra.yml` | 鉁?宸查獙璇?|
+| I3 | 鈥?| ~~**ops.Dockerfile 缂哄け**~~ 鈫?**淇锛氭枃浠跺瓨鍦ㄤ簬 `deploy/docker/ops.Dockerfile`** | `deploy/docker/ops.Dockerfile` | 鉁?澶嶅淇 |
 
 ---
 
-### 🔐 2.5 安全 (评分: 7.5/10)
+### 馃攼 2.5 瀹夊叏 (璇勫垎: 7.5/10)
 
-#### 安全优势
+#### 瀹夊叏浼樺娍
 
-| 项 | 评价 |
+| 椤?| 璇勪环 |
 |---|------|
-| 密码存储 | ✅ bcrypt 哈希（`golang.org/x/crypto`） |
-| JWT 域隔离 | ✅ user / admin 使用不同 secret、issuer、audience |
-| 路径穿越 | ✅ media-store 的 LocalStore 有路径安全化 |
-| 鉴权分层 | ✅ Gateway 层域权限检查 + RPC 层 `authorizeTargetUser` 双重校验 |
-| RBAC | ✅ domain + data_scope 双维度约束 |
-| 请求体安全 | ✅ `DisallowUnknownFields()` + trailing data 拒绝 |
-| auth_request | ✅ Nginx 对 media-store 路由使用 auth_request 子请求，不暴露 token 给客户端 |
+| 瀵嗙爜瀛樺偍 | 鉁?bcrypt 鍝堝笇锛坄golang.org/x/crypto`锛?|
+| JWT 鍩熼殧绂?| 鉁?user / admin 浣跨敤涓嶅悓 secret銆乮ssuer銆乤udience |
+| 璺緞绌胯秺 | 鉁?media-store 鐨?LocalStore 鏈夎矾寰勫畨鍏ㄥ寲 |
+| 閴存潈鍒嗗眰 | 鉁?Gateway 灞傚煙鏉冮檺妫€鏌?+ RPC 灞?`authorizeTargetUser` 鍙岄噸鏍￠獙 |
+| RBAC | 鉁?domain + data_scope 鍙岀淮搴︾害鏉?|
+| 璇锋眰浣撳畨鍏?| 鉁?`DisallowUnknownFields()` + trailing data 鎷掔粷 |
+| auth_request | 鉁?Nginx 瀵?media-store 璺敱浣跨敤 auth_request 瀛愯姹傦紝涓嶆毚闇?token 缁欏鎴风 |
 
-#### 安全问题
+#### 瀹夊叏闂
 
-| # | 严重度 | 问题 | 位置 | 验证状态 |
+| # | 涓ラ噸搴?| 闂 | 浣嶇疆 | 楠岃瘉鐘舵€?|
 |---|--------|------|------|---------|
-| S1 | 🔴 高 | **Nginx media-store secret 硬编码** — `proxy_set_header Authorization "Bearer flashsale-media-dev"` 直接写死，注释说"生产环境使用 envsubst 替换"但未实施。任何读过配置文件的人都能直接上传文件 | `deploy/nginx/nginx.app.conf:122` | ✅ 已验证 |
-| S2 | 🟡 中 | **`deploy.env` 与 `deploy.env.example` 完全相同**（`diff` 输出 IDENTICAL），包含默认弱密码 `user-secret-change-me`、`admin-secret-change-me`、`root123` 等。部署时如果未修改就直接用 | `configs/deploy.env` vs `configs/deploy.env.example` | ✅ 已验证 |
-| S3 | 🟢 低 | **Redis 无密码保护** — `redis-server --appendonly yes` 未设 `requirepass`，虽然仅容器内网可达 | `app/infra.yml` | ✅ 已验证 |
-| S4 | 🟢 信息 | **Gateway RPC timeout 默认 3 秒** — `defaultRPCTimeout = 3 * time.Second`。对于 Dashboard 聚合 4 个 RPC 的并发调用场景，因使用 goroutine 并发所以不是 4×3s，而是 max(各 RPC 耗时)，3 秒正常情况下足够 | 两个 gateway 的 handler.go | ✅ 复审修正 |
+| S1 | 馃敶 楂?| **Nginx media-store secret 纭紪鐮?* 鈥?`proxy_set_header Authorization "Bearer flashsale-media-dev"` 鐩存帴鍐欐锛屾敞閲婅"鐢熶骇鐜浣跨敤 envsubst 鏇挎崲"浣嗘湭瀹炴柦銆備换浣曡杩囬厤缃枃浠剁殑浜洪兘鑳界洿鎺ヤ笂浼犳枃浠?| `deploy/nginx/nginx.app.conf:122` | 鉁?宸查獙璇?|
+| S2 | 馃煛 涓?| **`deploy.env` 涓?`deploy.env.example` 瀹屽叏鐩稿悓**锛坄diff` 杈撳嚭 IDENTICAL锛夛紝鍖呭惈榛樿寮卞瘑鐮?`user-secret-change-me`銆乣admin-secret-change-me`銆乣root123` 绛夈€傞儴缃叉椂濡傛灉鏈慨鏀瑰氨鐩存帴鐢?| `configs/deploy.env` vs `configs/deploy.env.example` | 鉁?宸查獙璇?|
+| S3 | 馃煝 浣?| **Redis 鏃犲瘑鐮佷繚鎶?* 鈥?`redis-server --appendonly yes` 鏈 `requirepass`锛岃櫧鐒朵粎瀹瑰櫒鍐呯綉鍙揪 | `app/infra.yml` | 鉁?宸查獙璇?|
+| S4 | 馃煝 淇℃伅 | **Gateway RPC timeout 榛樿 3 绉?* 鈥?`defaultRPCTimeout = 3 * time.Second`銆傚浜?Dashboard 鑱氬悎 4 涓?RPC 鐨勫苟鍙戣皟鐢ㄥ満鏅紝鍥犱娇鐢?goroutine 骞跺彂鎵€浠ヤ笉鏄?4脳3s锛岃€屾槸 max(鍚?RPC 鑰楁椂)锛? 绉掓甯告儏鍐典笅瓒冲 | 涓や釜 gateway 鐨?handler.go | 鉁?澶嶅淇 |
 
 ---
 
-### 📚 2.6 文档 (评分: 7.5/10)
+### 馃摎 2.6 鏂囨。 (璇勫垎: 7.5/10)
 
-#### 优点
+#### 浼樼偣
 
-- 文档结构完善（architecture + handbook + runbook + reference 四类）
-- `gateway-api-matrix.md` 路由矩阵是极好的设计文档
-- 冒烟测试脚本与文档 `scripts-guide.md` 保持一致
-- `from-clone-to-green.md` 提供了完整的从零到跑通的指南
+- 鏂囨。缁撴瀯瀹屽杽锛坅rchitecture + handbook + runbook + reference 鍥涚被锛?- `gateway-api-matrix.md` 璺敱鐭╅樀鏄瀬濂界殑璁捐鏂囨。
+- 鍐掔儫娴嬭瘯鑴氭湰涓庢枃妗?`scripts-guide.md` 淇濇寔涓€鑷?- `from-clone-to-green.md` 鎻愪緵浜嗗畬鏁寸殑浠庨浂鍒拌窇閫氱殑鎸囧崡
 
-#### 发现的问题
-
-| # | 严重度 | 问题 | 位置 | 验证状态 |
+#### 鍙戠幇鐨勯棶棰?
+| # | 涓ラ噸搴?| 闂 | 浣嶇疆 | 楠岃瘉鐘舵€?|
 |---|--------|------|------|---------|
-| D1 | 🟡 中 | **`02-directory-preview.md` 不准确** — 第 84 行列出 `idempotency`（已删除），第 85 行列出 `metrics`（已删除）。同时缺少实际存在的包：`middleware`、`responsex`、`rpcmeta`、`snowflakex` | `docs/architecture/02-directory-preview.md:84-85` | ✅ 已验证 |
-| D2 | 🟢 低 | **`base-module.md` 仍引用已删除的 `idempotency` 包** — 第 41-42 行映射了不存在的文件路径 | `docs/architecture/modules/base-module.md:41-42` | ✅ 已验证 |
-| D3 | 🟢 低 | 缺少 `CONTRIBUTING.md` — 对于微服务项目，需要说明如何添加新 RPC 方法的标准流程（proto → codegen → logic → handler → route → test） | 项目根目录 | ✅ 已确认 |
+| D1 | 馃煛 涓?| **`02-directory-preview.md` 涓嶅噯纭?* 鈥?绗?84 琛屽垪鍑?`idempotency`锛堝凡鍒犻櫎锛夛紝绗?85 琛屽垪鍑?`metrics`锛堝凡鍒犻櫎锛夈€傚悓鏃剁己灏戝疄闄呭瓨鍦ㄧ殑鍖咃細`middleware`銆乣responsex`銆乣rpcmeta`銆乣snowflakex` | `docs/architecture/02-directory-preview.md:84-85` | 鉁?宸查獙璇?|
+| D2 | 馃煝 浣?| **`base-module.md` 浠嶅紩鐢ㄥ凡鍒犻櫎鐨?`idempotency` 鍖?* 鈥?绗?41-42 琛屾槧灏勪簡涓嶅瓨鍦ㄧ殑鏂囦欢璺緞 | `docs/architecture/modules/base-module.md:41-42` | 鉁?宸查獙璇?|
+| D3 | 馃煝 浣?| 缂哄皯 `CONTRIBUTING.md` 鈥?瀵逛簬寰湇鍔￠」鐩紝闇€瑕佽鏄庡浣曟坊鍔犳柊 RPC 鏂规硶鐨勬爣鍑嗘祦绋嬶紙proto 鈫?codegen 鈫?logic 鈫?handler 鈫?route 鈫?test锛?| 椤圭洰鏍圭洰褰?| 鉁?宸茬‘璁?|
 
 ---
 
-## 三、问题汇总与优先级
+## 涓夈€侀棶棰樻眹鎬讳笌浼樺厛绾?
+### 鍏ㄩ儴闂娓呭崟
 
-### 全部问题清单
-
-| # | 严重度 | 类别 | 摘要 | 优先级 |
+| # | 涓ラ噸搴?| 绫诲埆 | 鎽樿 | 浼樺厛绾?|
 |---|--------|------|------|-------|
-| S1 | 🔴 高 | 安全 | Nginx media-store secret 硬编码 | **P0** |
-| I2 | 🔴 高 | 基础设施 | Kafka topic 在新旧 compose 文件中不一致 | **P0** |
-| B1 | 🟡 中 | 后端 | 两个 gateway 重复定义 ~50 行工具函数 | P1 |
-| B2 | 🟡 中 | 后端 | `writeRPCFail` 错误处理逻辑不一致 | P1 |
-| S2 | 🟡 中 | 安全 | `deploy.env` 使用默认弱密码且与 `.example` 完全一致 | P1 |
-| I1 | 🟡 中 | 基础设施 | 旧版 `docker-compose.yml` 应标注废弃或删除 | P1 |
-| D1 | 🟡 中 | 文档 | `02-directory-preview.md` 列出已删除的包 | P1 |
-| D2 | 🟡 中 | 文档 | `base-module.md` 引用已删除的 idempotency 文件 | P1 |
-| F1 | 🟡 中 | 前端 | 三个前端 package name 都是 `"vite-app"` | P1 |
-| B3 | 🟢 低 | 后端 | main 函数用 panic 替代 log.Fatal | P2 |
-| B5 | 🟢 低 | 后端 | Dashboard OnSale = Total 近似值 | P2 |
-| B6 | 🟢 低 | 后端 | keyedLimiter 低流量场景不清理过期 | P2 |
-| S3 | 🟢 低 | 安全 | Redis 无密码保护 | P2 |
-| F2 | 🟢 低 | 前端 | 三个前端未使用 monorepo，依赖重复 | P2 |
-| F3 | 🟢 低 | 前端 | 同时引入 date-fns 和 dayjs | P2 |
-| F4 | 🟢 低 | 前端 | ops 端缺少测试配置 | P2 |
-| D3 | 🟢 低 | 文档 | 缺少 CONTRIBUTING.md | P2 |
-| A1 | 🟢 信息 | 架构 | Gateway 使用 http.ServeMux 的设计选择应文档化 | P2 |
-| A2 | 🟢 信息 | 架构 | 缺少 API 版本管理策略文档 | P2 |
+| S1 | 馃敶 楂?| 瀹夊叏 | Nginx media-store secret 纭紪鐮?| **P0** |
+| I2 | 馃敶 楂?| 鍩虹璁炬柦 | Kafka topic 鍦ㄦ柊鏃?compose 鏂囦欢涓笉涓€鑷?| **P0** |
+| B1 | 馃煛 涓?| 鍚庣 | 涓や釜 gateway 閲嶅瀹氫箟 ~50 琛屽伐鍏峰嚱鏁?| P1 |
+| B2 | 馃煛 涓?| 鍚庣 | `writeRPCFail` 閿欒澶勭悊閫昏緫涓嶄竴鑷?| P1 |
+| S2 | 馃煛 涓?| 瀹夊叏 | `deploy.env` 浣跨敤榛樿寮卞瘑鐮佷笖涓?`.example` 瀹屽叏涓€鑷?| P1 |
+| I1 | 馃煛 涓?| 鍩虹璁炬柦 | 鏃х増 `docker-compose.yml` 搴旀爣娉ㄥ簾寮冩垨鍒犻櫎 | P1 |
+| D1 | 馃煛 涓?| 鏂囨。 | `02-directory-preview.md` 鍒楀嚭宸插垹闄ょ殑鍖?| P1 |
+| D2 | 馃煛 涓?| 鏂囨。 | `base-module.md` 寮曠敤宸插垹闄ょ殑 idempotency 鏂囦欢 | P1 |
+| F1 | 馃煛 涓?| 鍓嶇 | 涓変釜鍓嶇 package name 閮芥槸 `"vite-app"` | P1 |
+| B3 | 馃煝 浣?| 鍚庣 | main 鍑芥暟鐢?panic 鏇夸唬 log.Fatal | P2 |
+| B5 | 馃煝 浣?| 鍚庣 | Dashboard OnSale = Total 杩戜技鍊?| P2 |
+| B6 | 馃煝 浣?| 鍚庣 | keyedLimiter 浣庢祦閲忓満鏅笉娓呯悊杩囨湡 | P2 |
+| S3 | 馃煝 浣?| 瀹夊叏 | Redis 鏃犲瘑鐮佷繚鎶?| P2 |
+| F2 | 馃煝 浣?| 鍓嶇 | 涓変釜鍓嶇鏈娇鐢?monorepo锛屼緷璧栭噸澶?| P2 |
+| F3 | 馃煝 浣?| 鍓嶇 | 鍚屾椂寮曞叆 date-fns 鍜?dayjs | P2 |
+| F4 | 馃煝 浣?| 鍓嶇 | ops 绔己灏戞祴璇曢厤缃?| P2 |
+| D3 | 馃煝 浣?| 鏂囨。 | 缂哄皯 CONTRIBUTING.md | P2 |
+| A1 | 馃煝 淇℃伅 | 鏋舵瀯 | Gateway 浣跨敤 http.ServeMux 鐨勮璁￠€夋嫨搴旀枃妗ｅ寲 | P2 |
+| A2 | 馃煝 淇℃伅 | 鏋舵瀯 | 缂哄皯 API 鐗堟湰绠＄悊绛栫暐鏂囨。 | P2 |
 
-### 按优先级的修复建议
+### 鎸変紭鍏堢骇鐨勪慨澶嶅缓璁?
+#### 馃敶 P0 鈥?寤鸿灏藉揩淇锛? 椤癸級
 
-#### 🔴 P0 — 建议尽快修复（2 项）
+1. **S1: Nginx media-store secret 纭紪鐮?*
+   - 鏂规 A锛堟帹鑽愶級锛氫娇鐢?`envsubst` 妯℃澘锛氬皢 `nginx.app.conf` 鏀逛负 `nginx.app.conf.template`锛宑ompose 鍚姩鏃堕€氳繃 `envsubst '$$FLASH_MEDIA_STORE_SECRET' < template > conf`
+   - 鏂规 B锛氬湪 compose 涓€氳繃 `configs` 鎸傝浇鍔ㄦ€佺敓鎴愮殑閰嶇疆鐗囨
 
-1. **S1: Nginx media-store secret 硬编码**
-   - 方案 A（推荐）：使用 `envsubst` 模板：将 `nginx.app.conf` 改为 `nginx.app.conf.template`，compose 启动时通过 `envsubst '$$FLASH_MEDIA_STORE_SECRET' < template > conf`
-   - 方案 B：在 compose 中通过 `configs` 挂载动态生成的配置片段
+2. **I2: Kafka topic 涓嶄竴鑷?*
+   - 鏂规锛氬垹闄ゆ垨鏍囨敞 `docker-compose.yml` 涓?deprecated锛岀粺涓€浣跨敤 `docker-compose.app.yml`
 
-2. **I2: Kafka topic 不一致**
-   - 方案：删除或标注 `docker-compose.yml` 为 deprecated，统一使用 `docker-compose.app.yml`
+#### 馃煛 P1 鈥?寤鸿杩戞湡鏀硅繘锛? 椤癸級
 
-#### 🟡 P1 — 建议近期改进（7 项）
+3. **B1 + B2: Gateway 閲嶅浠ｇ爜 + 琛屼负涓嶄竴鑷?*
+   - 灏?`writeOK` / `writeFail` / `writeRPCFail` / `decodeJSON` 鎶藉彇鍒?`pkg/base/handlerx`
+   - 缁熶竴 admin gateway 涔熷鐞?`DeadlineExceeded / Unavailable / ResourceExhausted`
 
-3. **B1 + B2: Gateway 重复代码 + 行为不一致**
-   - 将 `writeOK` / `writeFail` / `writeRPCFail` / `decodeJSON` 抽取到 `pkg/base/handlerx`
-   - 统一 admin gateway 也处理 `DeadlineExceeded / Unavailable / ResourceExhausted`
+4. **S2: 榛樿寮卞瘑鐮?*
+   - 鏂规 A锛氳 `deploy.env` 鎴愪负 `.gitignore` 鍐呭锛堝彧淇濈暀 `.example`锛?   - 鏂规 B锛氳嚦灏戝湪 README 閱掔洰鎻愮ず蹇呴』淇敼
 
-4. **S2: 默认弱密码**
-   - 方案 A：让 `deploy.env` 成为 `.gitignore` 内容（只保留 `.example`）
-   - 方案 B：至少在 README 醒目提示必须修改
+5. **I1: 鏃?compose 鏂囦欢**
+   - 鍦ㄦ枃浠堕《閮ㄥ姞娉ㄩ噴 `# DEPRECATED: Use docker-compose.app.yml instead` 鎴栫洿鎺ュ垹闄?
+6. **D1 + D2: 鏂囨。杩囨椂**
+   - 鏇存柊 `02-directory-preview.md` 绗?84-85 琛岋紝鍒犻櫎 `idempotency` / `metrics`锛岃ˉ鍏?`middleware` / `responsex` / `rpcmeta` / `snowflakex`
+   - 鏇存柊 `base-module.md` 鍒犻櫎宸插垹鍖呯殑鏂囦欢鏄犲皠
 
-5. **I1: 旧 compose 文件**
-   - 在文件顶部加注释 `# DEPRECATED: Use docker-compose.app.yml instead` 或直接删除
+7. **F1: package name 缁熶竴**
+   - `frontend/user/package.json` 鈫?`"name": "flashsale-user"`
+   - `frontend/admin/package.json` 鈫?`"name": "flashsale-admin"`
+   - `frontend/ops/package.json` 鈫?`"name": "flashsale-ops"`
 
-6. **D1 + D2: 文档过时**
-   - 更新 `02-directory-preview.md` 第 84-85 行，删除 `idempotency` / `metrics`，补充 `middleware` / `responsex` / `rpcmeta` / `snowflakex`
-   - 更新 `base-module.md` 删除已删包的文件映射
+#### 馃煝 P2 鈥?寤鸿鍚庣画浼樺寲锛?0 椤癸級
 
-7. **F1: package name 统一**
-   - `frontend/user/package.json` → `"name": "flashsale-user"`
-   - `frontend/admin/package.json` → `"name": "flashsale-admin"`
-   - `frontend/ops/package.json` → `"name": "flashsale-ops"`
-
-#### 🟢 P2 — 建议后续优化（10 项）
-
-8. **F2**: 考虑 pnpm workspaces / turborepo 共享依赖
-9. **F3**: 统一选 `date-fns` 或 `dayjs`（推荐 `date-fns`，tree-shaking 友好）
-10. **B6**: limiter 增加定时清理 goroutine 或降低阈值至 256
-11. **S3**: Redis 设 `requirepass`，即使内网
-12. **B5**: 给 `ListProductsAdminReq` 加 `status` 过滤字段
-13. **B3**: 考虑统一用 `log.Fatalf` 替代 `panic`
-14. **F4**: ops 端补充 vitest 配置
-15. **D3**: 编写 `CONTRIBUTING.md`
-16. **A1**: 在架构文档中说明 Gateway 技术选型理由
-17. **A2**: 编写 API 版本管理策略
+8. **F2**: 鑰冭檻 pnpm workspaces / turborepo 鍏变韩渚濊禆
+9. **F3**: 缁熶竴閫?`date-fns` 鎴?`dayjs`锛堟帹鑽?`date-fns`锛宼ree-shaking 鍙嬪ソ锛?10. **B6**: limiter 澧炲姞瀹氭椂娓呯悊 goroutine 鎴栭檷浣庨槇鍊艰嚦 256
+11. **S3**: Redis 璁?`requirepass`锛屽嵆浣垮唴缃?12. **B5**: 缁?`ListProductsAdminReq` 鍔?`status` 杩囨护瀛楁
+13. **B3**: 鑰冭檻缁熶竴鐢?`log.Fatalf` 鏇夸唬 `panic`
+14. **F4**: ops 绔ˉ鍏?vitest 閰嶇疆
+15. **D3**: 缂栧啓 `CONTRIBUTING.md`
+16. **A1**: 鍦ㄦ灦鏋勬枃妗ｄ腑璇存槑 Gateway 鎶€鏈€夊瀷鐞嗙敱
+17. **A2**: 缂栧啓 API 鐗堟湰绠＄悊绛栫暐
 
 ---
 
-## 四、复审修正记录
-
-以下项目在初次评审后经过二次验证，进行了修正：
-
-| 初始编号 | 原始结论 | 修正后结论 | 修正原因 |
+## 鍥涖€佸瀹′慨姝ｈ褰?
+浠ヤ笅椤圭洰鍦ㄥ垵娆¤瘎瀹″悗缁忚繃浜屾楠岃瘉锛岃繘琛屼簡淇锛?
+| 鍒濆缂栧彿 | 鍘熷缁撹 | 淇鍚庣粨璁?| 淇鍘熷洜 |
 |---------|---------|-----------|---------|
-| B4 | `ListUsers` 和 `ResetUserPassword` 缺少 token 注入（🟡 中） | 有意设计，不是问题（🟢 信息） | RPC Server 注释 "管理端调用，无用户鉴权"，权限由 Gateway 层 `RequireDomain` 保障 |
-| I3 | `ops.Dockerfile` 可能不存在（🟡 中） | 文件存在于 `deploy/docker/ops.Dockerfile`（删除问题） | 初次文件搜索范围不完整 |
-| S4 | RPC timeout 3s 可能不够（🟢 低） | 并发调用场景下 3s 足够（🟢 信息） | Dashboard 使用 goroutine 并发，实际超时为 max 而非 sum |
-| A6 (Batch1) | `fs.exe` 被提交到 Git（🟡 中） | 未被 Git 追踪（🟢 信息） | `/*.exe` 已在 `.gitignore` 中，`git ls-files` 确认未追踪 |
+| B4 | `ListUsers` 鍜?`ResetUserPassword` 缂哄皯 token 娉ㄥ叆锛堭煙?涓級 | 鏈夋剰璁捐锛屼笉鏄棶棰橈紙馃煝 淇℃伅锛?| RPC Server 娉ㄩ噴 "绠＄悊绔皟鐢紝鏃犵敤鎴烽壌鏉?锛屾潈闄愮敱 Gateway 灞?`RequireDomain` 淇濋殰 |
+| I3 | `ops.Dockerfile` 鍙兘涓嶅瓨鍦紙馃煛 涓級 | 鏂囦欢瀛樺湪浜?`deploy/docker/ops.Dockerfile`锛堝垹闄ら棶棰橈級 | 鍒濇鏂囦欢鎼滅储鑼冨洿涓嶅畬鏁?|
+| S4 | RPC timeout 3s 鍙兘涓嶅锛堭煙?浣庯級 | 骞跺彂璋冪敤鍦烘櫙涓?3s 瓒冲锛堭煙?淇℃伅锛?| Dashboard 浣跨敤 goroutine 骞跺彂锛屽疄闄呰秴鏃朵负 max 鑰岄潪 sum |
+| A6 (Batch1) | `fs.exe` 琚彁浜ゅ埌 Git锛堭煙?涓級 | 鏈 Git 杩借釜锛堭煙?淇℃伅锛?| `/*.exe` 宸插湪 `.gitignore` 涓紝`git ls-files` 纭鏈拷韪?|
 
 ---
 
-## 五、亮点总结
+## 浜斻€佷寒鐐规€荤粨
 
-值得特别表扬的设计和实现：
+鍊煎緱鐗瑰埆琛ㄦ壃鐨勮璁″拰瀹炵幇锛?
+### 1. 绉掓潃璐拱閾捐矾锛坄purchase_logic.go`锛?
+585 琛岄珮瀵嗗害浠ｇ爜锛岃鐩栦簡鐢熶骇绾х鏉€绯荤粺闇€瑕佽€冭檻鐨勫嚑涔庢墍鏈夎竟鐣屾儏鍐碉細
+- **涓夊眰搴撳瓨鎵ｅ噺**锛歊edis 缂撳瓨棰勬墸 鈫?MySQL 浜嬪姟棰勬墸锛堝惈姝婚攣閲嶈瘯锛?鈫?RPC 寤哄崟
+- **鑷€傚簲瓒呮椂**锛氭牴鎹姹傚墿浣欐椂闂村姩鎬佽绠楅鎵ｈ秴鏃讹紝淇濊瘉涓轰笅娓哥暀澶熶綑閲?- **闂搁棬鎺у埗**锛歚OrderCreateLimiter` channel 闄愬埗寤哄崟骞跺彂锛岄槻姝?DB 闆穿
+- **骞傜瓑鎭㈠**锛氬箓绛夊啿绐佹椂涓嶇洿鎺ュけ璐ワ紝鑰屾槸灏濊瘯閲嶆斁寤哄崟鎭㈠
+- **琛ュ伩鍥炴粴**锛氭瘡涓け璐ヨ矾寰勯兘鏈夊搴旂殑搴撳瓨琛ュ伩鍜岀紦瀛樺洖婊?- **鎬ц兘鍩嬬偣**锛氭瘡涓叧閿楠ら兘鏈?`Perf.Mark*()` 璋冪敤
 
-### 1. 秒杀购买链路（`purchase_logic.go`）
+### 2. 鏃ц繍缁磋剼鏈綋绯?
+褰撴椂鐨?legacy shell 杩愮淮浣撶郴鏋勬垚浜嗕竴濂楀畬鏁寸殑 CI/CD 鏇夸唬鏂规锛?- 鏀寔鍏ㄩ噺/鍗曢泦缇?鐑洿鏂颁笁绉嶆ā寮?- 浣庡唴瀛樻ā寮忛€傞厤 鈮?GB 浜戞湇鍔″櫒
+- 鍐掔儫娴嬭瘯 6 section 鍏ㄨ嚜鍔ㄥ寲
 
-585 行高密度代码，覆盖了生产级秒杀系统需要考虑的几乎所有边界情况：
-- **三层库存扣减**：Redis 缓存预扣 → MySQL 事务预扣（含死锁重试） → RPC 建单
-- **自适应超时**：根据请求剩余时间动态计算预扣超时，保证为下游留够余量
-- **闸门控制**：`OrderCreateLimiter` channel 限制建单并发，防止 DB 雪崩
-- **幂等恢复**：幂等冲突时不直接失败，而是尝试重放建单恢复
-- **补偿回滚**：每个失败路径都有对应的库存补偿和缓存回滚
-- **性能埋点**：每个关键步骤都有 `Perf.Mark*()` 调用
+### 3. 閿欒鐮佷綋绯?
+`pkg/base/errorx` 鐨?`Code` 鈫?`HTTPStatus()` 鏄犲皠 + `grpcerr` 鍙屽悜妗ユ帴锛屽疄鐜颁簡浠?RPC 鍒?HTTP 鐨勯浂鎹熻€楅敊璇紶閫掞紝鍓嶇鍙互鐩存帴浣跨敤 `code` 瀛楁鍋氫笟鍔″垽鏂€?
+---
 
-### 2. 旧运维脚本体系
-
-当时的 legacy shell 运维体系构成了一套完整的 CI/CD 替代方案：
-- 支持全量/单集群/热更新三种模式
-- 低内存模式适配 ≤4GB 云服务器
-- 冒烟测试 6 section 全自动化
-
-### 3. 错误码体系
-
-`pkg/base/errorx` 的 `Code` → `HTTPStatus()` 映射 + `grpcerr` 双向桥接，实现了从 RPC 到 HTTP 的零损耗错误传递，前端可以直接使用 `code` 字段做业务判断。
+## 鍏€佽瘎瀹℃柟娉曡鏄?
+鏈璇勫閲囩敤浠ヤ笅鏂规硶锛?
+1. **鏂囦欢閬嶅巻**锛氶€氳繃 `find_by_name` 閬嶅巻椤圭洰缁撴瀯
+2. **婧愮爜闃呰**锛氶€愭枃浠堕槄璇诲叧閿ā鍧楋紙gateway handler銆丷PC server銆乴ogic銆乵iddleware銆乵odel銆乧onfig锛?3. **妯″紡鎼滅储**锛氶€氳繃 `grep_search` 鏌ユ壘 `TODO`銆乣FIXME`銆乣panic`銆乣sql.DB` 绛夋ā寮?4. **瀵规瘮楠岃瘉**锛氬 `deploy.env` vs `.example`銆乽ser gateway vs admin gateway 鐨勮涓轰竴鑷存€?5. **閾捐矾杩借釜**锛氫粠 gateway handler 鈫?RPC server 鈫?logic 鈫?repository 閫愬眰杩借釜鍏抽敭鍑芥暟璋冪敤
+6. **澶嶅淇**锛氬鍒濇鍙戠幇鐨勯棶棰樿繘琛屼簩娆￠獙璇侊紝淇璇垽
 
 ---
 
-## 六、评审方法说明
+*鎶ュ憡缁撴潫*
 
-本次评审采用以下方法：
-
-1. **文件遍历**：通过 `find_by_name` 遍历项目结构
-2. **源码阅读**：逐文件阅读关键模块（gateway handler、RPC server、logic、middleware、model、config）
-3. **模式搜索**：通过 `grep_search` 查找 `TODO`、`FIXME`、`panic`、`sql.DB` 等模式
-4. **对比验证**：如 `deploy.env` vs `.example`、user gateway vs admin gateway 的行为一致性
-5. **链路追踪**：从 gateway handler → RPC server → logic → repository 逐层追踪关键函数调用
-6. **复审修正**：对初次发现的问题进行二次验证，修正误判
-
----
-
-*报告结束*

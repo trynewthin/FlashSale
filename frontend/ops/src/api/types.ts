@@ -31,6 +31,54 @@ export interface JobDetail extends JobSummary {
   perf_report?: PerfReport | null
 }
 
+export type JobStreamEventType =
+  | "snapshot"
+  | "log_line"
+  | "job_state"
+  | "perf_progress"
+  | "done"
+  | "error"
+  | "ping"
+
+export interface JobStreamEnvelope<T = unknown> {
+  type: JobStreamEventType
+  job_id: string
+  ts: number
+  seq: number
+  payload?: T
+}
+
+export interface JobStreamSnapshotPayload {
+  log: string
+}
+
+export interface JobStreamLogLinePayload {
+  source: string
+  line: string
+}
+
+export interface JobStreamStatePayload {
+  status: JobStatus
+  exit_code: number
+  started_at?: string
+  finished_at?: string
+}
+
+export interface JobStreamDonePayload {
+  status: JobStatus
+  exit_code: number
+  finished_at?: string
+  perf_report?: PerfReport | null
+}
+
+export interface JobStreamErrorPayload {
+  message: string
+}
+
+export interface JobStreamPingPayload {
+  ts: number
+}
+
 // ─── 压测数据（后端驱动） ───
 
 export interface PerfProgress {

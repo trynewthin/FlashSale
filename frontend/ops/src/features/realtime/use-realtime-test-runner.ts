@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { opsApi } from "@/api/modules/ops"
-import type { JobDetail, JobSummary, PerfProgress, PerfReport, SSELogLineFrame, TaskDef } from "@/api/types"
+import type {
+  JobDetail,
+  JobStreamDonePayload,
+  JobStreamEnvelope,
+  JobStreamErrorPayload,
+  JobStreamLogLinePayload,
+  JobStreamSnapshotPayload,
+  JobStreamStatePayload,
+  JobSummary,
+  PerfProgress,
+  PerfReport,
+  TaskDef,
+} from "@/api/types"
 import {
   getRealtimeTestPreset,
   type RealtimeTestFieldDef,
@@ -291,40 +303,52 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
     enabled: streamEnabled && !!activeJob?.id,
     url: activeJobStreamURL,
     handlers: {
-      onEvent: (eventType, payload) => {
-        if (eventType === "snapshot") {
-          // 初始历史日志推送
-          const frame = payload as { log?: string }
-          if (typeof frame.log === "string" && frame.log.length > 0) {
+      onMessageData: (payload) => {
+        const envelope = payload as JobStreamEnvelope
+        if (!envelope || typeof envelope.type !== "string") {
+          return
+        }
+        if (envelope.type === "snapshot") {
+          const frame = envelope.payload as JobStreamSnapshotPayload
+          if (typeof frame?.log === "string" && frame.log.length > 0) {
             setActiveLog(frame.log)
           }
           return
         }
-        if (eventType === "log") {
-          const frame = payload as SSELogLineFrame
-          if (typeof frame.chunk === "string") {
-            setActiveLog((prev) => prev + frame.chunk)
-            return
-          }
-          if (typeof frame.line === "string") {
+        if (envelope.type === "log_line") {
+          const frame = envelope.payload as JobStreamLogLinePayload
+          if (typeof frame?.line === "string") {
             setActiveLog((prev) => `${prev}${prev.endsWith("\n") || prev.length === 0 ? "" : "\n"}${frame.line}\n`)
           }
           return
         }
-        if (eventType === "perf_progress") {
-          const sample = payload as PerfProgress
+        if (envelope.type === "job_state") {
+          const data = envelope.payload as JobStreamStatePayload
+          setActiveJob((prev) => (
+            prev
+              ? {
+                  ...prev,
+                  status: data?.status || prev.status,
+                  exit_code: typeof data?.exit_code === "number" ? data.exit_code : prev.exit_code,
+                  started_at: data?.started_at || prev.started_at,
+                  finished_at: data?.finished_at || prev.finished_at,
+                }
+              : prev
+          ))
+          return
+        }
+        if (envelope.type === "perf_progress") {
+          const sample = envelope.payload as PerfProgress
           if (sample && typeof sample.timestamp === "number") {
             setPerfSamples((prev) => [...prev, sample])
           }
           return
         }
-        if (eventType === "done") {
-          // 任务正常结束，优雅关闭
+        if (envelope.type === "done") {
           doneReceivedRef.current = true
-          const donePayload = payload as { perf_report?: PerfReport | null }
-          if (donePayload.perf_report) {
+          const donePayload = envelope.payload as JobStreamDonePayload
+          if (donePayload?.perf_report) {
             setPerfReport(donePayload.perf_report)
-            // 确保 samples 完整
             if (donePayload.perf_report.samples?.length) {
               setPerfSamples(donePayload.perf_report.samples)
             }
@@ -332,6 +356,12 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
           setStreamEnabled(false)
           void refreshActiveJob()
           return
+        }
+        if (envelope.type === "error") {
+          const data = envelope.payload as JobStreamErrorPayload
+          if (data?.message) {
+            showNotice("error", data.message)
+          }
         }
       },
       onError: () => {

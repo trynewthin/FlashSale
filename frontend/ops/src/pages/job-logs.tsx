@@ -2,7 +2,15 @@ import { Pause, Play, RefreshCcw } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { opsApi } from "@/api/modules/ops"
-import type { JobSummary, SSELogLineFrame } from "@/api/types"
+import type {
+  JobStreamDonePayload,
+  JobStreamEnvelope,
+  JobStreamErrorPayload,
+  JobStreamLogLinePayload,
+  JobStreamSnapshotPayload,
+  JobStreamStatePayload,
+  JobSummary,
+} from "@/api/types"
 import { LogStreamViewer } from "@/components/common/log-stream-viewer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,7 +31,6 @@ function statusVariant(status: string): "secondary" | "destructive" | "outline" 
   return "outline"
 }
 
-// JobLogsPage 展示任务历史与日志实时流。
 export function JobLogsPage() {
   const showApiError = useOpsApiError()
   const showNotice = useOpsUIStore((state) => state.showNotice)
@@ -34,6 +41,8 @@ export function JobLogsPage() {
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [logText, setLogText] = useState("")
+  const [jobStatus, setJobStatus] = useState("")
+  const [jobExitCode, setJobExitCode] = useState<number | null>(null)
 
   const loadJobs = useCallback(async () => {
     try {
@@ -55,9 +64,11 @@ export function JobLogsPage() {
       return
     }
     try {
-      const text = await opsApi.getJobLog(jobId)
+      const [text, detail] = await Promise.all([opsApi.getJobLog(jobId), opsApi.getJob(jobId)])
       setLogText(text)
-      setStreaming(true)
+      setJobStatus(detail.status)
+      setJobExitCode(detail.exit_code)
+      setStreaming(detail.status !== "success" && detail.status !== "failed")
     } catch (error) {
       showApiError(error, "任务日志加载失败")
     }
@@ -89,21 +100,50 @@ export function JobLogsPage() {
     enabled: streaming && !!selectedJobId,
     url: streamURL,
     handlers: {
-      onEvent: (eventType, payload) => {
-        if (eventType !== "log") {
+      onMessageData: (payload) => {
+        const envelope = payload as JobStreamEnvelope
+        if (!envelope || typeof envelope.type !== "string") {
           return
         }
-        const frame = payload as SSELogLineFrame
-        if (typeof frame.chunk === "string") {
-          setLogText((prev) => prev + frame.chunk)
-          return
-        }
-        if (typeof frame.line === "string") {
-          setLogText((prev) => `${prev}${prev.endsWith("\n") || prev.length === 0 ? "" : "\n"}${frame.line}\n`)
+        switch (envelope.type) {
+          case "snapshot": {
+            const data = envelope.payload as JobStreamSnapshotPayload
+            if (typeof data?.log === "string") {
+              setLogText(data.log)
+            }
+            return
+          }
+          case "log_line": {
+            const data = envelope.payload as JobStreamLogLinePayload
+            if (typeof data?.line === "string") {
+              setLogText((prev) => `${prev}${prev.endsWith("\n") || prev.length === 0 ? "" : "\n"}${data.line}\n`)
+            }
+            return
+          }
+          case "job_state": {
+            const data = envelope.payload as JobStreamStatePayload
+            setJobStatus(data?.status || "")
+            setJobExitCode(typeof data?.exit_code === "number" ? data.exit_code : null)
+            return
+          }
+          case "done": {
+            const data = envelope.payload as JobStreamDonePayload
+            setJobStatus(data?.status || "")
+            setJobExitCode(typeof data?.exit_code === "number" ? data.exit_code : null)
+            setStreaming(false)
+            return
+          }
+          case "error": {
+            const data = envelope.payload as JobStreamErrorPayload
+            if (data?.message) {
+              showNotice("error", data.message)
+            }
+            return
+          }
         }
       },
       onError: () => {
-        showNotice("error", "任务日志流已断开，请重新开始")
+        showNotice("error", "任务日志流已断开，请重新开启")
         setStreaming(false)
       },
     },
@@ -121,7 +161,7 @@ export function JobLogsPage() {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => setStreaming((v) => !v)}
+            onClick={() => setStreaming((value) => !value)}
             disabled={!selectedJobId}
           >
             {streaming ? <Pause className="size-4" /> : <Play className="size-4" />}
@@ -130,11 +170,13 @@ export function JobLogsPage() {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => { if (selectedJobId) void loadJobLog(selectedJobId) }}
+            onClick={() => {
+              if (selectedJobId) void loadJobLog(selectedJobId)
+            }}
             disabled={!selectedJobId}
           >
             <RefreshCcw className="size-4" />
-            重载快照
+            重新加载
           </Button>
         </>
       }
@@ -142,7 +184,7 @@ export function JobLogsPage() {
       <div className="grid gap-4 xl:grid-cols-[1.2fr_1.8fr]">
         <Card>
           <CardContent className="pt-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">最近任务</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">最近任务</p>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -180,10 +222,15 @@ export function JobLogsPage() {
         </Card>
 
         <Card>
-          <CardContent className="pt-5 space-y-3">
+          <CardContent className="space-y-3 pt-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {selectedJobId ? `Job: ${selectedJobId}` : "请选择任务"}
             </p>
+            {selectedJobId ? (
+              <div className="text-xs text-muted-foreground">
+                {`status=${jobStatus || "-"} exit=${jobExitCode ?? "-"}`}
+              </div>
+            ) : null}
             <LogStreamViewer value={logText} emptyText="请选择任务并查看日志" />
           </CardContent>
         </Card>

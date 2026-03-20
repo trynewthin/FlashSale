@@ -1,134 +1,107 @@
-# FlashSale 基础层与核心模块仓库
+﻿# FlashSale 鍩虹灞備笌鏍稿績妯″潡浠撳簱
 
-本仓库承载基于 `go-zero/goctl` 的基础能力与已落地核心模块实现。
+鏈粨搴撴壙杞藉熀浜?`go-zero/goctl` 鐨勫熀纭€鑳藉姏涓庡凡钀藉湴鏍稿績妯″潡瀹炵幇銆?
+## 褰撳墠瀹炵幇鑼冨洿
 
-## 当前实现范围
+- 鏈湴 Docker 鐜锛歁ySQL銆丷edis銆並afka銆乪tcd
+- etcd 鏈嶅姟娉ㄥ唽涓庡彂鐜帮細鎵€鏈?RPC 鏈嶅姟鑷姩娉ㄥ唽锛孏ateway 瀹㈡埛绔姩鎬佸彂鐜?- 鍙€夊彲瑙傛祴鎬х幆澧冿細Jaeger銆丳rometheus銆丟rafana锛堝惈棰勯厤 Dashboard锛?- 鍏叡 Go 鍩虹鍖咃細`pkg/base/*`
+- 鍒嗗簱杩佺Щ鑴氭湰锛歚deploy/migrations/*`
+- 鍩虹杩為€氭€ц嚜妫€锛歚ops/cmd/smoke/*`
+- 鐢ㄦ埛 RPC 鏈嶅姟锛歚apps/user/rpc`
+- 鍟嗗搧 RPC 鏈嶅姟锛歚apps/product/rpc`
+- 璁㈠崟 RPC 鏈嶅姟锛歚apps/order/rpc`
+- 绉掓潃 RPC 鏈嶅姟锛歚apps/seckill/rpc`
+- 绠＄悊鍛?RPC 鏈嶅姟锛歚apps/admin/rpc`
+- 鐢ㄦ埛缃戝叧锛歚apps/gateway/user`
+- 绠＄悊鍛樼綉鍏筹細`apps/gateway/admin`
 
-- 本地 Docker 环境：MySQL、Redis、Kafka、etcd
-- etcd 服务注册与发现：所有 RPC 服务自动注册，Gateway 客户端动态发现
-- 可选可观测性环境：Jaeger、Prometheus、Grafana（含预配 Dashboard）
-- 公共 Go 基础包：`pkg/base/*`
-- 分库迁移脚本：`deploy/migrations/*`
-- 基础连通性自检：`cmd/smoke/*`
-- 用户 RPC 服务：`apps/user/rpc`
-- 商品 RPC 服务：`apps/product/rpc`
-- 订单 RPC 服务：`apps/order/rpc`
-- 秒杀 RPC 服务：`apps/seckill/rpc`
-- 管理员 RPC 服务：`apps/admin/rpc`
-- 用户网关：`apps/gateway/user`
-- 管理员网关：`apps/gateway/admin`
-
-## 快速开始
-
-1. 启动基础环境：
-
+## 蹇€熷紑濮?
+1. 鍚姩鍩虹鐜锛?
 ```powershell
-go run ./cmd/fs env up
+go run ./ops/cmd/fs env up
 ```
 
-2. 执行数据库迁移：
+2. 鎵ц鏁版嵁搴撹縼绉伙細
 
 ```powershell
-go run ./cmd/fs env migrate-up
+go run ./ops/cmd/fs env migrate-up
 ```
 
-3. 执行 smoke 检查：
+3. 鎵ц smoke 妫€鏌ワ細
 
 ```powershell
-go run ./cmd/fs env smoke
+go run ./ops/cmd/fs env smoke
 ```
 
-4. 停止基础环境：
-
+4. 鍋滄鍩虹鐜锛?
 ```powershell
-go run ./cmd/fs env down
+go run ./ops/cmd/fs env down
 ```
 
-启用可观测性组件：
+鍚敤鍙娴嬫€х粍浠讹細
 
 ```powershell
-go run ./cmd/fs env up --observability
+go run ./ops/cmd/fs env up --observability
 ```
 
-## 集群级微服务能力
+## 闆嗙兢绾у井鏈嶅姟鑳藉姏
 
-本项目通过 etcd 实现真正的服务注册与发现，即使在单服务器部署下也具备集群级能力：
+鏈」鐩€氳繃 etcd 瀹炵幇鐪熸鐨勬湇鍔℃敞鍐屼笌鍙戠幇锛屽嵆浣垮湪鍗曟湇鍔″櫒閮ㄧ讲涓嬩篃鍏峰闆嗙兢绾ц兘鍔涳細
 
-- **服务注册**：5 个 RPC 服务启动后自动注册到 etcd（Key: `user.rpc` / `product.rpc` / `order.rpc` / `seckill.rpc` / `admin.rpc`）
-- **服务发现**：2 个 Gateway 通过 etcd 动态发现下游 RPC 实例，无需硬编码地址
-- **客户端负载均衡**：go-zero 内置 round-robin，支持 `docker compose up --scale seckill-rpc=3` 水平扩展
-- **结构化观测**：Nginx JSON access log + Prometheus 指标采集 + Grafana 预配 Dashboard
+- **鏈嶅姟娉ㄥ唽**锛? 涓?RPC 鏈嶅姟鍚姩鍚庤嚜鍔ㄦ敞鍐屽埌 etcd锛圞ey: `user.rpc` / `product.rpc` / `order.rpc` / `seckill.rpc` / `admin.rpc`锛?- **鏈嶅姟鍙戠幇**锛? 涓?Gateway 閫氳繃 etcd 鍔ㄦ€佸彂鐜颁笅娓?RPC 瀹炰緥锛屾棤闇€纭紪鐮佸湴鍧€
+- **瀹㈡埛绔礋杞藉潎琛?*锛歡o-zero 鍐呯疆 round-robin锛屾敮鎸?`docker compose up --scale seckill-rpc=3` 姘村钩鎵╁睍
+- **缁撴瀯鍖栬娴?*锛歂ginx JSON access log + Prometheus 鎸囨爣閲囬泦 + Grafana 棰勯厤 Dashboard
 
-全容器化部署（含 etcd）：
+鍏ㄥ鍣ㄥ寲閮ㄧ讲锛堝惈 etcd锛夛細
 
 ```powershell
-# 启动全部服务
-go run ./cmd/fs env app-up
+# 鍚姩鍏ㄩ儴鏈嶅姟
+go run ./ops/cmd/fs env app-up
 
-# 带观测性组件
-docker compose -f deploy/compose/docker-compose.app.yml --profile observability up -d
+# 甯﹁娴嬫€х粍浠?docker compose -f deploy/compose/docker-compose.app.yml --profile observability up -d
 
-# 扩展秒杀服务到 3 实例
+# 鎵╁睍绉掓潃鏈嶅姟鍒?3 瀹炰緥
 docker compose -f deploy/compose/docker-compose.app.yml up -d --scale seckill-rpc=3
 ```
 
-## 交互式运维入口
-
-当前默认的运维入口为根目录脚本 `ops.sh`，用于承接版本更新、容器/集群管理等外围操作。
-
+## 浜や簰寮忚繍缁村叆鍙?
+褰撳墠榛樿鐨勮繍缁村叆鍙ｄ负鏍圭洰褰曡剼鏈?`ops.sh`锛岀敤浜庢壙鎺ョ増鏈洿鏂般€佸鍣?闆嗙兢绠＄悊绛夊鍥存搷浣溿€?
 ```powershell
 # Git Bash
 bash ./ops.sh
 ```
 
-旧的 shell 脚本入口已从当前运维入口中移除，相关能力已切换到 `ops.sh`。
+鏃х殑 shell 鑴氭湰鍏ュ彛宸蹭粠褰撳墠杩愮淮鍏ュ彛涓Щ闄わ紝鐩稿叧鑳藉姏宸插垏鎹㈠埌 `ops.sh`銆?
+## 鐙珛杩愮淮鎺у埗鍙帮紙绗竴鐗堬級
 
-## 独立运维控制台（第一版）
-
-运维控制台与业务服务解耦，支持 Web 可视化与 CLI 双入口：
+杩愮淮鎺у埗鍙颁笌涓氬姟鏈嶅姟瑙ｈ€︼紝鏀寔 Web 鍙鍖栦笌 CLI 鍙屽叆鍙ｏ細
 
 ```powershell
-# 0) 配置访问密钥（建议写入 configs/deploy.env）
-$env:FLASHSALE_OPS_ACCESS_KEY="replace_me_strong_key"
+# 0) 閰嶇疆璁块棶瀵嗛挜锛堝缓璁啓鍏?configs/deploy.env锛?$env:FLASHSALE_OPS_ACCESS_KEY="replace_me_strong_key"
 
-# 1) 启动独立可视化组件（容器日志与容器管理）
-go run ./cmd/fs env ops-up
+# 1) 鍚姩鐙珛鍙鍖栫粍浠讹紙瀹瑰櫒鏃ュ織涓庡鍣ㄧ鐞嗭級
+go run ./ops/cmd/fs env ops-up
 
-# 2) 启动 ops-control（任务编排 API + Web 页面）
-go run ./cmd/fs ops server --addr 0.0.0.0:18080 --repo-root . --auth-key-env FLASHSALE_OPS_ACCESS_KEY
+# 2) 鍚姩 ops-control锛堜换鍔＄紪鎺?API + Web 椤甸潰锛?go run ./ops/cmd/fs ops server --addr 0.0.0.0:18080 --repo-root . --auth-key-env FLASHSALE_OPS_ACCESS_KEY
 
-# 3) 访问
+# 3) 璁块棶
 # ops-control: http://127.0.0.1:18080
 # dozzle:     http://127.0.0.1:18081
 # portainer:  http://127.0.0.1:19000
 ```
 
-CLI 也可直接调 ops-control：
-
+CLI 涔熷彲鐩存帴璋?ops-control锛?
 ```powershell
-go run ./cmd/fs ops tasks --key-env FLASHSALE_OPS_ACCESS_KEY
-go run ./cmd/fs ops run --task env.start --key-env FLASHSALE_OPS_ACCESS_KEY
-go run ./cmd/fs ops jobs --limit 20 --key-env FLASHSALE_OPS_ACCESS_KEY
-go run ./cmd/fs ops logs --job <job_id> --key-env FLASHSALE_OPS_ACCESS_KEY
 ```
 
-远程访问建议：
-- 仅开放 `18080` 到受信网络。
-- 生产建议在 Nginx 后挂 TLS，并加 IP 白名单。
-- 密钥只放环境变量，不写入仓库。
+杩滅▼璁块棶寤鸿锛?- 浠呭紑鏀?`18080` 鍒板彈淇＄綉缁溿€?- 鐢熶骇寤鸿鍦?Nginx 鍚庢寕 TLS锛屽苟鍔?IP 鐧藉悕鍗曘€?- 瀵嗛挜鍙斁鐜鍙橀噺锛屼笉鍐欏叆浠撳簱銆?
+## 绔彛涓庤繛鎺ラ厤缃?
+寮€鍙?CLI 缁熶竴璇诲彇锛歚configs/deploy.env`
 
-## 端口与连接配置
-
-开发 CLI 统一读取：`configs/deploy.env`
-
-- `FLASH_*`：Docker 对外端口
-- `FLASHSALE_*`：应用连接覆盖参数
-- `FLASH_MYSQL_ROOT_PASSWORD` / `FLASH_MYSQL_APP_PASSWORD`：数据库容器与应用账号密码
-- `FLASH_GRAFANA_ADMIN_USER` / `FLASH_GRAFANA_ADMIN_PASSWORD`：Grafana 管理员凭据
-
-如果本机端口被占用，只需修改 `configs/deploy.env`，再执行 `fs` 命令即可。
-
-## 组件版本
+- `FLASH_*`锛欴ocker 瀵瑰绔彛
+- `FLASHSALE_*`锛氬簲鐢ㄨ繛鎺ヨ鐩栧弬鏁?- `FLASH_MYSQL_ROOT_PASSWORD` / `FLASH_MYSQL_APP_PASSWORD`锛氭暟鎹簱瀹瑰櫒涓庡簲鐢ㄨ处鍙峰瘑鐮?- `FLASH_GRAFANA_ADMIN_USER` / `FLASH_GRAFANA_ADMIN_PASSWORD`锛欸rafana 绠＄悊鍛樺嚟鎹?
+濡傛灉鏈満绔彛琚崰鐢紝鍙渶淇敼 `configs/deploy.env`锛屽啀鎵ц `fs` 鍛戒护鍗冲彲銆?
+## 缁勪欢鐗堟湰
 
 - MySQL: `mysql:8.4`
 - Redis: `redis:7.2-alpine`
@@ -138,9 +111,9 @@ go run ./cmd/fs ops logs --job <job_id> --key-env FLASHSALE_OPS_ACCESS_KEY
 - Prometheus: `prom/prometheus:v2.53.1`
 - Grafana: `grafana/grafana:10.4.5`
 
-## 镜像 Digest 记录
+## 闀滃儚 Digest 璁板綍
 
-首次拉取镜像后，可执行：
+棣栨鎷夊彇闀滃儚鍚庯紝鍙墽琛岋細
 
 ```powershell
 docker image inspect --format='{{index .RepoDigests 0}}' mysql:8.4
@@ -148,17 +121,17 @@ docker image inspect --format='{{index .RepoDigests 0}}' redis:7.2-alpine
 docker image inspect --format='{{index .RepoDigests 0}}' confluentinc/cp-kafka:7.6.1
 ```
 
-并将结果登记到 `docs/operations/image-digests.md`。
+骞跺皢缁撴灉鐧昏鍒?`docs/operations/image-digests.md`銆?
+## 鏋舵瀯鏂囨。
 
-## 架构文档
+- 鏂囨。绱㈠紩锛歚docs/README.md`
+- 绯荤粺涓庝唬鐮佹€昏锛歚docs/architecture/01-system-and-code-architecture.md`
+- 鏈嶅姟鍙戠幇涓庨泦缇よ兘鍔涳細`docs/architecture/03-service-discovery.md`
+- 鐩綍棰勮锛歚docs/architecture/02-directory-preview.md`
+- 缃戝叧妯″潡锛歚docs/architecture/modules/gateway-module.md`
+- 鐢ㄦ埛妯″潡锛歚docs/architecture/modules/user-module.md`
+- 鍟嗗搧妯″潡锛歚docs/architecture/modules/product-module.md`
+- 璁㈠崟妯″潡锛歚docs/architecture/modules/order-module.md`
+- 绉掓潃妯″潡锛歚docs/architecture/modules/seckill-module.md`
+- 绠＄悊鍛樻ā鍧楋細`docs/architecture/modules/admin-module.md`
 
-- 文档索引：`docs/README.md`
-- 系统与代码总览：`docs/architecture/01-system-and-code-architecture.md`
-- 服务发现与集群能力：`docs/architecture/03-service-discovery.md`
-- 目录预览：`docs/architecture/02-directory-preview.md`
-- 网关模块：`docs/architecture/modules/gateway-module.md`
-- 用户模块：`docs/architecture/modules/user-module.md`
-- 商品模块：`docs/architecture/modules/product-module.md`
-- 订单模块：`docs/architecture/modules/order-module.md`
-- 秒杀模块：`docs/architecture/modules/seckill-module.md`
-- 管理员模块：`docs/architecture/modules/admin-module.md`

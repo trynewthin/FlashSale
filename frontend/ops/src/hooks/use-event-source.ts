@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react"
 
 interface EventSourceHandlers {
   onMessage?: (event: MessageEvent) => void
+  onMessageData?: (payload: unknown) => void
   onEvent?: (eventType: string, payload: unknown) => void
   onOpen?: () => void
   onError?: () => void
@@ -42,6 +43,7 @@ export function useEventSource({ enabled, url, handlers }: EventSourceState) {
 
     source.onmessage = (event) => {
       handlersRef.current?.onMessage?.(event)
+      handlersRef.current?.onMessageData?.(parsePayload(String(event.data || "")))
     }
 
     const subscribeEvent = (eventType: string) => {

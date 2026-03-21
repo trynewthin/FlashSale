@@ -1,26 +1,51 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { opsApi, type PersistedSample } from "@/api/modules/ops"
+import type { PromQueryResult } from "@/api/types"
 import { buildRealtimeSample } from "@/features/realtime/build-sample"
+import {
+  advancePrecisionMode,
+  buildServerSeries,
+  BURST_LOOKBACK_SECONDS,
+  detectPrecisionReason,
+  fromDatetimeLocalValue,
+  mergeServerMetricsIntoSamples,
+  normalizeServerMetrics,
+  OVERVIEW_LOOKBACK_SECONDS,
+  replayMetricStep,
+  resolveReplayLookbackSeconds,
+  toDatetimeLocalValue,
+  type PrecisionReason,
+  type ServerMetricSample,
+} from "@/features/realtime/precision-metrics"
 import type { RealtimeSample } from "@/features/realtime/types"
 import { useOpsApiError } from "@/hooks/use-ops-api-error"
 
 const SAMPLE_INTERVAL_MS = 2000
 const ERROR_TOAST_COOLDOWN_MS = 15000
+const BURST_FETCH_WINDOW_MS = 3 * 60 * 1000
 
-// ─── 统一时间窗口 ───
-// 短窗口：纯实时（内存轮询）
-// 长窗口：自动从后端加载历史 + 续接实时
 export type TimeWindow = "1m" | "3m" | "5m" | "1h" | "3h" | "6h" | "12h" | "24h" | "3d" | "7d"
+export type ReplayPreset = "5m" | "15m" | "1h"
 
 export interface TimeWindowOption {
   value: TimeWindow
   label: string
   seconds: number
-  /** 是否需要从后端加载持久化数据 */
   persistent: boolean
-  /** 后端 API 的 range 参数（仅 persistent=true 时有效） */
   apiRange?: string
+}
+
+export interface ReplayState {
+  open: boolean
+  active: boolean
+  loading: boolean
+  error: string | null
+  startInput: string
+  endInput: string
+  samples: RealtimeSample[]
+  lookbackSeconds: number | null
+  sampleInsufficient: boolean
 }
 
 export const TIME_WINDOWS: TimeWindowOption[] = [
@@ -36,30 +61,81 @@ export const TIME_WINDOWS: TimeWindowOption[] = [
   { value: "7d", label: "最近 7 天", seconds: 604800, persistent: true, apiRange: "7d" },
 ]
 
+const REALTIME_METRIC_NAMES = [
+  "rpc_request_rate",
+  "rpc_error_rate",
+  "rpc_p99_latency",
+  "seckill_purchase_task_queue_depth",
+  "seckill_purchase_task_queue_cap",
+  "seckill_purchase_task_dropped_total",
+]
+
 function findWindow(value: TimeWindow): TimeWindowOption {
-  return TIME_WINDOWS.find((w) => w.value === value) ?? TIME_WINDOWS[1]
+  return TIME_WINDOWS.find((windowOption) => windowOption.value === value) ?? TIME_WINDOWS[1]
 }
 
-// 将持久化采样点转换为前端 RealtimeSample
-// 注意：后端 label 可能是 UTC 时区，这里用 ts 重新生成本地时区的 label
-function persistedToRealtime(p: PersistedSample): RealtimeSample {
+function persistedToRealtime(sample: PersistedSample): RealtimeSample {
+  return normalizeServerMetrics({
+    timestamp: sample.ts,
+    label: new Date(sample.ts).toLocaleTimeString("zh-CN", { hour12: false }),
+    portRate: sample.portRate,
+    httpRate: sample.httpRate,
+    replicaRate: sample.replicaRate,
+    runningContainers: sample.runningContainers,
+    totalContainers: sample.totalContainers,
+    runningReplicas: sample.runningReplicas,
+    totalReplicas: sample.totalReplicas,
+    promQps: sample.promQps,
+    promP99LatencyMs: sample.promP99LatencyMs,
+    promErrorRate: sample.promErrorRate,
+    purchaseTaskQueueDepth: sample.purchaseTaskQueueDepth,
+    purchaseTaskQueueCap: sample.purchaseTaskQueueCap,
+    purchaseTaskDropped: sample.purchaseTaskDropped,
+  }, OVERVIEW_LOOKBACK_SECONDS)
+}
+
+function defaultReplayInputs(nowMs = Date.now()): { startInput: string; endInput: string } {
   return {
-    timestamp: p.ts,
-    label: new Date(p.ts).toLocaleTimeString("zh-CN", { hour12: false }),
-    portRate: p.portRate,
-    httpRate: p.httpRate,
-    replicaRate: p.replicaRate,
-    runningContainers: p.runningContainers,
-    totalContainers: p.totalContainers,
-    runningReplicas: p.runningReplicas,
-    totalReplicas: p.totalReplicas,
-    promQps: p.promQps,
-    promP99LatencyMs: p.promP99LatencyMs,
-    promErrorRate: p.promErrorRate,
-    purchaseTaskQueueDepth: p.purchaseTaskQueueDepth,
-    purchaseTaskQueueCap: p.purchaseTaskQueueCap,
-    purchaseTaskDropped: p.purchaseTaskDropped,
+    startInput: toDatetimeLocalValue(nowMs - 15 * 60 * 1000),
+    endInput: toDatetimeLocalValue(nowMs),
   }
+}
+
+function presetToRange(preset: ReplayPreset, nowMs = Date.now()): { startMs: number; endMs: number } {
+  const durationMs = preset === "5m" ? 5 * 60 * 1000 : preset === "15m" ? 15 * 60 * 1000 : 60 * 60 * 1000
+  return {
+    startMs: nowMs - durationMs,
+    endMs: nowMs,
+  }
+}
+
+async function fetchServerMetricSeries(
+  startIso: string,
+  endIso: string,
+  step: string,
+  profile: "burst" | "replay",
+  lookbackSeconds: number
+): Promise<ServerMetricSample[]> {
+  const [qpsResponse, errorResponse, p99Response] = await Promise.all([
+    opsApi.getMetricsRange("rpc_request_rate", startIso, endIso, step, profile),
+    opsApi.getMetricsRange("rpc_error_rate", startIso, endIso, step, profile),
+    opsApi.getMetricsRange("rpc_p99_latency", startIso, endIso, step, profile),
+  ])
+
+  return buildServerSeries(
+    qpsResponse.result as PromQueryResult,
+    errorResponse.result as PromQueryResult,
+    p99Response.result as PromQueryResult,
+    lookbackSeconds
+  )
+}
+
+function latestServerSample(serverSamples: ServerMetricSample[]): ServerMetricSample | null {
+  return serverSamples.length > 0 ? serverSamples[serverSamples.length - 1] : null
+}
+
+function replayIsActive(replayState: ReplayState): boolean {
+  return replayState.open && replayState.active
 }
 
 interface UseRealtimeMonitorResult {
@@ -68,87 +144,110 @@ interface UseRealtimeMonitorResult {
   previous: RealtimeSample | null
   loading: boolean
   running: boolean
+  mode: "live" | "replay"
   timeWindow: TimeWindow
+  precisionActive: boolean
+  precisionReason: PrecisionReason
+  sampleInsufficient: boolean
   setTimeWindow: (value: TimeWindow) => void
   setRunning: (value: boolean) => void
   clearSamples: () => void
   refreshNow: () => Promise<void>
+  replayState: ReplayState
+  openReplay: (preset?: ReplayPreset | { startMs: number; endMs: number }) => void
+  closeReplay: () => void
+  setReplayStartInput: (value: string) => void
+  setReplayEndInput: (value: string) => void
+  applyReplayPreset: (preset: ReplayPreset) => void
+  runReplay: () => Promise<void>
 }
 
-// useRealtimeMonitor 负责轮询采样、持久化数据加载、窗口裁剪。
-// 用户只选一个时间窗口，系统自动决定数据来源：
-// - 短窗口（≤5min）：纯内存轮询
-// - 长窗口（≥1h）：从后端加载历史数据 + 继续实时追加
 export function useRealtimeMonitor(): UseRealtimeMonitorResult {
   const showApiError = useOpsApiError()
-  const [samples, setSamples] = useState<RealtimeSample[]>([])
+  const [overviewSamples, setOverviewSamples] = useState<RealtimeSample[]>([])
+  const [precisionServerSamples, setPrecisionServerSamples] = useState<ServerMetricSample[]>([])
   const [loading, setLoading] = useState(false)
   const [running, setRunning] = useState(true)
   const [timeWindow, setTimeWindowRaw] = useState<TimeWindow>("3m")
+  const [precisionState, setPrecisionState] = useState({
+    active: false,
+    reason: null as PrecisionReason,
+    lastSatisfiedAtMs: null as number | null,
+    sampleInsufficient: false,
+  })
+  const [replayState, setReplayState] = useState<ReplayState>(() => {
+    const inputs = defaultReplayInputs()
+    return {
+      open: false,
+      active: false,
+      loading: false,
+      error: null,
+      startInput: inputs.startInput,
+      endInput: inputs.endInput,
+      samples: [],
+      lookbackSeconds: null,
+      sampleInsufficient: false,
+    }
+  })
   const lastErrorToastAtRef = useRef(0)
   const hasLoadedRef = useRef(false)
-  // 用于防止历史数据加载后被覆盖
-  const historyLoadedRef = useRef(false)
 
   const windowDef = useMemo(() => findWindow(timeWindow), [timeWindow])
-
   const maxPoints = useMemo(
     () => Math.max(10, Math.floor((windowDef.seconds * 1000) / SAMPLE_INTERVAL_MS)),
     [windowDef.seconds]
   )
 
-  // ─── 实时轮询 ───
-  const appendSample = useCallback(
+  const appendOverviewSample = useCallback(
     (sample: RealtimeSample) => {
-      setSamples((prev) => [...prev, sample].slice(-maxPoints))
+      setOverviewSamples((previous) => [...previous, sample].slice(-maxPoints))
     },
     [maxPoints]
   )
 
-  const poll = useCallback(
+  const handleRealtimeError = useCallback((error: unknown, message: string, manual: boolean) => {
+    const now = Date.now()
+    const shouldToast =
+      manual || !hasLoadedRef.current || now - lastErrorToastAtRef.current >= ERROR_TOAST_COOLDOWN_MS
+    if (shouldToast) {
+      showApiError(error, message)
+      lastErrorToastAtRef.current = now
+    }
+  }, [showApiError])
+
+  const pollOverview = useCallback(
     async (manual: boolean) => {
       try {
-        if (manual) setLoading(true)
-        const REALTIME_METRIC_NAMES = [
-          "rpc_request_rate",
-          "rpc_error_rate",
-          "rpc_p99_latency",
-          "seckill_purchase_task_queue_depth",
-          "seckill_purchase_task_queue_cap",
-          "seckill_purchase_task_dropped_total",
-        ]
+        if (manual) {
+          setLoading(true)
+        }
         const [status, containers, metricsResult] = await Promise.all([
           opsApi.getStatus(),
           opsApi.getContainersStatus(),
-          opsApi.getMetricsSnapshot(REALTIME_METRIC_NAMES).catch(() => null),
+          opsApi.getMetricsSnapshot(REALTIME_METRIC_NAMES, "overview").catch(() => null),
         ])
-        appendSample(buildRealtimeSample(status, containers, metricsResult?.snapshot))
+        appendOverviewSample(buildRealtimeSample(status, containers, metricsResult?.snapshot))
         hasLoadedRef.current = true
       } catch (error) {
-        const now = Date.now()
-        const shouldToast =
-          manual || !hasLoadedRef.current || now - lastErrorToastAtRef.current >= ERROR_TOAST_COOLDOWN_MS
-        if (shouldToast) {
-          showApiError(error, "实时监测采样失败")
-          lastErrorToastAtRef.current = now
-        }
+        handleRealtimeError(error, "实时监测采样失败", manual)
       } finally {
-        if (manual) setLoading(false)
+        if (manual) {
+          setLoading(false)
+        }
       }
     },
-    [appendSample, showApiError]
+    [appendOverviewSample, handleRealtimeError]
   )
 
-  // ─── 历史数据加载 ───
   const loadHistoryData = useCallback(
-    async (win: TimeWindowOption) => {
-      if (!win.persistent || !win.apiRange) return
+    async (windowOption: TimeWindowOption) => {
+      if (!windowOption.persistent || !windowOption.apiRange) {
+        return
+      }
       setLoading(true)
       try {
-        const resp = await opsApi.getSamples(win.apiRange)
-        const converted = resp.samples.map(persistedToRealtime)
-        setSamples(converted)
-        historyLoadedRef.current = true
+        const response = await opsApi.getSamples(windowOption.apiRange)
+        setOverviewSamples(response.samples.map(persistedToRealtime))
       } catch (error) {
         showApiError(error, "加载历史数据失败")
       } finally {
@@ -158,62 +257,273 @@ export function useRealtimeMonitor(): UseRealtimeMonitorResult {
     [showApiError]
   )
 
-  // ─── 切换时间窗口 ───
+  const loadBurstPrecision = useCallback(async () => {
+    const endMs = Date.now()
+    const startMs = endMs - BURST_FETCH_WINDOW_MS
+    try {
+      const serverSeries = await fetchServerMetricSeries(
+        new Date(startMs).toISOString(),
+        new Date(endMs).toISOString(),
+        "2s",
+        "burst",
+        BURST_LOOKBACK_SECONDS
+      )
+      setPrecisionServerSamples(serverSeries)
+    } catch (error) {
+      handleRealtimeError(error, "高精度服务端指标拉取失败", false)
+    }
+  }, [handleRealtimeError])
+
+  const loadReplayRange = useCallback(async (startMs: number, endMs: number) => {
+    const rangeMs = endMs - startMs
+    const lookbackSeconds = resolveReplayLookbackSeconds(rangeMs)
+    const step = replayMetricStep(rangeMs)
+    if (lookbackSeconds == null || step == null) {
+      setReplayState((previous) => ({
+        ...previous,
+        open: true,
+        active: false,
+        loading: false,
+        error: "高精度回放仅支持 24 小时内的时间段，请改用趋势视图。",
+        samples: [],
+        lookbackSeconds: null,
+        sampleInsufficient: false,
+      }))
+      return
+    }
+
+    setReplayState((previous) => ({
+      ...previous,
+      open: true,
+      loading: true,
+      error: null,
+      startInput: toDatetimeLocalValue(startMs),
+      endInput: toDatetimeLocalValue(endMs),
+    }))
+
+    try {
+      const [infraResponse, serverSeries] = await Promise.all([
+        opsApi.getSamplesByTimeRange(startMs, endMs),
+        fetchServerMetricSeries(
+          new Date(startMs).toISOString(),
+          new Date(endMs).toISOString(),
+          step,
+          "replay",
+          lookbackSeconds
+        ),
+      ])
+      const infraSamples = infraResponse.samples.map(persistedToRealtime)
+      const mergedSamples = mergeServerMetricsIntoSamples(infraSamples, serverSeries)
+      const latestReplayServerSample = latestServerSample(serverSeries)
+      const sampleInsufficient = latestReplayServerSample
+        ? detectPrecisionReason(latestReplayServerSample, lookbackSeconds).sampleInsufficient
+        : false
+      setReplayState((previous) => ({
+        ...previous,
+        open: true,
+        active: true,
+        loading: false,
+        error: null,
+        samples: mergedSamples,
+        lookbackSeconds,
+        sampleInsufficient,
+      }))
+    } catch (error) {
+      setReplayState((previous) => ({
+        ...previous,
+        open: true,
+        active: false,
+        loading: false,
+        error: error instanceof Error ? error.message : "加载异常片段失败",
+        samples: [],
+        lookbackSeconds: null,
+        sampleInsufficient: false,
+      }))
+      showApiError(error, "加载异常片段失败")
+    }
+  }, [showApiError])
+
+  useEffect(() => {
+    if (!windowDef.persistent) {
+      void pollOverview(false)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!running) {
+      return
+    }
+    const timer = window.setInterval(() => {
+      void pollOverview(false)
+    }, SAMPLE_INTERVAL_MS)
+    return () => window.clearInterval(timer)
+  }, [pollOverview, running])
+
+  useEffect(() => {
+    setOverviewSamples((previous) => previous.slice(-maxPoints))
+  }, [maxPoints])
+
+  useEffect(() => {
+    const latestOverviewSample = overviewSamples.at(-1) ?? null
+    if (!latestOverviewSample || replayIsActive(replayState)) {
+      return
+    }
+    setPrecisionState((previous) =>
+      advancePrecisionMode(previous, latestOverviewSample, latestOverviewSample.timestamp, OVERVIEW_LOOKBACK_SECONDS)
+    )
+  }, [overviewSamples, replayState])
+
+  useEffect(() => {
+    if (!precisionState.active || replayIsActive(replayState)) {
+      setPrecisionServerSamples([])
+      return
+    }
+
+    void loadBurstPrecision()
+    const timer = window.setInterval(() => {
+      void loadBurstPrecision()
+    }, SAMPLE_INTERVAL_MS)
+    return () => window.clearInterval(timer)
+  }, [loadBurstPrecision, precisionState.active, replayState])
+
   const setTimeWindow = useCallback(
     (value: TimeWindow) => {
       setTimeWindowRaw(value)
-      const win = findWindow(value)
-      historyLoadedRef.current = false
-      if (win.persistent) {
-        // 长窗口：先加载历史，然后继续实时追加
-        setSamples([])
-        void loadHistoryData(win)
-      } else {
-        // 短窗口：清空，从头开始实时采集
-        setSamples([])
+      setPrecisionServerSamples([])
+      const nextWindow = findWindow(value)
+      if (nextWindow.persistent) {
+        setOverviewSamples([])
+        void loadHistoryData(nextWindow)
+        return
       }
+      setOverviewSamples([])
+      void pollOverview(false)
     },
-    [loadHistoryData]
+    [loadHistoryData, pollOverview]
   )
 
-  // 首次挂载 / 窗口变化 → 初始拉取一次
-  useEffect(() => {
-    if (!windowDef.persistent) {
-      void poll(false)
+  const openReplay = useCallback((preset?: ReplayPreset | { startMs: number; endMs: number }) => {
+    if (!preset) {
+      const inputs = defaultReplayInputs()
+      setReplayState((previous) => ({
+        ...previous,
+        open: true,
+        error: null,
+        startInput: inputs.startInput,
+        endInput: inputs.endInput,
+      }))
+      return
     }
-    // persistent 窗口由 setTimeWindow 触发 loadHistoryData
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 持续轮询（无论 persistent 与否都追加实时数据）
-  useEffect(() => {
-    if (!running) return
-    const timer = window.setInterval(() => {
-      void poll(false)
-    }, SAMPLE_INTERVAL_MS)
-    return () => window.clearInterval(timer)
-  }, [poll, running])
+    if (typeof preset === "string") {
+      const range = presetToRange(preset)
+      void loadReplayRange(range.startMs, range.endMs)
+      return
+    }
 
-  // 窗口裁剪
-  useEffect(() => {
-    setSamples((prev) => prev.slice(-maxPoints))
-  }, [maxPoints])
+    void loadReplayRange(preset.startMs, preset.endMs)
+  }, [loadReplayRange])
+
+  const closeReplay = useCallback(() => {
+    const inputs = defaultReplayInputs()
+    setReplayState((previous) => ({
+      ...previous,
+      open: false,
+      active: false,
+      loading: false,
+      error: null,
+      samples: [],
+      lookbackSeconds: null,
+      sampleInsufficient: false,
+      startInput: inputs.startInput,
+      endInput: inputs.endInput,
+    }))
+  }, [])
+
+  const applyReplayPreset = useCallback((preset: ReplayPreset) => {
+    const range = presetToRange(preset)
+    void loadReplayRange(range.startMs, range.endMs)
+  }, [loadReplayRange])
+
+  const runReplay = useCallback(async () => {
+    const startMs = fromDatetimeLocalValue(replayState.startInput)
+    const endMs = fromDatetimeLocalValue(replayState.endInput)
+    if (startMs == null || endMs == null || endMs <= startMs) {
+      setReplayState((previous) => ({
+        ...previous,
+        open: true,
+        active: false,
+        error: "请选择合法的回放时间段。",
+      }))
+      return
+    }
+    await loadReplayRange(startMs, endMs)
+  }, [loadReplayRange, replayState.endInput, replayState.startInput])
+
+  const liveSamples = useMemo(() => {
+    if (!precisionState.active || precisionServerSamples.length === 0) {
+      return overviewSamples
+    }
+    return mergeServerMetricsIntoSamples(overviewSamples, precisionServerSamples)
+  }, [overviewSamples, precisionServerSamples, precisionState.active])
+
+  const mode = replayState.active ? "replay" : "live"
+  const samples = replayState.active ? replayState.samples : liveSamples
+  const latest = samples.at(-1) ?? null
+  const previous = samples.length > 1 ? samples[samples.length - 2] : null
+  const liveSampleInsufficient = useMemo(() => {
+    if (precisionState.active) {
+      const latestPrecisionSample = latestServerSample(precisionServerSamples)
+      if (!latestPrecisionSample) {
+        return false
+      }
+      return detectPrecisionReason(latestPrecisionSample, BURST_LOOKBACK_SECONDS).sampleInsufficient
+    }
+    const latestOverviewSample = overviewSamples.at(-1) ?? null
+    if (!latestOverviewSample) {
+      return false
+    }
+    return detectPrecisionReason(latestOverviewSample, OVERVIEW_LOOKBACK_SECONDS).sampleInsufficient
+  }, [overviewSamples, precisionServerSamples, precisionState.active])
 
   return {
     samples,
-    latest: samples.at(-1) ?? null,
-    previous: samples.length > 1 ? samples[samples.length - 2] : null,
-    loading,
+    latest,
+    previous,
+    loading: loading || replayState.loading,
     running,
+    mode,
     timeWindow,
+    precisionActive: precisionState.active,
+    precisionReason: precisionState.reason,
+    sampleInsufficient: replayState.active ? replayState.sampleInsufficient : liveSampleInsufficient,
     setTimeWindow,
     setRunning,
-    clearSamples: () => setSamples([]),
+    clearSamples: () => {
+      setOverviewSamples([])
+      setPrecisionServerSamples([])
+    },
     refreshNow: async () => {
+      if (replayState.active) {
+        await runReplay()
+        return
+      }
       if (windowDef.persistent) {
         await loadHistoryData(windowDef)
-      } else {
-        await poll(true)
+        return
       }
+      await pollOverview(true)
     },
+    replayState,
+    openReplay,
+    closeReplay,
+    setReplayStartInput: (value: string) => {
+      setReplayState((previousState) => ({ ...previousState, startInput: value }))
+    },
+    setReplayEndInput: (value: string) => {
+      setReplayState((previousState) => ({ ...previousState, endInput: value }))
+    },
+    applyReplayPreset,
+    runReplay,
   }
 }

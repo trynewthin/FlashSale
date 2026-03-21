@@ -81,7 +81,7 @@ func (c *SampleCollector) collectOnce() {
 		"rpc_request_rate", "rpc_error_rate", "rpc_p99_latency",
 		"seckill_purchase_task_queue_depth", "seckill_purchase_task_queue_cap", "seckill_purchase_task_dropped_total",
 	}
-	snapshot := catalog.MetricsSnapshot(c.env, metricNames)
+	snapshot := catalog.MetricsSnapshot(c.env, metricNames, catalog.MetricProfileOverview)
 	sample.PromQps = extractPromScalar(snapshot, "rpc_request_rate")
 	sample.PromErrorRate = extractPromScalar(snapshot, "rpc_error_rate")
 	sample.PromP99LatencyMs = extractPromScalar(snapshot, "rpc_p99_latency")

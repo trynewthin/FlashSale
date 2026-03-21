@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -13,114 +14,302 @@ import (
 	"flashsale/ops/backend/model"
 )
 
-// ─── Metric Allowlist ───
+type MetricProfile string
 
-// MetricAllowlist 预定义的指标列表。
-var MetricAllowlist = []model.MetricDef{
+const (
+	MetricProfileOverview MetricProfile = "overview"
+	MetricProfileBurst    MetricProfile = "burst"
+	MetricProfileReplay   MetricProfile = "replay"
+)
+
+const replayRangeLimit = 24 * time.Hour
+
+type metricCatalogEntry struct {
+	Def             model.MetricDef
+	OverviewQuery   string
+	BurstQuery      string
+	ReplayQueryFunc func(start, end string) (string, error)
+}
+
+var metricCatalog = []metricCatalogEntry{
 	{
-		Name:   "rpc_request_rate",
-		Query:  `sum(rate(rpc_server_requests_duration_ms_count[5m]))`,
-		Unit:   "req/s",
-		Desc:   "RPC 整体请求速率",
-		Format: "scalar",
+		Def: model.MetricDef{
+			Name:   "rpc_request_rate",
+			Unit:   "req/s",
+			Desc:   "RPC request rate",
+			Format: "scalar",
+		},
+		OverviewQuery: `sum(rate(rpc_server_requests_duration_ms_count[5m]))`,
+		BurstQuery:    `sum(rate(rpc_server_requests_duration_ms_count[30s]))`,
+		ReplayQueryFunc: func(start, end string) (string, error) {
+			lookback, err := replayLookback(start, end)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf(`sum(rate(rpc_server_requests_duration_ms_count[%s]))`, lookback), nil
+		},
 	},
 	{
-		Name:   "rpc_request_rate_by_service",
-		Query:  `sum by (job) (rate(rpc_server_requests_duration_ms_count[5m]))`,
-		Unit:   "req/s",
-		Desc:   "按服务的 RPC 请求速率",
-		Format: "vector",
+		Def: model.MetricDef{
+			Name:   "rpc_request_rate_by_service",
+			Unit:   "req/s",
+			Desc:   "RPC request rate by service",
+			Format: "vector",
+		},
+		OverviewQuery: `sum by (job) (rate(rpc_server_requests_duration_ms_count[5m]))`,
+		BurstQuery:    `sum by (job) (rate(rpc_server_requests_duration_ms_count[30s]))`,
+		ReplayQueryFunc: func(start, end string) (string, error) {
+			lookback, err := replayLookback(start, end)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf(`sum by (job) (rate(rpc_server_requests_duration_ms_count[%s]))`, lookback), nil
+		},
 	},
 	{
-		Name:   "rpc_p99_latency",
-		Query:  `histogram_quantile(0.99, sum by (le) (rate(rpc_server_requests_duration_ms_bucket[5m])))`,
-		Unit:   "ms",
-		Desc:   "RPC P99 延迟",
-		Format: "scalar",
+		Def: model.MetricDef{
+			Name:   "rpc_p99_latency",
+			Unit:   "ms",
+			Desc:   "RPC p99 latency",
+			Format: "scalar",
+		},
+		OverviewQuery: `histogram_quantile(0.99, sum by (le) (rate(rpc_server_requests_duration_ms_bucket[5m])))`,
+		BurstQuery:    `histogram_quantile(0.99, sum by (le) (rate(rpc_server_requests_duration_ms_bucket[30s])))`,
+		ReplayQueryFunc: func(start, end string) (string, error) {
+			lookback, err := replayLookback(start, end)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf(`histogram_quantile(0.99, sum by (le) (rate(rpc_server_requests_duration_ms_bucket[%s])))`, lookback), nil
+		},
 	},
 	{
-		Name:   "rpc_p99_latency_by_service",
-		Query:  `histogram_quantile(0.99, sum by (job, le) (rate(rpc_server_requests_duration_ms_bucket[5m])))`,
-		Unit:   "ms",
-		Desc:   "按服务的 RPC P99 延迟",
-		Format: "vector",
+		Def: model.MetricDef{
+			Name:   "rpc_p99_latency_by_service",
+			Unit:   "ms",
+			Desc:   "RPC p99 latency by service",
+			Format: "vector",
+		},
+		OverviewQuery: `histogram_quantile(0.99, sum by (job, le) (rate(rpc_server_requests_duration_ms_bucket[5m])))`,
+		BurstQuery:    `histogram_quantile(0.99, sum by (job, le) (rate(rpc_server_requests_duration_ms_bucket[30s])))`,
+		ReplayQueryFunc: func(start, end string) (string, error) {
+			lookback, err := replayLookback(start, end)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf(`histogram_quantile(0.99, sum by (job, le) (rate(rpc_server_requests_duration_ms_bucket[%s])))`, lookback), nil
+		},
 	},
 	{
-		Name:   "rpc_error_rate",
-		Query:  `(sum(rate(rpc_server_requests_code_total{code=~"Internal|Unavailable|DeadlineExceeded|Unknown|DataLoss"}[5m])) or vector(0)) / clamp_min(sum(rate(rpc_server_requests_code_total[5m])), 1) * 100`,
-		Unit:   "%",
-		Desc:   "RPC 系统异常比例（排除业务拒绝）",
-		Format: "scalar",
+		Def: model.MetricDef{
+			Name:   "rpc_error_rate",
+			Unit:   "%",
+			Desc:   "RPC system error rate",
+			Format: "scalar",
+		},
+		OverviewQuery: `(sum(rate(rpc_server_requests_code_total{code=~"Internal|Unavailable|DeadlineExceeded|Unknown|DataLoss"}[5m])) or vector(0)) / clamp_min(sum(rate(rpc_server_requests_code_total[5m])), 1) * 100`,
+		BurstQuery:    `(sum(rate(rpc_server_requests_code_total{code=~"Internal|Unavailable|DeadlineExceeded|Unknown|DataLoss"}[30s])) or vector(0)) / clamp_min(sum(rate(rpc_server_requests_code_total[30s])), 1) * 100`,
+		ReplayQueryFunc: func(start, end string) (string, error) {
+			lookback, err := replayLookback(start, end)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf(`(sum(rate(rpc_server_requests_code_total{code=~"Internal|Unavailable|DeadlineExceeded|Unknown|DataLoss"}[%s])) or vector(0)) / clamp_min(sum(rate(rpc_server_requests_code_total[%s])), 1) * 100`, lookback, lookback), nil
+		},
 	},
 	{
-		Name:   "goroutines",
-		Query:  `sum(go_goroutines{job=~"flashsale-.+"})`,
-		Unit:   "",
-		Desc:   "Go 协程总数",
-		Format: "scalar",
+		Def: model.MetricDef{
+			Name:   "goroutines",
+			Unit:   "",
+			Desc:   "Total goroutines",
+			Format: "scalar",
+		},
+		OverviewQuery: `sum(go_goroutines{job=~"flashsale-.+"})`,
+		BurstQuery:    `sum(go_goroutines{job=~"flashsale-.+"})`,
+		ReplayQueryFunc: func(_ string, _ string) (string, error) {
+			return `sum(go_goroutines{job=~"flashsale-.+"})`, nil
+		},
 	},
 	{
-		Name:   "goroutines_by_service",
-		Query:  `sum by (job) (go_goroutines{job=~"flashsale-.+"})`,
-		Unit:   "",
-		Desc:   "按服务的 Go 协程数",
-		Format: "vector",
+		Def: model.MetricDef{
+			Name:   "goroutines_by_service",
+			Unit:   "",
+			Desc:   "Goroutines by service",
+			Format: "vector",
+		},
+		OverviewQuery: `sum by (job) (go_goroutines{job=~"flashsale-.+"})`,
+		BurstQuery:    `sum by (job) (go_goroutines{job=~"flashsale-.+"})`,
+		ReplayQueryFunc: func(_ string, _ string) (string, error) {
+			return `sum by (job) (go_goroutines{job=~"flashsale-.+"})`, nil
+		},
 	},
 	{
-		Name:   "heap_bytes",
-		Query:  `sum(go_memstats_heap_alloc_bytes{job=~"flashsale-.+"})`,
-		Unit:   "bytes",
-		Desc:   "Go 堆内存总量",
-		Format: "scalar",
+		Def: model.MetricDef{
+			Name:   "heap_bytes",
+			Unit:   "bytes",
+			Desc:   "Allocated heap bytes",
+			Format: "scalar",
+		},
+		OverviewQuery: `sum(go_memstats_heap_alloc_bytes{job=~"flashsale-.+"})`,
+		BurstQuery:    `sum(go_memstats_heap_alloc_bytes{job=~"flashsale-.+"})`,
+		ReplayQueryFunc: func(_ string, _ string) (string, error) {
+			return `sum(go_memstats_heap_alloc_bytes{job=~"flashsale-.+"})`, nil
+		},
 	},
 	{
-		Name:   "process_cpu_seconds_rate",
-		Query:  `sum(rate(process_cpu_seconds_total{job=~"flashsale-.+"}[1m]))`,
-		Unit:   "cores",
-		Desc:   "进程级 CPU 使用率",
-		Format: "scalar",
+		Def: model.MetricDef{
+			Name:   "process_cpu_seconds_rate",
+			Unit:   "cores",
+			Desc:   "Process CPU usage rate",
+			Format: "scalar",
+		},
+		OverviewQuery: `sum(rate(process_cpu_seconds_total{job=~"flashsale-.+"}[1m]))`,
+		BurstQuery:    `sum(rate(process_cpu_seconds_total{job=~"flashsale-.+"}[1m]))`,
+		ReplayQueryFunc: func(_ string, _ string) (string, error) {
+			return `sum(rate(process_cpu_seconds_total{job=~"flashsale-.+"}[1m]))`, nil
+		},
 	},
 	{
-		Name:   "http_request_rate",
-		Query:  `sum(rate(http_server_requests_duration_ms_count[1m]))`,
-		Unit:   "req/s",
-		Desc:   "HTTP 网关请求速率",
-		Format: "scalar",
+		Def: model.MetricDef{
+			Name:   "http_request_rate",
+			Unit:   "req/s",
+			Desc:   "HTTP gateway request rate",
+			Format: "scalar",
+		},
+		OverviewQuery: `sum(rate(http_server_requests_duration_ms_count[1m]))`,
+		BurstQuery:    `sum(rate(http_server_requests_duration_ms_count[1m]))`,
+		ReplayQueryFunc: func(_ string, _ string) (string, error) {
+			return `sum(rate(http_server_requests_duration_ms_count[1m]))`, nil
+		},
 	},
 	{
-		Name:   "seckill_purchase_task_queue_depth",
-		Query:  `seckill_purchase_task_queue_depth`,
-		Unit:   "",
-		Desc:   "秒杀异步购买任务队列当前深度",
-		Format: "scalar",
+		Def: model.MetricDef{
+			Name:   "seckill_purchase_task_queue_depth",
+			Unit:   "",
+			Desc:   "Seckill async purchase queue depth",
+			Format: "scalar",
+		},
+		OverviewQuery: `seckill_purchase_task_queue_depth`,
+		BurstQuery:    `seckill_purchase_task_queue_depth`,
+		ReplayQueryFunc: func(_ string, _ string) (string, error) {
+			return `seckill_purchase_task_queue_depth`, nil
+		},
 	},
 	{
-		Name:   "seckill_purchase_task_queue_cap",
-		Query:  `seckill_purchase_task_queue_cap`,
-		Unit:   "",
-		Desc:   "秒杀异步购买任务队列容量",
-		Format: "scalar",
+		Def: model.MetricDef{
+			Name:   "seckill_purchase_task_queue_cap",
+			Unit:   "",
+			Desc:   "Seckill async purchase queue capacity",
+			Format: "scalar",
+		},
+		OverviewQuery: `seckill_purchase_task_queue_cap`,
+		BurstQuery:    `seckill_purchase_task_queue_cap`,
+		ReplayQueryFunc: func(_ string, _ string) (string, error) {
+			return `seckill_purchase_task_queue_cap`, nil
+		},
 	},
 	{
-		Name:   "seckill_purchase_task_dropped_total",
-		Query:  `sum(increase(seckill_purchase_task_dropped_total[1m]))`,
-		Unit:   "",
-		Desc:   "秒杀异步购买任务丢弃数（过去 1 分钟）",
-		Format: "scalar",
+		Def: model.MetricDef{
+			Name:   "seckill_purchase_task_dropped_total",
+			Unit:   "",
+			Desc:   "Seckill async purchase dropped tasks in the last minute",
+			Format: "scalar",
+		},
+		OverviewQuery: `sum(increase(seckill_purchase_task_dropped_total[1m]))`,
+		BurstQuery:    `sum(increase(seckill_purchase_task_dropped_total[1m]))`,
+		ReplayQueryFunc: func(_ string, _ string) (string, error) {
+			return `sum(increase(seckill_purchase_task_dropped_total[1m]))`, nil
+		},
 	},
 }
 
-// FindMetricDef 按名称查找指标定义。
+func ParseMetricProfile(raw string, allowReplay bool) (MetricProfile, error) {
+	switch strings.TrimSpace(raw) {
+	case "", string(MetricProfileOverview):
+		return MetricProfileOverview, nil
+	case string(MetricProfileBurst):
+		return MetricProfileBurst, nil
+	case string(MetricProfileReplay):
+		if !allowReplay {
+			return "", fmt.Errorf("profile %q is not supported for this endpoint", raw)
+		}
+		return MetricProfileReplay, nil
+	default:
+		return "", fmt.Errorf("unknown profile: %s", raw)
+	}
+}
+
 func FindMetricDef(name string) *model.MetricDef {
-	for i := range MetricAllowlist {
-		if MetricAllowlist[i].Name == name {
-			return &MetricAllowlist[i]
+	for i := range metricCatalog {
+		if metricCatalog[i].Def.Name == name {
+			return &metricCatalog[i].Def
 		}
 	}
 	return nil
 }
 
-// ─── TTL 缓存 ───
+func resolveMetricQuery(name string, profile MetricProfile, start, end string) (string, error) {
+	for i := range metricCatalog {
+		entry := metricCatalog[i]
+		if entry.Def.Name != name {
+			continue
+		}
+		switch profile {
+		case MetricProfileOverview:
+			return entry.OverviewQuery, nil
+		case MetricProfileBurst:
+			return entry.BurstQuery, nil
+		case MetricProfileReplay:
+			return entry.ReplayQueryFunc(start, end)
+		default:
+			return "", fmt.Errorf("unsupported profile: %s", profile)
+		}
+	}
+	return "", fmt.Errorf("unknown metric: %s", name)
+}
+
+func replayLookback(start, end string) (string, error) {
+	startAt, err := parsePromTime(start)
+	if err != nil {
+		return "", fmt.Errorf("parse start time: %w", err)
+	}
+	endAt, err := parsePromTime(end)
+	if err != nil {
+		return "", fmt.Errorf("parse end time: %w", err)
+	}
+	if !endAt.After(startAt) {
+		return "", fmt.Errorf("end must be after start")
+	}
+	rangeDuration := endAt.Sub(startAt)
+	switch {
+	case rangeDuration <= 15*time.Minute:
+		return "30s", nil
+	case rangeDuration <= 2*time.Hour:
+		return "1m", nil
+	case rangeDuration <= replayRangeLimit:
+		return "5m", nil
+	default:
+		return "", fmt.Errorf("replay range exceeds %s", replayRangeLimit)
+	}
+}
+
+func parsePromTime(raw string) (time.Time, error) {
+	if ts, err := strconv.ParseFloat(raw, 64); err == nil {
+		sec, frac := mathModf(ts)
+		return time.Unix(sec, frac).UTC(), nil
+	}
+	parsed, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid time %q", raw)
+	}
+	return parsed.UTC(), nil
+}
+
+func mathModf(v float64) (int64, int64) {
+	sec := int64(v)
+	nsec := int64((v - float64(sec)) * float64(time.Second))
+	return sec, nsec
+}
 
 type cacheEntry struct {
 	data      json.RawMessage
@@ -133,7 +322,6 @@ var (
 	cacheTTL = 2 * time.Second
 )
 
-// GetCachedOrFetch 带 TTL 缓存的数据获取。
 func GetCachedOrFetch(key string, fetch func() (json.RawMessage, error)) (json.RawMessage, error) {
 	cacheMu.RLock()
 	if entry, ok := cacheMap[key]; ok && time.Since(entry.fetchedAt) < cacheTTL {
@@ -154,17 +342,13 @@ func GetCachedOrFetch(key string, fetch func() (json.RawMessage, error)) (json.R
 	return data, nil
 }
 
-// ─── Prometheus 查询 ───
-
 var promHTTPClient = &http.Client{Timeout: 5 * time.Second}
 
-// PromInstantQuery 执行 Prometheus instant query。
 func PromInstantQuery(baseURL, query string) (json.RawMessage, error) {
 	u := fmt.Sprintf("%s/api/v1/query?query=%s", baseURL, url.QueryEscape(query))
 	return doPromRequest(u)
 }
 
-// PromRangeQuery 执行 Prometheus range query。
 func PromRangeQuery(baseURL, query, start, end, step string) (json.RawMessage, error) {
 	u := fmt.Sprintf("%s/api/v1/query_range?query=%s&start=%s&end=%s&step=%s",
 		baseURL,
@@ -195,36 +379,39 @@ func doPromRequest(rawURL string) (json.RawMessage, error) {
 	return json.RawMessage(body), nil
 }
 
-// MetricsCatalogItems 返回指标目录列表（安全，不含 Query）。
 func MetricsCatalogItems() []map[string]string {
-	items := make([]map[string]string, 0, len(MetricAllowlist))
-	for _, m := range MetricAllowlist {
+	items := make([]map[string]string, 0, len(metricCatalog))
+	for _, metric := range metricCatalog {
 		items = append(items, map[string]string{
-			"name":   m.Name,
-			"unit":   m.Unit,
-			"desc":   m.Desc,
-			"format": m.Format,
+			"name":   metric.Def.Name,
+			"unit":   metric.Def.Unit,
+			"desc":   metric.Def.Desc,
+			"format": metric.Def.Format,
 		})
 	}
 	return items
 }
 
-// MetricsSnapshot 执行 instant query 快照。
-func MetricsSnapshot(env *EnvContext, names []string) map[string]any {
+func MetricsSnapshot(env *EnvContext, names []string, profile MetricProfile) map[string]any {
 	results := make(map[string]any, len(names))
 	promBase := env.PrometheusURL
 
 	for _, name := range names {
 		name = strings.TrimSpace(name)
-		def := FindMetricDef(name)
-		if def == nil {
+		if FindMetricDef(name) == nil {
 			results[name] = map[string]any{"error": "unknown metric"}
 			continue
 		}
 
-		cacheKey := "instant:" + name
+		query, err := resolveMetricQuery(name, profile, "", "")
+		if err != nil {
+			results[name] = map[string]any{"error": err.Error()}
+			continue
+		}
+
+		cacheKey := fmt.Sprintf("instant:%s:%s", profile, name)
 		data, err := GetCachedOrFetch(cacheKey, func() (json.RawMessage, error) {
-			return PromInstantQuery(promBase, def.Query)
+			return PromInstantQuery(promBase, query)
 		})
 		if err != nil {
 			results[name] = map[string]any{"error": err.Error()}
@@ -236,15 +423,18 @@ func MetricsSnapshot(env *EnvContext, names []string) map[string]any {
 	return results
 }
 
-// MetricsRange 执行 range query。
-func MetricsRange(env *EnvContext, name, start, end, step string) (json.RawMessage, error) {
-	def := FindMetricDef(name)
-	if def == nil {
+func MetricsRange(env *EnvContext, name, start, end, step string, profile MetricProfile) (json.RawMessage, error) {
+	if FindMetricDef(name) == nil {
 		return nil, fmt.Errorf("unknown metric: %s", name)
 	}
 
-	cacheKey := fmt.Sprintf("range:%s:%s:%s:%s", name, start, end, step)
+	query, err := resolveMetricQuery(name, profile, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	cacheKey := fmt.Sprintf("range:%s:%s:%s:%s:%s", profile, name, start, end, step)
 	return GetCachedOrFetch(cacheKey, func() (json.RawMessage, error) {
-		return PromRangeQuery(env.PrometheusURL, def.Query, start, end, step)
+		return PromRangeQuery(env.PrometheusURL, query, start, end, step)
 	})
 }

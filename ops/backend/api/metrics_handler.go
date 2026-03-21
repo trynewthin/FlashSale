@@ -23,8 +23,13 @@ func (h *MetricsHandler) GetSnapshot(w http.ResponseWriter, r *http.Request) {
 		WriteErr(w, http.StatusBadRequest, "missing 'names' query parameter")
 		return
 	}
+	profile, err := catalog.ParseMetricProfile(r.URL.Query().Get("profile"), false)
+	if err != nil {
+		WriteErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	names := strings.Split(namesStr, ",")
-	WriteOK(w, map[string]any{"snapshot": catalog.MetricsSnapshot(h.Env, names)})
+	WriteOK(w, map[string]any{"snapshot": catalog.MetricsSnapshot(h.Env, names, profile)})
 }
 
 func (h *MetricsHandler) GetRange(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +44,12 @@ func (h *MetricsHandler) GetRange(w http.ResponseWriter, r *http.Request) {
 	if step == "" {
 		step = "15s"
 	}
-	data, err := catalog.MetricsRange(h.Env, name, start, end, step)
+	profile, err := catalog.ParseMetricProfile(r.URL.Query().Get("profile"), true)
+	if err != nil {
+		WriteErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	data, err := catalog.MetricsRange(h.Env, name, start, end, step, profile)
 	if err != nil {
 		WriteErr(w, http.StatusBadGateway, fmt.Sprintf("prometheus query failed: %v", err))
 		return

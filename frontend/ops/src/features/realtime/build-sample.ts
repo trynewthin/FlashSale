@@ -1,4 +1,5 @@
 import type { ContainerRuntimeSnapshot, PromQueryResult, StatusSnapshot } from "@/api/types"
+import { OVERVIEW_LOOKBACK_SECONDS, normalizeServerMetrics } from "@/features/realtime/precision-metrics"
 import type { RealtimeSample } from "@/features/realtime/types"
 
 function safeRate(okCount: number, total: number): number {
@@ -62,5 +63,5 @@ export function buildRealtimeSample(
     sample.purchaseTaskDropped = extractScalar(metricsSnapshot.seckill_purchase_task_dropped_total)
   }
 
-  return sample
+  return normalizeServerMetrics(sample, OVERVIEW_LOOKBACK_SECONDS)
 }

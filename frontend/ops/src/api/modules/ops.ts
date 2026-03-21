@@ -12,6 +12,7 @@ import type {
   StatusSnapshot,
   TaskDef,
 } from "@/api/types"
+import type { MetricsProfile } from "@/features/realtime/precision-metrics"
 
 export interface CreateJobReq {
   task: string
@@ -105,9 +106,16 @@ export const opsApi = {
     return data.metrics
   },
 
-  async getMetricsSnapshot(names: string[]): Promise<MetricsSnapshotResponse> {
+  async getMetricsSnapshot(
+    names: string[],
+    profile: MetricsProfile = "overview"
+  ): Promise<MetricsSnapshotResponse> {
+    const params = new URLSearchParams({
+      names: names.join(","),
+      profile,
+    })
     const data = await requestJSON<MetricsSnapshotResponse>(
-      `api/v1/metrics/snapshot?names=${names.join(",")}`
+      `api/v1/metrics/snapshot?${params.toString()}`
     )
     return data
   },
@@ -116,9 +124,17 @@ export const opsApi = {
     name: string,
     start: string,
     end: string,
-    step = "15s"
+    step = "15s",
+    profile: MetricsProfile = "overview"
   ): Promise<{ name: string; unit: string; result: PromQueryResult }> {
-    return requestJSON(`api/v1/metrics/range?name=${name}&start=${start}&end=${end}&step=${step}`)
+    const params = new URLSearchParams({
+      name,
+      start,
+      end,
+      step,
+      profile,
+    })
+    return requestJSON(`api/v1/metrics/range?${params.toString()}`)
   },
 
   async actionContainer(containerID: string, action: "start" | "stop" | "restart"): Promise<void> {

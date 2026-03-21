@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 
-import { useMemo, useState, useCallback } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import { Button } from "@/components/ui/button"
@@ -21,8 +21,6 @@ import {
 } from "@/components/ui/select"
 import type { RealtimeSample } from "@/features/realtime/types"
 import { cn } from "@/lib/utils"
-
-// ─── 指标定义 ───
 
 type MetricAxis = "percent" | "count"
 type ChartMetricKey =
@@ -60,22 +58,22 @@ const METRICS: MetricDef[] = [
   { key: "promQps", label: "服务端 RPC QPS", color: "var(--chart-3)", axis: "count", unit: " req/s" },
   { key: "promP99LatencyMs", label: "服务端 RPC P99", color: "var(--chart-7)", axis: "count", unit: " ms" },
   { key: "promErrorRate", label: "服务端错误率", color: "var(--chart-5)", axis: "percent", unit: "%" },
-  { key: "purchaseTaskQueueDepth", label: "异步队列深度", color: "hsl(200, 80%, 50%)", axis: "count", unit: "" },
-  { key: "purchaseTaskQueueCap", label: "异步队列容量", color: "hsl(200, 60%, 70%)", axis: "count", unit: "" },
-  { key: "purchaseTaskDropped", label: "任务丢弃数", color: "hsl(0, 85%, 60%)", axis: "count", unit: "" },
+  { key: "purchaseTaskQueueDepth", label: "异步队列深度", color: "hsl(200 80% 50%)", axis: "count", unit: "" },
+  { key: "purchaseTaskQueueCap", label: "异步队列容量", color: "hsl(200 60% 70%)", axis: "count", unit: "" },
+  { key: "purchaseTaskDropped", label: "队列丢弃数", color: "hsl(0 85% 60%)", axis: "count", unit: "" },
 ]
 
 const GROUPS: MetricGroupDef[] = [
   {
     key: "server_metrics",
     label: "服务端指标",
-    description: "Prometheus 采集：RPC QPS / P99 延迟 / 错误率。",
+    description: "Prometheus 采集的 RPC QPS、P99 延迟和错误率。",
     metrics: ["promQps", "promP99LatencyMs", "promErrorRate"],
   },
   {
     key: "infra_health",
     label: "系统健康",
-    description: "关注端口与健康检查可用性。",
+    description: "端口、HTTP 和副本健康视图。",
     metrics: ["portRate", "httpRate", "replicaRate"],
   },
   {
@@ -87,30 +85,25 @@ const GROUPS: MetricGroupDef[] = [
   {
     key: "all",
     label: "全部",
-    description: "展示所有维度，用于综合研判。",
-    metrics: METRICS.map((m) => m.key),
+    description: "展示全部实时监控维度。",
+    metrics: METRICS.map((metric) => metric.key),
   },
 ]
 
 const DEFAULT_GROUP_KEY: MetricGroupKey = "server_metrics"
 
 function metricByKey(key: ChartMetricKey): MetricDef {
-  return METRICS.find((m) => m.key === key) ?? METRICS[0]
+  return METRICS.find((metric) => metric.key === key) ?? METRICS[0]
 }
 
 function groupByKey(key: MetricGroupKey): MetricGroupDef {
-  return GROUPS.find((g) => g.key === key) ?? GROUPS[0]
+  return GROUPS.find((group) => group.key === key) ?? GROUPS[0]
 }
 
 function readMetricValue(sample: RealtimeSample, key: ChartMetricKey): number {
   const raw = sample[key as keyof RealtimeSample]
-  if (typeof raw === "number" && Number.isFinite(raw)) {
-    return raw
-  }
-  return 0
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : 0
 }
-
-// ─── 自定义 Hook：统一管理指标分组与可见性 ───
 
 export function useChartMetrics() {
   const [activeGroup, setActiveGroup] = useState<MetricGroupKey>(DEFAULT_GROUP_KEY)
@@ -128,23 +121,18 @@ export function useChartMetrics() {
   }, [])
 
   const toggleMetric = useCallback((metricKey: ChartMetricKey) => {
-    setVisibleKeys((prev) => {
-      if (prev.includes(metricKey)) {
-        if (prev.length <= 1) return prev
-        return prev.filter((k) => k !== metricKey)
+    setVisibleKeys((previous) => {
+      if (previous.includes(metricKey)) {
+        return previous.length <= 1 ? previous : previous.filter((key) => key !== metricKey)
       }
-      const nextSet = new Set(prev)
-      nextSet.add(metricKey)
-      // 保持在当前分组中的顺序
-      const currentGroupMetrics = groupByKey(activeGroup).metrics
-      return currentGroupMetrics.filter((k) => nextSet.has(k))
+      const next = new Set(previous)
+      next.add(metricKey)
+      return groupByKey(activeGroup).metrics.filter((key) => next.has(key))
     })
   }, [activeGroup])
 
   return { activeGroup, activeGroupDef, groupMetrics, visibleKeys, handleGroupChange, toggleMetric }
 }
-
-// ─── 筛选控制面板（独立组件，用于页面下方） ───
 
 interface MetricFilterPanelProps {
   activeGroup: MetricGroupKey
@@ -163,7 +151,6 @@ export function MetricFilterPanel({
 }: MetricFilterPanelProps) {
   return (
     <div className="flex h-full flex-col gap-3">
-      {/* 上方：可滚动的指标泳道 */}
       <div className="max-h-[88px] overflow-y-auto">
         <div className="flex flex-wrap items-center gap-1.5">
           {groupMetrics.map((metric) => {
@@ -183,15 +170,15 @@ export function MetricFilterPanel({
           })}
         </div>
       </div>
-      {/* 下方：指标分组选择 */}
-      <Select value={activeGroup} onValueChange={(v) => onGroupChange(v as MetricGroupKey)}>
+
+      <Select value={activeGroup} onValueChange={(value) => onGroupChange(value as MetricGroupKey)}>
         <SelectTrigger className="h-8 w-full text-xs">
           <SelectValue placeholder="选择分组" />
         </SelectTrigger>
         <SelectContent className="rounded-xl">
-          {GROUPS.map((g) => (
-            <SelectItem key={g.key} value={g.key} className="rounded-lg text-xs">
-              {g.label}
+          {GROUPS.map((group) => (
+            <SelectItem key={group.key} value={group.key} className="rounded-lg text-xs">
+              {group.label}
             </SelectItem>
           ))}
         </SelectContent>
@@ -200,35 +187,33 @@ export function MetricFilterPanel({
   )
 }
 
-// ─── 纯粹的图表组件（无 Card 包裹） ───
-
 interface RealtimeUnifiedChartProps {
   samples: RealtimeSample[]
   visibleKeys: ChartMetricKey[]
+  mode?: "live" | "replay"
   className?: string
 }
 
-// RealtimeUnifiedChart — 纯 AreaChart，由父级控制布局。
-export function RealtimeUnifiedChart({ samples, visibleKeys, className }: RealtimeUnifiedChartProps) {
+export function RealtimeUnifiedChart({ samples, visibleKeys, mode = "live", className }: RealtimeUnifiedChartProps) {
   const visibleMetrics = useMemo(() => {
     const defs = visibleKeys.map((key) => metricByKey(key))
     return defs.length > 0 ? defs : [METRICS[0]]
   }, [visibleKeys])
 
-  const hasPercentMetric = visibleMetrics.some((m) => m.axis === "percent")
-  const hasCountMetric = visibleMetrics.some((m) => m.axis === "count")
-
+  const hasPercentMetric = visibleMetrics.some((metric) => metric.axis === "percent")
+  const hasCountMetric = visibleMetrics.some((metric) => metric.axis === "count")
   const countMetricKeys = useMemo(
-    () => visibleMetrics.filter((m) => m.axis === "count").map((m) => m.key),
+    () => visibleMetrics.filter((metric) => metric.axis === "count").map((metric) => metric.key),
     [visibleMetrics]
   )
 
   const maxCountY = useMemo(() => {
-    if (countMetricKeys.length === 0) return 1
+    if (countMetricKeys.length === 0) {
+      return 1
+    }
     const values = samples.flatMap((sample) => countMetricKeys.map((key) => readMetricValue(sample, key)))
-    const maxValue = Math.max(1, ...values)
-    return Math.ceil(maxValue * 1.2)
-  }, [samples, countMetricKeys])
+    return Math.ceil(Math.max(1, ...values) * 1.2)
+  }, [countMetricKeys, samples])
 
   const chartConfig: ChartConfig = useMemo(() => {
     const config: ChartConfig = {}
@@ -239,7 +224,7 @@ export function RealtimeUnifiedChart({ samples, visibleKeys, className }: Realti
   }, [visibleMetrics])
 
   return (
-    <ChartContainer config={chartConfig} className={cn("min-h-[200px] w-full", className)}>
+    <ChartContainer config={chartConfig} className={cn("min-h-[200px] w-full", className)} data-mode={mode}>
       <AreaChart data={samples}>
         <defs>
           {visibleMetrics.map((metric) => (
@@ -260,7 +245,7 @@ export function RealtimeUnifiedChart({ samples, visibleKeys, className }: Realti
             tickLine={false}
             axisLine={false}
             width={40}
-            tickFormatter={(v) => `${v}%`}
+            tickFormatter={(value) => `${value}%`}
           />
         ) : null}
 
@@ -282,12 +267,23 @@ export function RealtimeUnifiedChart({ samples, visibleKeys, className }: Realti
               labelFormatter={(value) => String(value)}
               indicator="dot"
               formatter={(value, _name, item) => {
-                const metric = METRICS.find((m) => m.key === item.dataKey)
-                if (!metric) return null
+                const metric = METRICS.find((candidate) => candidate.key === item.dataKey)
+                if (!metric) {
+                  return null
+                }
                 const formatted = (() => {
-                  if (typeof value !== "number" || Number.isNaN(value)) return String(value ?? "-")
-                  if (metric.unit.trim() === "%") return `${value.toFixed(2)}%`
-                  if (metric.unit.trim().length > 0) return `${value.toFixed(2)}${metric.unit}`
+                  if (metric.key === "promP99LatencyMs" && value == null) {
+                    return "样本不足"
+                  }
+                  if (typeof value !== "number" || Number.isNaN(value)) {
+                    return String(value ?? "-")
+                  }
+                  if (metric.unit.trim() === "%") {
+                    return `${value.toFixed(2)}%`
+                  }
+                  if (metric.unit.trim().length > 0) {
+                    return `${value.toFixed(2)}${metric.unit}`
+                  }
                   return value.toFixed(0)
                 })()
                 return (

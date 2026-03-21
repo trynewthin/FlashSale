@@ -18,7 +18,7 @@ build_all_images_sequence_no_hint() {
     compose_cmd --progress=plain build media-store
 
     echo '[全部] 构建 Ops 镜像'
-    compose_cmd --progress=plain build ops-control
+    compose_cmd --progress=plain build --no-cache ops-control
 }
 
 build_all_images_sequence() {
@@ -156,7 +156,7 @@ stop_proxy_sequence() {
 
 build_ops_sequence_no_hint() {
     echo '[Ops] 构建 ops-control 镜像'
-    compose_cmd --progress=plain build ops-control
+    compose_cmd --progress=plain build --no-cache ops-control
 }
 
 build_ops_sequence() {

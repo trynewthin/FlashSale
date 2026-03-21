@@ -143,15 +143,3 @@ type TrafficEvent struct {
 	IdempotencyKey string
 	OccurredAt     time.Time
 }
-
-// PurchaseTask 表示异步建单任务（Redis 预扣成功后入队）。
-type PurchaseTask struct {
-	ActivityID     int64
-	ActivityItemID int64
-	UserID         int64
-	Quantity       int64
-	IdempotencyKey string
-	AccessToken    string
-	Item           *ActivityItem
-	EnqueuedAt     time.Time
-}

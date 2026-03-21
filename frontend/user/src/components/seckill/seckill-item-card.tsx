@@ -52,7 +52,13 @@ export function SeckillItemCard({
     purchaseMutation.mutate(
       { activity_item_id: item.item_id, quantity: 1 },
       {
-        onSuccess: (data) => navigate(`/orders/${data.order_id}`),
+        onSuccess: (data) => {
+          if (String(data.order_id) !== "0") {
+            navigate(`/orders/${data.order_id}`)
+            return
+          }
+          navigate(`/orders?order_no=${encodeURIComponent(data.order_no)}&pending=1`)
+        },
         onError: (err) => toast.error(toUserMessage(err))
       }
     )

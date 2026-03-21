@@ -38,6 +38,8 @@ kafka:
     orderCreate: order.create
     orderCreateDLQ: order.create.dlq
     stockCompensate: stock.compensate
+    seckillPurchaseCreate: seckill.purchase.create
+    seckillPurchaseCreateDLQ: seckill.purchase.create.dlq
     seckillTrafficRaw: seckill.traffic.raw
     seckillTrafficDLQ: seckill.traffic.dlq
     seckillOrderState: seckill.order.state

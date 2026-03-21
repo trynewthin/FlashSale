@@ -16,11 +16,12 @@ import (
 )
 
 type seckillRepoMock struct {
-	item       *model.ActivityItem
-	synced     []*model.OrderStateSync
-	released   []string
-	traffic    []*model.TrafficEvent
-	trafficErr error
+	item        *model.ActivityItem
+	findItemErr error
+	synced      []*model.OrderStateSync
+	released    []string
+	traffic     []*model.TrafficEvent
+	trafficErr  error
 }
 
 func (m *seckillRepoMock) CreateActivity(context.Context, *model.Activity) error {
@@ -56,6 +57,9 @@ func (m *seckillRepoMock) ListActivityItems(context.Context, int64, bool) ([]*mo
 }
 
 func (m *seckillRepoMock) FindActivityItem(context.Context, int64, int64) (*model.ActivityItem, error) {
+	if m.findItemErr != nil {
+		return nil, m.findItemErr
+	}
 	if m.item == nil {
 		return nil, repository.ErrActivityItemNotFound
 	}

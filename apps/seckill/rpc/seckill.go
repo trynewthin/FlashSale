@@ -43,6 +43,10 @@ func main() {
 		time.Sleep(500 * time.Millisecond)
 		logic.RunOrderStateConsumer(bgCtx, ctx)
 	}()
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		logic.RunStockCompensateConsumer(bgCtx, ctx)
+	}()
 
 	s := zrpc.MustNewServer(c.RpcServerConf, func(grpcServer *grpc.Server) {
 		pb.RegisterSeckillRpcServer(grpcServer, server.NewSeckillRpcServer(ctx))

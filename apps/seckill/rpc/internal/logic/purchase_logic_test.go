@@ -3,6 +3,7 @@ package logic
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -12,8 +13,13 @@ import (
 	"flashsale/apps/seckill/rpc/internal/repository"
 	"flashsale/apps/seckill/rpc/internal/svc"
 	"flashsale/apps/seckill/rpc/pb"
+	baseconfig "flashsale/pkg/base/config"
 	"flashsale/pkg/base/errorx"
+	"flashsale/pkg/base/eventx"
+	"flashsale/pkg/base/kafkax"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/bwmarrin/snowflake"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -62,6 +68,52 @@ type orderRPCMock struct {
 
 func (m *orderRPCMock) CreateOrder(context.Context, *orderpb.CreateOrderReq, ...grpc.CallOption) (*orderpb.CreateOrderResp, error) {
 	return nil, errors.New("not implemented")
+}
+
+type producerMock struct {
+	publishFn    func(context.Context, string, []byte, []byte, map[string]string) error
+	publishCalls int
+	lastTopic    string
+	lastKey      []byte
+	lastValue    []byte
+	lastHeaders  map[string]string
+	published    []publishedMessage
+}
+
+type publishedMessage struct {
+	topic   string
+	key     []byte
+	value   []byte
+	headers map[string]string
+}
+
+func (m *producerMock) Publish(ctx context.Context, topic string, key, value []byte, headers map[string]string) error {
+	m.publishCalls++
+	m.lastTopic = topic
+	m.lastKey = append([]byte(nil), key...)
+	m.lastValue = append([]byte(nil), value...)
+	if headers != nil {
+		m.lastHeaders = make(map[string]string, len(headers))
+		for k, v := range headers {
+			m.lastHeaders[k] = v
+		}
+	}
+	msg := publishedMessage{
+		topic: topic,
+		key:   append([]byte(nil), key...),
+		value: append([]byte(nil), value...),
+	}
+	if headers != nil {
+		msg.headers = make(map[string]string, len(headers))
+		for k, v := range headers {
+			msg.headers[k] = v
+		}
+	}
+	m.published = append(m.published, msg)
+	if m.publishFn != nil {
+		return m.publishFn(ctx, topic, key, value, headers)
+	}
+	return nil
 }
 
 func (m *orderRPCMock) CreateOrderFromSeckill(ctx context.Context, in *orderpb.CreateOrderFromSeckillReq, _ ...grpc.CallOption) (*orderpb.CreateOrderFromSeckillResp, error) {
@@ -423,6 +475,191 @@ func TestPurchase_OrderCreateConflictCompensates(t *testing.T) {
 	}
 	if repoMock.createOrderLinkCalls != 0 {
 		t.Fatalf("order busy should not create order link, got=%d", repoMock.createOrderLinkCalls)
+	}
+}
+
+func TestPurchase_CacheReservePublishesKafkaPending(t *testing.T) {
+	mr := miniredis.RunT(t)
+	redisCli := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer redisCli.Close()
+
+	item := &model.ActivityItem{
+		ID:                31,
+		ActivityID:        401,
+		ProductID:         9201,
+		SKUCode:           "SPU9201",
+		SnapshotName:      "test-product-kafka",
+		SnapshotMainImage: "https://img.test/kafka.png",
+		SeckillPriceCent:  1290,
+		AvailableStock:    5,
+		MaxQtyPerOrder:    2,
+		UserLimitQty:      5,
+		Status:            model.ItemStatusEnabled,
+	}
+	repoMock := &purchaseRepoMock{
+		seckillRepoMock: &seckillRepoMock{item: item},
+	}
+	producer := &producerMock{}
+	appCfg := &baseconfig.AppConfig{}
+	appCfg.Kafka.Topics.SeckillPurchaseCreate = "seckill.purchase.create"
+	logic := NewSeckillLogic(context.Background(), &svc.ServiceContext{
+		SeckillRepo: repoMock,
+		Producer:    producer,
+		Redis:       redisCli,
+		AppConfig:   appCfg,
+	})
+
+	resp, err := logic.Purchase(&pb.PurchaseReq{
+		UserId:         9101,
+		ActivityId:     item.ActivityID,
+		ActivityItemId: item.ID,
+		Quantity:       1,
+		IdempotencyKey: "idem-kafka-success",
+	})
+	if err != nil {
+		t.Fatalf("purchase should succeed via kafka async path, got err=%v", err)
+	}
+	wantOrderNo := eventx.BuildSeckillOrderNo(9101, item.ActivityID, item.ID, "idem-kafka-success")
+	if resp == nil || resp.OrderId != 0 || resp.OrderNo != wantOrderNo {
+		t.Fatalf("purchase response mismatch: %+v wantOrderNo=%s", resp, wantOrderNo)
+	}
+	if repoMock.reserveCalls != 0 {
+		t.Fatalf("cache reserve path should not hit db reserve, got=%d", repoMock.reserveCalls)
+	}
+	if len(producer.published) != 1 {
+		t.Fatalf("expected only one kafka publish, got=%d", len(producer.published))
+	}
+	msg := producer.published[0]
+	if msg.topic != "seckill.purchase.create" {
+		t.Fatalf("publish topic mismatch: got=%s", msg.topic)
+	}
+	if string(msg.key) != wantOrderNo {
+		t.Fatalf("publish key mismatch: got=%s want=%s", string(msg.key), wantOrderNo)
+	}
+	if got := msg.headers[kafkax.IdempotencyHeader]; got != "idem-kafka-success" {
+		t.Fatalf("publish header mismatch: got=%s", got)
+	}
+	var evt eventx.SeckillPurchaseCreateEvent
+	if err := json.Unmarshal(msg.value, &evt); err != nil {
+		t.Fatalf("unmarshal published event failed: %v", err)
+	}
+	if evt.OrderNo != wantOrderNo || evt.ActivityItemID != item.ID || evt.ProductID != item.ProductID || evt.Quantity != 1 {
+		t.Fatalf("published event mismatch: %+v", evt)
+	}
+	stock, err := redisCli.Get(context.Background(), cacheKeyItemStock(item.ID)).Int64()
+	if err != nil {
+		t.Fatalf("read cached stock failed: %v", err)
+	}
+	if stock != 4 {
+		t.Fatalf("cached stock mismatch: got=%d want=4", stock)
+	}
+	bought, err := redisCli.Get(context.Background(), cacheKeyActivityUserBought(item.ActivityID, 9101)).Int64()
+	if err != nil {
+		t.Fatalf("read user bought failed: %v", err)
+	}
+	if bought != 1 {
+		t.Fatalf("user bought mismatch: got=%d want=1", bought)
+	}
+}
+
+func TestPurchase_CacheReservePublishFailFallsBackToSync(t *testing.T) {
+	mr := miniredis.RunT(t)
+	redisCli := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer redisCli.Close()
+
+	item := &model.ActivityItem{
+		ID:                32,
+		ActivityID:        402,
+		ProductID:         9202,
+		SKUCode:           "SPU9202",
+		SnapshotName:      "test-product-kafka-fail",
+		SnapshotMainImage: "https://img.test/kafka-fail.png",
+		SeckillPriceCent:  1390,
+		AvailableStock:    3,
+		MaxQtyPerOrder:    2,
+		UserLimitQty:      5,
+		Status:            model.ItemStatusEnabled,
+	}
+	repoMock := &purchaseRepoMock{
+		seckillRepoMock: &seckillRepoMock{item: item},
+		reservation: &model.PurchaseReservation{
+			ActivityID:        item.ActivityID,
+			ActivityItemID:    item.ID,
+			ProductID:         item.ProductID,
+			Quantity:          1,
+			RemainStock:       2,
+			SeckillPriceCent:  item.SeckillPriceCent,
+			SKUCode:           item.SKUCode,
+			SnapshotName:      item.SnapshotName,
+			SnapshotMainImage: item.SnapshotMainImage,
+		},
+	}
+	producer := &producerMock{
+		publishFn: func(_ context.Context, topic string, _ []byte, _ []byte, _ map[string]string) error {
+			if topic == "seckill.purchase.create" {
+				return errors.New("publish failed")
+			}
+			return nil
+		},
+	}
+	orderMock := &orderRPCMock{
+		createFromSeckillFn: func(_ context.Context, _ *orderpb.CreateOrderFromSeckillReq) (*orderpb.CreateOrderFromSeckillResp, error) {
+			return &orderpb.CreateOrderFromSeckillResp{
+				Order: &orderpb.OrderView{
+					OrderId:       81001,
+					OrderNo:       "SCKORDER81001",
+					OrderStatus:   10,
+					PaymentStatus: 0,
+				},
+			}, nil
+		},
+	}
+	appCfg := &baseconfig.AppConfig{}
+	appCfg.Kafka.Topics.SeckillPurchaseCreate = "seckill.purchase.create"
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-access-token", "token-kafka-fallback"))
+	logic := NewSeckillLogic(ctx, &svc.ServiceContext{
+		SeckillRepo: repoMock,
+		OrderRPCCli: orderMock,
+		Producer:    producer,
+		Redis:       redisCli,
+		AppConfig:   appCfg,
+	})
+
+	resp, err := logic.Purchase(&pb.PurchaseReq{
+		UserId:         9102,
+		ActivityId:     item.ActivityID,
+		ActivityItemId: item.ID,
+		Quantity:       1,
+		IdempotencyKey: "idem-kafka-fail",
+	})
+	if err != nil {
+		t.Fatalf("publish failure should fall back to sync purchase, got err=%v", err)
+	}
+	if resp == nil || resp.OrderId != 81001 || resp.OrderNo != "SCKORDER81001" {
+		t.Fatalf("fallback purchase response mismatch: %+v", resp)
+	}
+	if repoMock.reserveCalls != 1 {
+		t.Fatalf("publish fail should fall back to db reserve once, got=%d", repoMock.reserveCalls)
+	}
+	if orderMock.createFromSeckillCalls != 1 {
+		t.Fatalf("publish fail should still create order once, got=%d", orderMock.createFromSeckillCalls)
+	}
+	stock, err := redisCli.Get(context.Background(), cacheKeyItemStock(item.ID)).Int64()
+	if err != nil {
+		t.Fatalf("read cached stock failed: %v", err)
+	}
+	if stock != 2 {
+		t.Fatalf("cached stock mismatch after sync fallback: got=%d want=2", stock)
+	}
+	bought, err := redisCli.Get(context.Background(), cacheKeyActivityUserBought(item.ActivityID, 9102)).Int64()
+	if err != nil {
+		t.Fatalf("read user bought failed: %v", err)
+	}
+	if bought != 1 {
+		t.Fatalf("user bought mismatch after sync fallback: got=%d want=1", bought)
+	}
+	if reqKey := cacheKeyRequest(item.ActivityID, item.ID, 9102, "idem-kafka-fail"); !mr.Exists(reqKey) {
+		t.Fatalf("request key should remain for idempotent recovery: %s", reqKey)
 	}
 }
 

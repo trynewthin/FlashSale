@@ -44,6 +44,7 @@ type ServiceContext struct {
 	OrderRepo                       repository.OrderRepository
 	ProductRPCCli                   productrpc.ProductRpc
 	Producer                        kafkax.Producer
+	Consumer                        kafkax.Consumer
 	IDNode                          *snowflake.Node
 	SeckillCreateLimiter            chan struct{}
 	SeckillCreateAcquireTimeoutDur  time.Duration
@@ -76,6 +77,7 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 		db            *sql.DB
 		productCli    zrpc.Client
 		producer      kafkax.Producer
+		consumer      kafkax.Consumer
 	)
 	defer func() {
 		if err == nil {
@@ -96,6 +98,7 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 			_ = closer.Close()
 		}
 		_ = productCli
+		_ = consumer
 	}()
 
 	appCfg, err := baseconfig.Load(c.BaseConfigPath)
@@ -158,6 +161,10 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("init kafka producer: %w", err)
 	}
+	consumer, err = kafkax.NewConsumer(appCfg.Kafka)
+	if err != nil {
+		return nil, fmt.Errorf("init kafka consumer: %w", err)
+	}
 
 	nodeID := c.SnowflakeNode
 	if nodeID <= 0 {
@@ -192,6 +199,7 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 		OrderRepo:                       repository.NewMySQLOrderRepository(db),
 		ProductRPCCli:                   productrpc.NewProductRpc(productCli),
 		Producer:                        producer,
+		Consumer:                        consumer,
 		IDNode:                          node,
 		SeckillCreateLimiter:            seckillCreateLimiter,
 		SeckillCreateAcquireTimeoutDur:  time.Duration(maxInt(c.SeckillCreateAcquireTimeoutMs, 0)) * time.Millisecond,

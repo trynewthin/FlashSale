@@ -98,6 +98,11 @@ services:
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic order.create --partitions 3 --replication-factor 1
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic order.create.dlq --partitions 3 --replication-factor 1
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic stock.compensate --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.purchase.create --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.purchase.create.dlq --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.traffic.raw --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.traffic.dlq --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic seckill.order.state --partitions 3 --replication-factor 1
 
   jaeger:
     image: jaegertracing/all-in-one:1.57

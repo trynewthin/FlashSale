@@ -12,6 +12,7 @@ import (
 	"flashsale/apps/seckill/rpc/internal/repository"
 	"flashsale/apps/seckill/rpc/pb"
 	"flashsale/pkg/base/errorx"
+	"flashsale/pkg/base/eventx"
 	"flashsale/pkg/base/grpcerr"
 	"flashsale/pkg/base/rpcmeta"
 
@@ -86,21 +87,24 @@ func (l *SeckillLogic) Purchase(in *pb.PurchaseReq) (*pb.PurchaseResp, error) {
 		return nil, err
 	}
 
-	// ─── 异步购买快路径 ───
-	// Redis 预扣成功后直接入队，跳过 MySQL 行锁事务，P95 从 ~1200ms 降到 ~30ms。
-	if cacheReserved && l.svcCtx != nil && l.svcCtx.AsyncPurchase {
-		token, _ := rpcmeta.AccessTokenFromIncomingContext(l.ctx)
-		task := &model.PurchaseTask{
-			ActivityID:     in.ActivityId,
-			ActivityItemID: in.ActivityItemId,
-			UserID:         in.UserId,
-			Quantity:       in.Quantity,
-			IdempotencyKey: idempotencyKey,
-			AccessToken:    token,
-			Item:           item,
-			EnqueuedAt:     now,
-		}
-		if l.svcCtx.EnqueuePurchaseTask(task) {
+	// ─── Kafka 异步建单快路径 ───
+	if cacheReserved && l.svcCtx != nil {
+		orderNo := eventx.BuildSeckillOrderNo(in.UserId, in.ActivityId, in.ActivityItemId, idempotencyKey)
+		publishErr := l.svcCtx.PublishSeckillPurchaseCreateEvent(&eventx.SeckillPurchaseCreateEvent{
+			OrderNo:           orderNo,
+			UserID:            in.UserId,
+			ActivityID:        in.ActivityId,
+			ActivityItemID:    in.ActivityItemId,
+			ProductID:         item.ProductID,
+			Quantity:          in.Quantity,
+			SeckillPriceCent:  item.SeckillPriceCent,
+			SnapshotName:      item.SnapshotName,
+			SnapshotMainImage: item.SnapshotMainImage,
+			SKUCode:           item.SKUCode,
+			IdempotencyKey:    idempotencyKey,
+			OccurredAtUnix:    now.Unix(),
+		})
+		if publishErr == nil {
 			_ = l.svcCtx.EnqueueTrafficEvent(&model.TrafficEvent{
 				ActivityID:     in.ActivityId,
 				ActivityItemID: in.ActivityItemId,
@@ -109,15 +113,16 @@ func (l *SeckillLogic) Purchase(in *pb.PurchaseReq) (*pb.PurchaseResp, error) {
 				IdempotencyKey: idempotencyKey + ":async_enqueued",
 				OccurredAt:     time.Now(),
 			})
-			// 返回 pending 响应：OrderId=0 表示"订单生成中"
 			return &pb.PurchaseResp{
 				ActivityId:     in.ActivityId,
 				ActivityItemId: in.ActivityItemId,
 				OrderId:        0,
-				OrderNo:        "",
+				OrderNo:        orderNo,
 			}, nil
 		}
-		// 队列满：回退同步链路（下面继续执行原有逻辑）
+		// Kafka 短暂不可用时回退同步建单，避免把消息总线抖动直接暴露给用户。
+		l.Logger.Errorf("publish purchase create event failed, fallback to sync create: activity_id=%d item_id=%d user_id=%d quantity=%d idempotency_key=%s err=%v",
+			in.ActivityId, in.ActivityItemId, in.UserId, in.Quantity, idempotencyKey, publishErr)
 	}
 
 	reservation, err := l.reservePurchaseWithRetry(in.ActivityId, in.ActivityItemId, in.UserId, in.Quantity, idempotencyKey, now)

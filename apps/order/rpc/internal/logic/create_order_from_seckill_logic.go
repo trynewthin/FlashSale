@@ -3,10 +3,7 @@ package logic
 
 import (
 	"context"
-	"crypto/sha1"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -141,11 +138,7 @@ func (l *CreateOrderFromSeckillLogic) CreateOrderFromSeckill(in *pb.CreateOrderF
 
 // buildSeckillOrderNo 基于用户与幂等键构造稳定订单号，用于秒杀建单幂等重放。
 func buildSeckillOrderNo(userID, activityID, activityItemID int64, idempotencyKey string) string {
-	raw := fmt.Sprintf("%d:%d:%d:%s", userID, activityID, activityItemID, strings.TrimSpace(idempotencyKey))
-	sum := sha1.Sum([]byte(raw))
-	hexDigest := strings.ToUpper(hex.EncodeToString(sum[:]))
-	// orders.order_no 长度上限 32，固定前缀 + 截断哈希。
-	return "SCK" + hexDigest[:29]
+	return eventx.BuildSeckillOrderNo(userID, activityID, activityItemID, idempotencyKey)
 }
 
 // findIdempotentSeckillOrder 查询幂等键对应的已存在秒杀订单并校验核心参数一致性。

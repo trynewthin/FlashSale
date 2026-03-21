@@ -1,4 +1,3 @@
-// svc 包包含相关应用代码。
 package svc
 
 import (
@@ -6,225 +5,192 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// ─── Prometheus Gauge：暴露异步购买队列指标 ───
-
-var (
-	promPurchaseTaskQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "seckill",
-		Name:      "purchase_task_queue_depth",
-		Help:      "Current depth of the async purchase task queue.",
-	})
-	promPurchaseTaskQueueCap = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "seckill",
-		Name:      "purchase_task_queue_cap",
-		Help:      "Capacity of the async purchase task queue.",
-	})
-	promPurchaseTaskDroppedTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "seckill",
-		Name:      "purchase_task_dropped_total",
-		Help:      "Total number of dropped purchase tasks (queue full).",
-	})
-)
-
-func init() {
-	prometheus.MustRegister(promPurchaseTaskQueueDepth)
-	prometheus.MustRegister(promPurchaseTaskQueueCap)
-	prometheus.MustRegister(promPurchaseTaskDroppedTotal)
-}
-
-// PerfSnapshot 描述秒杀服务当前性能计数快照。
 type PerfSnapshot struct {
-	AtUnix                     int64
-	ReserveCalls               int64
-	ReserveSuccess             int64
-	ReserveErrors              int64
-	ReserveRetryContention     int64
-	ReserveErrIdempotency      int64
-	ReserveErrTimeout          int64
-	ReserveErrCanceled         int64
-	ReserveErrTxnContention    int64
-	ReserveErrTooManyConns     int64
-	ReserveErrOutOfStock       int64
-	ReserveErrLimitExceeded    int64
-	ReserveErrStateConflict    int64
-	ReserveErrItemNotFound     int64
-	ReserveErrActivityNotFound int64
-	ReserveErrOther            int64
-	PurchaseConflictOverloaded int64
-	PurchaseConflictPending    int64
-	OrderCreateCalls           int64
-	OrderCreateSuccess         int64
-	OrderCreateErrors          int64
-	OrderCreateTimeouts        int64
-	OrderCreateBreakerHits     int64
-	OrderCreateOverloaded      int64
-	OrderCreateReplayAttempts  int64
-	OrderCreateReplaySuccess   int64
-	ActivityItemCacheHits      int64
-	ActivityItemCacheMisses    int64
-	OrderLinkEnqueued          int64
-	OrderLinkDropped           int64
-	OrderLinkSyncFallback      int64
-	TrackEventCalls            int64
-	TrackEventEnqueued         int64
-	TrackEventDropped          int64
-	TrackEventAccepted         int64
-	TrackEventDegraded         int64
-	OrderStateConsumed         int64
-	OrderStateDecodeFailed     int64
-	OrderStateSyncFailed       int64
-	OrderStateSkippedMissing   int64
-	OrderStateReleaseSuccess   int64
-	OrderStateReleaseFailed    int64
-	OrderStateWindowRecorded   int64
-	OrderStateLoopErrors       int64
-	OrderLinkQueueDepth        int64
-	OrderLinkQueueCap          int64
-	TrafficQueueDepth          int64
-	TrafficQueueCap            int64
-	PurchaseTaskEnqueued       int64
-	PurchaseTaskDropped        int64
-	PurchaseTaskFailed         int64
-	PurchaseTaskSuccess        int64
-	PurchaseTaskQueueDepth     int64
-	PurchaseTaskQueueCap       int64
+	AtUnix                      int64
+	ReserveCalls                int64
+	ReserveSuccess              int64
+	ReserveErrors               int64
+	ReserveRetryContention      int64
+	ReserveErrIdempotency       int64
+	ReserveErrTimeout           int64
+	ReserveErrCanceled          int64
+	ReserveErrTxnContention     int64
+	ReserveErrTooManyConns      int64
+	ReserveErrOutOfStock        int64
+	ReserveErrLimitExceeded     int64
+	ReserveErrStateConflict     int64
+	ReserveErrItemNotFound      int64
+	ReserveErrActivityNotFound  int64
+	ReserveErrOther             int64
+	PurchaseConflictOverloaded  int64
+	PurchaseConflictPending     int64
+	OrderCreateCalls            int64
+	OrderCreateSuccess          int64
+	OrderCreateErrors           int64
+	OrderCreateTimeouts         int64
+	OrderCreateBreakerHits      int64
+	OrderCreateOverloaded       int64
+	OrderCreateReplayAttempts   int64
+	OrderCreateReplaySuccess    int64
+	ActivityItemCacheHits       int64
+	ActivityItemCacheMisses     int64
+	OrderLinkEnqueued           int64
+	OrderLinkDropped            int64
+	OrderLinkSyncFallback       int64
+	TrackEventCalls             int64
+	TrackEventEnqueued          int64
+	TrackEventDropped           int64
+	TrackEventAccepted          int64
+	TrackEventDegraded          int64
+	PurchaseKafkaPublished      int64
+	PurchaseKafkaPublishFailed  int64
+	OrderStateConsumed          int64
+	OrderStateDecodeFailed      int64
+	OrderStateSyncFailed        int64
+	OrderStateSkippedMissing    int64
+	OrderStateReleaseSuccess    int64
+	OrderStateReleaseFailed     int64
+	StockCompensateConsumed     int64
+	StockCompensateSuccess      int64
+	StockCompensateFailed       int64
+	StockCompensateDecodeFailed int64
+	StockCompensateLoopErrors   int64
+	OrderStateWindowRecorded    int64
+	OrderStateLoopErrors        int64
+	OrderLinkQueueDepth         int64
+	OrderLinkQueueCap           int64
+	TrafficQueueDepth           int64
+	TrafficQueueCap             int64
 }
 
-// PerfStats 保存秒杀核心链路计数器。
 type PerfStats struct {
-	reserveCalls               atomic.Int64
-	reserveSuccess             atomic.Int64
-	reserveErrors              atomic.Int64
-	reserveRetryContention     atomic.Int64
-	reserveErrIdempotency      atomic.Int64
-	reserveErrTimeout          atomic.Int64
-	reserveErrCanceled         atomic.Int64
-	reserveErrTxnContention    atomic.Int64
-	reserveErrTooManyConns     atomic.Int64
-	reserveErrOutOfStock       atomic.Int64
-	reserveErrLimitExceeded    atomic.Int64
-	reserveErrStateConflict    atomic.Int64
-	reserveErrItemNotFound     atomic.Int64
-	reserveErrActivityNotFound atomic.Int64
-	reserveErrOther            atomic.Int64
-	purchaseConflictOverloaded atomic.Int64
-	purchaseConflictPending    atomic.Int64
-	orderCreateCalls           atomic.Int64
-	orderCreateSuccess         atomic.Int64
-	orderCreateErrors          atomic.Int64
-	orderCreateTimeouts        atomic.Int64
-	orderCreateBreakerHits     atomic.Int64
-	orderCreateOverloaded      atomic.Int64
-	orderCreateReplayAttempts  atomic.Int64
-	orderCreateReplaySuccess   atomic.Int64
-	activityItemCacheHits      atomic.Int64
-	activityItemCacheMisses    atomic.Int64
-	orderLinkEnqueued          atomic.Int64
-	orderLinkDropped           atomic.Int64
-	orderLinkSyncFallback      atomic.Int64
-	trackEventCalls            atomic.Int64
-	trackEventEnqueued         atomic.Int64
-	trackEventDropped          atomic.Int64
-	trackEventAccepted         atomic.Int64
-	trackEventDegraded         atomic.Int64
-	orderStateConsumed         atomic.Int64
-	orderStateDecodeFailed     atomic.Int64
-	orderStateSyncFailed       atomic.Int64
-	orderStateSkippedMissing   atomic.Int64
-	orderStateReleaseSuccess   atomic.Int64
-	orderStateReleaseFailed    atomic.Int64
-	orderStateWindowRecorded   atomic.Int64
-	orderStateLoopErrors       atomic.Int64
-	purchaseTaskEnqueued       atomic.Int64
-	purchaseTaskDropped        atomic.Int64
-	purchaseTaskFailed         atomic.Int64
-	purchaseTaskSuccess        atomic.Int64
+	reserveCalls                atomic.Int64
+	reserveSuccess              atomic.Int64
+	reserveErrors               atomic.Int64
+	reserveRetryContention      atomic.Int64
+	reserveErrIdempotency       atomic.Int64
+	reserveErrTimeout           atomic.Int64
+	reserveErrCanceled          atomic.Int64
+	reserveErrTxnContention     atomic.Int64
+	reserveErrTooManyConns      atomic.Int64
+	reserveErrOutOfStock        atomic.Int64
+	reserveErrLimitExceeded     atomic.Int64
+	reserveErrStateConflict     atomic.Int64
+	reserveErrItemNotFound      atomic.Int64
+	reserveErrActivityNotFound  atomic.Int64
+	reserveErrOther             atomic.Int64
+	purchaseConflictOverloaded  atomic.Int64
+	purchaseConflictPending     atomic.Int64
+	orderCreateCalls            atomic.Int64
+	orderCreateSuccess          atomic.Int64
+	orderCreateErrors           atomic.Int64
+	orderCreateTimeouts         atomic.Int64
+	orderCreateBreakerHits      atomic.Int64
+	orderCreateOverloaded       atomic.Int64
+	orderCreateReplayAttempts   atomic.Int64
+	orderCreateReplaySuccess    atomic.Int64
+	activityItemCacheHits       atomic.Int64
+	activityItemCacheMisses     atomic.Int64
+	orderLinkEnqueued           atomic.Int64
+	orderLinkDropped            atomic.Int64
+	orderLinkSyncFallback       atomic.Int64
+	trackEventCalls             atomic.Int64
+	trackEventEnqueued          atomic.Int64
+	trackEventDropped           atomic.Int64
+	trackEventAccepted          atomic.Int64
+	trackEventDegraded          atomic.Int64
+	purchaseKafkaPublished      atomic.Int64
+	purchaseKafkaPublishFailed  atomic.Int64
+	orderStateConsumed          atomic.Int64
+	orderStateDecodeFailed      atomic.Int64
+	orderStateSyncFailed        atomic.Int64
+	orderStateSkippedMissing    atomic.Int64
+	orderStateReleaseSuccess    atomic.Int64
+	orderStateReleaseFailed     atomic.Int64
+	stockCompensateConsumed     atomic.Int64
+	stockCompensateSuccess      atomic.Int64
+	stockCompensateFailed       atomic.Int64
+	stockCompensateDecodeFailed atomic.Int64
+	stockCompensateLoopErrors   atomic.Int64
+	orderStateWindowRecorded    atomic.Int64
+	orderStateLoopErrors        atomic.Int64
 }
 
 func newPerfStats() *PerfStats {
 	return &PerfStats{}
 }
 
-// Snapshot 返回当前计数快照，便于日志与观测。
-func (p *PerfStats) Snapshot(orderLinkQueueDepth, orderLinkQueueCap, trafficQueueDepth, trafficQueueCap, purchaseQueueDepth, purchaseQueueCap int) PerfSnapshot {
+func (p *PerfStats) Snapshot(orderLinkQueueDepth, orderLinkQueueCap, trafficQueueDepth, trafficQueueCap int) PerfSnapshot {
 	if p == nil {
 		return PerfSnapshot{
-			AtUnix:                 time.Now().Unix(),
-			OrderLinkQueueDepth:    int64(orderLinkQueueDepth),
-			OrderLinkQueueCap:      int64(orderLinkQueueCap),
-			TrafficQueueDepth:      int64(trafficQueueDepth),
-			TrafficQueueCap:        int64(trafficQueueCap),
-			PurchaseTaskQueueDepth: int64(purchaseQueueDepth),
-			PurchaseTaskQueueCap:   int64(purchaseQueueCap),
+			AtUnix:              time.Now().Unix(),
+			OrderLinkQueueDepth: int64(orderLinkQueueDepth),
+			OrderLinkQueueCap:   int64(orderLinkQueueCap),
+			TrafficQueueDepth:   int64(trafficQueueDepth),
+			TrafficQueueCap:     int64(trafficQueueCap),
 		}
 	}
-	snap := PerfSnapshot{
-		AtUnix:                     time.Now().Unix(),
-		ReserveCalls:               p.reserveCalls.Load(),
-		ReserveSuccess:             p.reserveSuccess.Load(),
-		ReserveErrors:              p.reserveErrors.Load(),
-		ReserveRetryContention:     p.reserveRetryContention.Load(),
-		ReserveErrIdempotency:      p.reserveErrIdempotency.Load(),
-		ReserveErrTimeout:          p.reserveErrTimeout.Load(),
-		ReserveErrCanceled:         p.reserveErrCanceled.Load(),
-		ReserveErrTxnContention:    p.reserveErrTxnContention.Load(),
-		ReserveErrTooManyConns:     p.reserveErrTooManyConns.Load(),
-		ReserveErrOutOfStock:       p.reserveErrOutOfStock.Load(),
-		ReserveErrLimitExceeded:    p.reserveErrLimitExceeded.Load(),
-		ReserveErrStateConflict:    p.reserveErrStateConflict.Load(),
-		ReserveErrItemNotFound:     p.reserveErrItemNotFound.Load(),
-		ReserveErrActivityNotFound: p.reserveErrActivityNotFound.Load(),
-		ReserveErrOther:            p.reserveErrOther.Load(),
-		PurchaseConflictOverloaded: p.purchaseConflictOverloaded.Load(),
-		PurchaseConflictPending:    p.purchaseConflictPending.Load(),
-		OrderCreateCalls:           p.orderCreateCalls.Load(),
-		OrderCreateSuccess:         p.orderCreateSuccess.Load(),
-		OrderCreateErrors:          p.orderCreateErrors.Load(),
-		OrderCreateTimeouts:        p.orderCreateTimeouts.Load(),
-		OrderCreateBreakerHits:     p.orderCreateBreakerHits.Load(),
-		OrderCreateOverloaded:      p.orderCreateOverloaded.Load(),
-		OrderCreateReplayAttempts:  p.orderCreateReplayAttempts.Load(),
-		OrderCreateReplaySuccess:   p.orderCreateReplaySuccess.Load(),
-		ActivityItemCacheHits:      p.activityItemCacheHits.Load(),
-		ActivityItemCacheMisses:    p.activityItemCacheMisses.Load(),
-		OrderLinkEnqueued:          p.orderLinkEnqueued.Load(),
-		OrderLinkDropped:           p.orderLinkDropped.Load(),
-		OrderLinkSyncFallback:      p.orderLinkSyncFallback.Load(),
-		TrackEventCalls:            p.trackEventCalls.Load(),
-		TrackEventEnqueued:         p.trackEventEnqueued.Load(),
-		TrackEventDropped:          p.trackEventDropped.Load(),
-		TrackEventAccepted:         p.trackEventAccepted.Load(),
-		TrackEventDegraded:         p.trackEventDegraded.Load(),
-		OrderStateConsumed:         p.orderStateConsumed.Load(),
-		OrderStateDecodeFailed:     p.orderStateDecodeFailed.Load(),
-		OrderStateSyncFailed:       p.orderStateSyncFailed.Load(),
-		OrderStateSkippedMissing:   p.orderStateSkippedMissing.Load(),
-		OrderStateReleaseSuccess:   p.orderStateReleaseSuccess.Load(),
-		OrderStateReleaseFailed:    p.orderStateReleaseFailed.Load(),
-		OrderStateWindowRecorded:   p.orderStateWindowRecorded.Load(),
-		OrderStateLoopErrors:       p.orderStateLoopErrors.Load(),
-		OrderLinkQueueDepth:        int64(orderLinkQueueDepth),
-		OrderLinkQueueCap:          int64(orderLinkQueueCap),
-		TrafficQueueDepth:          int64(trafficQueueDepth),
-		TrafficQueueCap:            int64(trafficQueueCap),
-		PurchaseTaskEnqueued:       p.purchaseTaskEnqueued.Load(),
-		PurchaseTaskDropped:        p.purchaseTaskDropped.Load(),
-		PurchaseTaskFailed:         p.purchaseTaskFailed.Load(),
-		PurchaseTaskSuccess:        p.purchaseTaskSuccess.Load(),
-		PurchaseTaskQueueDepth:     int64(purchaseQueueDepth),
-		PurchaseTaskQueueCap:       int64(purchaseQueueCap),
+	return PerfSnapshot{
+		AtUnix:                      time.Now().Unix(),
+		ReserveCalls:                p.reserveCalls.Load(),
+		ReserveSuccess:              p.reserveSuccess.Load(),
+		ReserveErrors:               p.reserveErrors.Load(),
+		ReserveRetryContention:      p.reserveRetryContention.Load(),
+		ReserveErrIdempotency:       p.reserveErrIdempotency.Load(),
+		ReserveErrTimeout:           p.reserveErrTimeout.Load(),
+		ReserveErrCanceled:          p.reserveErrCanceled.Load(),
+		ReserveErrTxnContention:     p.reserveErrTxnContention.Load(),
+		ReserveErrTooManyConns:      p.reserveErrTooManyConns.Load(),
+		ReserveErrOutOfStock:        p.reserveErrOutOfStock.Load(),
+		ReserveErrLimitExceeded:     p.reserveErrLimitExceeded.Load(),
+		ReserveErrStateConflict:     p.reserveErrStateConflict.Load(),
+		ReserveErrItemNotFound:      p.reserveErrItemNotFound.Load(),
+		ReserveErrActivityNotFound:  p.reserveErrActivityNotFound.Load(),
+		ReserveErrOther:             p.reserveErrOther.Load(),
+		PurchaseConflictOverloaded:  p.purchaseConflictOverloaded.Load(),
+		PurchaseConflictPending:     p.purchaseConflictPending.Load(),
+		OrderCreateCalls:            p.orderCreateCalls.Load(),
+		OrderCreateSuccess:          p.orderCreateSuccess.Load(),
+		OrderCreateErrors:           p.orderCreateErrors.Load(),
+		OrderCreateTimeouts:         p.orderCreateTimeouts.Load(),
+		OrderCreateBreakerHits:      p.orderCreateBreakerHits.Load(),
+		OrderCreateOverloaded:       p.orderCreateOverloaded.Load(),
+		OrderCreateReplayAttempts:   p.orderCreateReplayAttempts.Load(),
+		OrderCreateReplaySuccess:    p.orderCreateReplaySuccess.Load(),
+		ActivityItemCacheHits:       p.activityItemCacheHits.Load(),
+		ActivityItemCacheMisses:     p.activityItemCacheMisses.Load(),
+		OrderLinkEnqueued:           p.orderLinkEnqueued.Load(),
+		OrderLinkDropped:            p.orderLinkDropped.Load(),
+		OrderLinkSyncFallback:       p.orderLinkSyncFallback.Load(),
+		TrackEventCalls:             p.trackEventCalls.Load(),
+		TrackEventEnqueued:          p.trackEventEnqueued.Load(),
+		TrackEventDropped:           p.trackEventDropped.Load(),
+		TrackEventAccepted:          p.trackEventAccepted.Load(),
+		TrackEventDegraded:          p.trackEventDegraded.Load(),
+		PurchaseKafkaPublished:      p.purchaseKafkaPublished.Load(),
+		PurchaseKafkaPublishFailed:  p.purchaseKafkaPublishFailed.Load(),
+		OrderStateConsumed:          p.orderStateConsumed.Load(),
+		OrderStateDecodeFailed:      p.orderStateDecodeFailed.Load(),
+		OrderStateSyncFailed:        p.orderStateSyncFailed.Load(),
+		OrderStateSkippedMissing:    p.orderStateSkippedMissing.Load(),
+		OrderStateReleaseSuccess:    p.orderStateReleaseSuccess.Load(),
+		OrderStateReleaseFailed:     p.orderStateReleaseFailed.Load(),
+		StockCompensateConsumed:     p.stockCompensateConsumed.Load(),
+		StockCompensateSuccess:      p.stockCompensateSuccess.Load(),
+		StockCompensateFailed:       p.stockCompensateFailed.Load(),
+		StockCompensateDecodeFailed: p.stockCompensateDecodeFailed.Load(),
+		StockCompensateLoopErrors:   p.stockCompensateLoopErrors.Load(),
+		OrderStateWindowRecorded:    p.orderStateWindowRecorded.Load(),
+		OrderStateLoopErrors:        p.orderStateLoopErrors.Load(),
+		OrderLinkQueueDepth:         int64(orderLinkQueueDepth),
+		OrderLinkQueueCap:           int64(orderLinkQueueCap),
+		TrafficQueueDepth:           int64(trafficQueueDepth),
+		TrafficQueueCap:             int64(trafficQueueCap),
 	}
-
-	// 同步更新 Prometheus Gauge
-	promPurchaseTaskQueueDepth.Set(float64(purchaseQueueDepth))
-	promPurchaseTaskQueueCap.Set(float64(purchaseQueueCap))
-
-	return snap
 }
 
 func (p *PerfStats) MarkReserveCall() {
@@ -441,6 +407,18 @@ func (p *PerfStats) MarkTrackEventDegraded() {
 	}
 }
 
+func (p *PerfStats) MarkPurchaseKafkaPublished() {
+	if p != nil {
+		p.purchaseKafkaPublished.Add(1)
+	}
+}
+
+func (p *PerfStats) MarkPurchaseKafkaPublishFailed() {
+	if p != nil {
+		p.purchaseKafkaPublishFailed.Add(1)
+	}
+}
+
 func (p *PerfStats) MarkOrderStateConsumed() {
 	if p != nil {
 		p.orderStateConsumed.Add(1)
@@ -477,6 +455,36 @@ func (p *PerfStats) MarkOrderStateReleaseFailed() {
 	}
 }
 
+func (p *PerfStats) MarkStockCompensateConsumed() {
+	if p != nil {
+		p.stockCompensateConsumed.Add(1)
+	}
+}
+
+func (p *PerfStats) MarkStockCompensateSuccess() {
+	if p != nil {
+		p.stockCompensateSuccess.Add(1)
+	}
+}
+
+func (p *PerfStats) MarkStockCompensateFailed() {
+	if p != nil {
+		p.stockCompensateFailed.Add(1)
+	}
+}
+
+func (p *PerfStats) MarkStockCompensateDecodeFailed() {
+	if p != nil {
+		p.stockCompensateDecodeFailed.Add(1)
+	}
+}
+
+func (p *PerfStats) MarkStockCompensateLoopError() {
+	if p != nil {
+		p.stockCompensateLoopErrors.Add(1)
+	}
+}
+
 func (p *PerfStats) MarkOrderStateWindowRecorded() {
 	if p != nil {
 		p.orderStateWindowRecorded.Add(1)
@@ -486,30 +494,5 @@ func (p *PerfStats) MarkOrderStateWindowRecorded() {
 func (p *PerfStats) MarkOrderStateLoopError() {
 	if p != nil {
 		p.orderStateLoopErrors.Add(1)
-	}
-}
-
-func (p *PerfStats) MarkPurchaseTaskEnqueued() {
-	if p != nil {
-		p.purchaseTaskEnqueued.Add(1)
-	}
-}
-
-func (p *PerfStats) MarkPurchaseTaskDropped() {
-	if p != nil {
-		p.purchaseTaskDropped.Add(1)
-		promPurchaseTaskDroppedTotal.Inc()
-	}
-}
-
-func (p *PerfStats) MarkPurchaseTaskFailed() {
-	if p != nil {
-		p.purchaseTaskFailed.Add(1)
-	}
-}
-
-func (p *PerfStats) MarkPurchaseTaskSuccess() {
-	if p != nil {
-		p.purchaseTaskSuccess.Add(1)
 	}
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { motion } from "motion/react"
 import { toast } from "sonner"
 import { Search, PackageOpen, ChevronLeft, ChevronRight, X, Clock, ShoppingCart } from "lucide-react"
@@ -21,21 +21,44 @@ import { cdnUrl } from "@/lib/cdn"
 
 export function OrderListPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { toUserMessage } = useApiError()
+  const pendingMode = searchParams.get("pending") === "1"
+  const orderNoParam = searchParams.get("order_no")?.trim() ?? ""
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState("")
-  const [orderNoInput, setOrderNoInput] = useState("")
-  const [orderNoSearch, setOrderNoSearch] = useState("")
+  const [orderNoInput, setOrderNoInput] = useState(orderNoParam)
+  const [orderNoSearch, setOrderNoSearch] = useState(orderNoParam)
+  const [pendingPollRemaining, setPendingPollRemaining] = useState(pendingMode && orderNoParam ? 15 : 0)
+
+  useEffect(() => {
+    setOrderNoInput(orderNoParam)
+    setOrderNoSearch(orderNoParam)
+    setPage(1)
+    setPendingPollRemaining(pendingMode && orderNoParam ? 15 : 0)
+  }, [orderNoParam, pendingMode])
 
   const handleSearch = () => {
-    setOrderNoSearch(orderNoInput.trim())
+    const nextOrderNo = orderNoInput.trim()
+    setOrderNoSearch(nextOrderNo)
     setPage(1)
+    const next = new URLSearchParams(searchParams)
+    if (nextOrderNo) {
+      next.set("order_no", nextOrderNo)
+    } else {
+      next.delete("order_no")
+    }
+    next.delete("pending")
+    setSearchParams(next)
   }
 
   const clearSearch = () => {
     setOrderNoInput("")
     setOrderNoSearch("")
+    setStatusFilter("")
     setPage(1)
+    setPendingPollRemaining(0)
+    setSearchParams({})
   }
 
   const listQuery = useOrderListQuery({
@@ -59,6 +82,24 @@ export function OrderListPage() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [page])
+
+  useEffect(() => {
+    if (!pendingMode || !orderNoSearch || listQuery.isLoading || listQuery.isError) {
+      return
+    }
+    if (items.length > 0) {
+      navigate(`/orders/${items[0].order_id}`, { replace: true })
+      return
+    }
+    if (pendingPollRemaining <= 0) {
+      return
+    }
+    const timer = window.setTimeout(() => {
+      setPendingPollRemaining((prev) => Math.max(prev - 1, 0))
+      void listQuery.refetch()
+    }, 2000)
+    return () => window.clearTimeout(timer)
+  }, [pendingMode, orderNoSearch, items, listQuery, pendingPollRemaining, navigate])
 
   const getStatusColor = (status: number) => {
     // 1-待支付 2-已支付 3-已取消 4-已退款
@@ -148,6 +189,24 @@ export function OrderListPage() {
           </div>
         </div>
       </motion.div>
+
+      {pendingMode && orderNoSearch && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-amber-200/70 bg-amber-50/80 px-5 py-4 text-amber-900 shadow-sm"
+        >
+          <div className="flex items-start gap-3">
+            <Clock className="mt-0.5 size-4 shrink-0" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold">订单处理中</p>
+              <p className="text-sm text-amber-800/80">
+                正在等待秒杀订单生成，系统会自动轮询最多 30 秒。订单号：{orderNoSearch}
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* 骨架屏加载 */}
       {listQuery.isLoading && (
@@ -246,9 +305,23 @@ export function OrderListPage() {
         <div className="py-12">
           <EmptyState
             icon={Search}
-            title={orderNoSearch ? "未找到指定订单" : (statusFilter ? "该状态下暂无订单" : "您还没有任何订单")}
-            description={orderNoSearch ? `没有找到订单号为 "${orderNoSearch}" 的记录` : (statusFilter ? `目前没有处在这个状态的订单。` : "快去商场看看，挑选中意的商品吧！")}
-            actionLabel={orderNoSearch || statusFilter ? "清除所有筛选条件" : "去首页逛逛"}
+            title={
+              pendingMode && orderNoSearch
+                ? (pendingPollRemaining > 0 ? "订单生成中" : "订单仍在处理中")
+                : orderNoSearch
+                  ? "未找到指定订单"
+                  : (statusFilter ? "该状态下暂无订单" : "您还没有任何订单")
+            }
+            description={
+              pendingMode && orderNoSearch
+                ? (pendingPollRemaining > 0
+                  ? `系统正在处理订单 "${orderNoSearch}"，将继续自动刷新。`
+                  : `订单 "${orderNoSearch}" 暂时还未生成完成，请稍后手动刷新或稍后再查看。`)
+                : orderNoSearch
+                  ? `没有找到订单号为 "${orderNoSearch}" 的记录`
+                  : (statusFilter ? "目前没有处在这个状态的订单。" : "快去商场看看，挑选中意的商品吧！")
+            }
+            actionLabel={orderNoSearch || statusFilter || pendingMode ? "清除所有筛选条件" : "去首页逛逛"}
             onAction={orderNoSearch || statusFilter ? clearSearch : () => navigate("/")}
           />
         </div>

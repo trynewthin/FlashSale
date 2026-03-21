@@ -10,6 +10,11 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
+const (
+	// Keep hot-path Kafka writes from waiting on kafka-go's default 1s batch flush.
+	producerBatchTimeout = 10 * time.Millisecond
+)
+
 // IdempotencyHeader 约定消息头中的幂等键字段名。
 const IdempotencyHeader = "x-idempotency-key"
 
@@ -57,6 +62,7 @@ func NewProducer(cfg config.KafkaConfig) (*KafkaProducer, error) {
 		Balancer:               &kafka.LeastBytes{},
 		AllowAutoTopicCreation: false,
 		RequiredAcks:           kafka.RequireOne,
+		BatchTimeout:           producerBatchTimeout,
 	}
 	return &KafkaProducer{writer: w}, nil
 }

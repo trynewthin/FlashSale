@@ -66,6 +66,7 @@ container_action_name() {
         b) printf 'run' ;;
         c) printf 'restart' ;;
         d) printf 'stop' ;;
+        e) printf 'apply' ;;
         *) return 1 ;;
     esac
 }
@@ -105,17 +106,18 @@ print_container_action_board() {
     cat <<'EOF'
 快捷操作
 
-  a. 构建    只构建镜像
-  b. 启动    启动服务
+  a. 构建    只构建镜像  b. 启动    启动服务
   c. 重建    重建容器并应用新镜像
   d. 停止    停止服务
+  e. 更新    构建并重建
 
 输入示例:
   1a    全部 / 构建
   5c    Ops / 重建
+  5e    Ops / 更新
   3d    后端 / 停止
   l     查看服务日志
-  0     返回上一级
+  0     返回上一层
 EOF
     echo
 }
@@ -148,7 +150,7 @@ dispatch_container_shortcut() {
     local shortcut="$1"
     local scope_key action_key scope action
 
-    if [[ "$shortcut" =~ ^([1-6])([A-Da-d])$ ]]; then
+    if [[ "$shortcut" =~ ^([1-6])([A-Ea-e])$ ]]; then
         scope_key="${BASH_REMATCH[1]}"
         action_key="${BASH_REMATCH[2],,}"
         scope="$(container_scope_from_key "$scope_key")" || return 1
@@ -177,7 +179,7 @@ menu_container_management() {
                     print_header "容器 / 集群管理"
                     echo -e "${C_RED}无效输入: ${choice}${C_RESET}"
                     echo
-                    echo '请输入类似 1a、2b、3c、4d 的组合。'
+                    echo '请输入类似 1a、2b、3c、4d、5e 的组合。'
                     pause
                 fi
                 ;;

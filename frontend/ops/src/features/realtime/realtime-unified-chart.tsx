@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components */
+
 import { useMemo, useState, useCallback } from "react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
@@ -137,7 +139,6 @@ export function useChartMetrics() {
       const currentGroupMetrics = groupByKey(activeGroup).metrics
       return currentGroupMetrics.filter((k) => nextSet.has(k))
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeGroup])
 
   return { activeGroup, activeGroupDef, groupMetrics, visibleKeys, handleGroupChange, toggleMetric }

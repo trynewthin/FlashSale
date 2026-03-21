@@ -1,10 +1,13 @@
-import { useMemo } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
-import type { PerfProgress } from "@/api/types"
+import { opsApi, type PersistedSample } from "@/api/modules/ops"
+import type { JobDetail, PerfProgress } from "@/api/types"
+import {
+    mergeRealtimeSamplesWithPerfPoints,
+    parsePerfMetricPointsFromLog,
+} from "@/features/realtime/perf-report-parser"
 import type { RealtimeSample } from "@/features/realtime/types"
 
-// perfProgressToSample 将后端推送的 PerfProgress 转为 RealtimeSample。
-// 系统指标置零（后端驱动模式下不再由前端轮询系统状态）。
 function perfProgressToSample(p: PerfProgress): RealtimeSample {
     return {
         timestamp: p.timestamp,
@@ -32,25 +35,209 @@ function perfProgressToSample(p: PerfProgress): RealtimeSample {
     }
 }
 
+function persistedToRealtime(sample: PersistedSample): RealtimeSample {
+    return {
+        timestamp: sample.ts,
+        label: sample.label,
+        portRate: sample.portRate,
+        httpRate: sample.httpRate,
+        replicaRate: sample.replicaRate,
+        runningContainers: sample.runningContainers,
+        totalContainers: sample.totalContainers,
+        runningReplicas: sample.runningReplicas,
+        totalReplicas: sample.totalReplicas,
+        promQps: sample.promQps,
+        promP99LatencyMs: sample.promP99LatencyMs,
+        promErrorRate: sample.promErrorRate,
+        purchaseTaskQueueDepth: sample.purchaseTaskQueueDepth,
+        purchaseTaskQueueCap: sample.purchaseTaskQueueCap,
+        purchaseTaskDropped: sample.purchaseTaskDropped,
+    }
+}
+
+function parseTimeMs(isoTime?: string): number | null {
+    if (!isoTime) {
+        return null
+    }
+    const ts = Date.parse(isoTime)
+    return Number.isFinite(ts) ? ts : null
+}
+
+function chooseMonitorSample(
+    timestamp: number,
+    previous: RealtimeSample | null,
+    next: RealtimeSample | null
+): RealtimeSample | null {
+    if (!previous) {
+        return next
+    }
+    if (!next) {
+        return previous
+    }
+    return Math.abs(previous.timestamp - timestamp) <= Math.abs(next.timestamp - timestamp)
+        ? previous
+        : next
+}
+
+function attachMonitorMetrics(
+    perfSamples: RealtimeSample[],
+    monitorSamples: RealtimeSample[]
+): RealtimeSample[] {
+    if (perfSamples.length === 0 || monitorSamples.length === 0) {
+        return perfSamples
+    }
+
+    const sortedMonitorSamples = [...monitorSamples].sort((left, right) => left.timestamp - right.timestamp)
+    let monitorIndex = 0
+    let previousMonitorSample: RealtimeSample | null = null
+
+    return perfSamples.map((sample) => {
+        for (; monitorIndex < sortedMonitorSamples.length; monitorIndex += 1) {
+            if (sortedMonitorSamples[monitorIndex].timestamp <= sample.timestamp) {
+                previousMonitorSample = sortedMonitorSamples[monitorIndex]
+                continue
+            }
+            break
+        }
+
+        const nextMonitorSample = monitorIndex < sortedMonitorSamples.length
+            ? sortedMonitorSamples[monitorIndex]
+            : null
+        const matchedMonitorSample = chooseMonitorSample(sample.timestamp, previousMonitorSample, nextMonitorSample)
+        if (!matchedMonitorSample) {
+            return sample
+        }
+
+        return {
+            ...sample,
+            portRate: matchedMonitorSample.portRate,
+            httpRate: matchedMonitorSample.httpRate,
+            replicaRate: matchedMonitorSample.replicaRate,
+            runningContainers: matchedMonitorSample.runningContainers,
+            totalContainers: matchedMonitorSample.totalContainers,
+            runningReplicas: matchedMonitorSample.runningReplicas,
+            totalReplicas: matchedMonitorSample.totalReplicas,
+            promQps: matchedMonitorSample.promQps,
+            promP99LatencyMs: matchedMonitorSample.promP99LatencyMs,
+            promErrorRate: matchedMonitorSample.promErrorRate,
+            purchaseTaskQueueDepth: matchedMonitorSample.purchaseTaskQueueDepth,
+            purchaseTaskQueueCap: matchedMonitorSample.purchaseTaskQueueCap,
+            purchaseTaskDropped: matchedMonitorSample.purchaseTaskDropped,
+        }
+    })
+}
+
+const MONITOR_SAMPLE_STEP = "2s"
+
+function buildMonitorStartMs(
+    activeJob: JobDetail | null,
+    perfStart: number | null
+): number | null {
+    const jobStart = parseTimeMs(activeJob?.started_at) ?? parseTimeMs(activeJob?.created_at)
+    const startCandidates = [perfStart, jobStart].filter((value): value is number => typeof value === "number")
+    if (startCandidates.length === 0) {
+        return null
+    }
+
+    return Math.max(0, Math.min(...startCandidates) - 5000)
+}
+
 export interface UsePerfTestSamplesResult {
-    /** 图表数据 */
     chartSamples: RealtimeSample[]
-    /** 是否有压测数据 */
     hasData: boolean
 }
 
-// usePerfTestSamples 将后端驱动的 PerfProgress[] 转换为图表 RealtimeSample[]。
-// 不再轮询系统指标或解析日志，所有数据来自 useRealtimeTestRunner 的 SSE 推送。
-export function usePerfTestSamples(perfSamples: PerfProgress[]): UsePerfTestSamplesResult {
-    const chartSamples = useMemo(
-        () => perfSamples.map(perfProgressToSample),
-        [perfSamples]
+// Prefer SSE perf progress, fall back to progress JSON already present in logs,
+// and backfill server-side Prometheus samples from persisted monitor data.
+export function usePerfTestSamples(
+    activeJob: JobDetail | null,
+    perfSamples: PerfProgress[],
+    logText = ""
+): UsePerfTestSamplesResult {
+    const perfChartSamples = useMemo(() => {
+        const liveSamples = perfSamples.map(perfProgressToSample)
+        const perfPoints = parsePerfMetricPointsFromLog(logText)
+        return mergeRealtimeSamplesWithPerfPoints(liveSamples, perfPoints)
+    }, [logText, perfSamples])
+    const perfStartTs = perfChartSamples[0]?.timestamp ?? null
+    const perfEndTs = perfChartSamples.length > 0
+        ? perfChartSamples[perfChartSamples.length - 1].timestamp
+        : null
+    const monitorStartMs = useMemo(
+        () => buildMonitorStartMs(activeJob, perfStartTs),
+        [activeJob?.created_at, activeJob?.started_at, perfStartTs]
     )
+    const [monitorSamples, setMonitorSamples] = useState<RealtimeSample[]>([])
+    const perfEndRef = useRef<number | null>(null)
+    const jobFinishedAtRef = useRef<number | null>(null)
+    const jobStatusRef = useRef<string>("")
 
-    const hasData = chartSamples.length > 0
+    useEffect(() => {
+        perfEndRef.current = perfEndTs
+        jobFinishedAtRef.current = parseTimeMs(activeJob?.finished_at)
+        jobStatusRef.current = activeJob?.status ?? ""
+    }, [activeJob?.finished_at, activeJob?.status, perfEndTs])
+
+    useEffect(() => {
+        setMonitorSamples([])
+    }, [activeJob?.id])
+
+    useEffect(() => {
+        if (monitorStartMs == null) {
+            setMonitorSamples([])
+            return
+        }
+
+        let disposed = false
+
+        const loadMonitorSamples = async () => {
+            const endMs = Math.max(
+                monitorStartMs + 1000,
+                perfEndRef.current ?? 0,
+                jobFinishedAtRef.current ?? 0,
+                jobStatusRef.current === "running" ? Date.now() + 5000 : 0
+            )
+
+            try {
+                const response = await opsApi.getSamplesByTimeRange(monitorStartMs, endMs, MONITOR_SAMPLE_STEP)
+                if (disposed) {
+                    return
+                }
+                setMonitorSamples(response.samples.map(persistedToRealtime))
+            } catch {
+                if (!disposed) {
+                    setMonitorSamples([])
+                }
+            }
+        }
+
+        void loadMonitorSamples()
+
+        if (activeJob?.status !== "running") {
+            return () => {
+                disposed = true
+            }
+        }
+
+        const timer = window.setInterval(() => {
+            void loadMonitorSamples()
+        }, 2000)
+
+        return () => {
+            disposed = true
+            window.clearInterval(timer)
+        }
+    }, [activeJob?.id, activeJob?.status, monitorStartMs])
+
+    const chartSamples = useMemo(() => {
+        if (perfChartSamples.length === 0) {
+            return monitorSamples
+        }
+        return attachMonitorMetrics(perfChartSamples, monitorSamples)
+    }, [monitorSamples, perfChartSamples])
 
     return {
         chartSamples,
-        hasData,
+        hasData: chartSamples.length > 0,
     }
 }

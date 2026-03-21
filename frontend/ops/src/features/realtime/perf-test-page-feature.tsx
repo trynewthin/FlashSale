@@ -83,7 +83,7 @@ export function PerfTestPageFeature() {
         clearActiveLog,
     } = useRealtimeTestRunner()
 
-    const { chartSamples, hasData } = usePerfTestSamples(perfSamples)
+    const { chartSamples, hasData } = usePerfTestSamples(activeJob, perfSamples, activeLog)
 
     const isTestRunning = activeJob?.status === "running"
     const statusMode = activeJob?.status ?? "idle"
@@ -103,9 +103,9 @@ export function PerfTestPageFeature() {
         const runningJob = recentTestJobs.find((j) => j.status === "running")
         if (runningJob) {
             void switchActiveJob(runningJob.id)
-            setViewMode("chart")
+            queueMicrotask(() => setViewMode("chart"))
         }
-    }, [recentTestJobs]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [recentTestJobs, switchActiveJob])
 
     // 启动测试后自动进入图表页
     const handleStartTest = useCallback(async () => {

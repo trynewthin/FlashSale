@@ -47,7 +47,8 @@ COPY --from=flashsale-backend:local /app/configs/ /app/configs/
 COPY --from=flashsale-backend:local /app/deploy/ /app/deploy/
 COPY --from=flashsale-backend:local /app/apps/ /app/apps/
 
-# 瑕嗙洊 fs 浜岃繘鍒讹紙甯﹀祵鍏ュ墠绔殑鐗堟湰锛?COPY --from=rebuild /out/fs /app/bin/fs
+# 覆盖 fs 二进制，使用重新嵌入 ops 前端后的版本
+COPY --from=rebuild /out/fs /app/bin/fs
 
 RUN mkdir -p /app/log
 

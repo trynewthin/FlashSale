@@ -142,27 +142,6 @@ export interface StatusSnapshot {
   }
 }
 
-export interface ServiceLogFile {
-  id: string
-  rel_path: string
-  name: string
-  size_byte: number
-  mod_unix: number
-}
-
-export interface ServiceLogTail {
-  file_id: string
-  rel_path: string
-  lines: number
-  truncated: boolean
-  text: string
-}
-
-export interface SSELogLineFrame {
-  line?: string
-  chunk?: string
-}
-
 export interface ContainerState {
   id: string
   name: string

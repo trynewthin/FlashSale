@@ -171,6 +171,7 @@ run_action() {
 
     set +e
     (
+        set -e
         cd "$REPO_ROOT"
         "$@"
     )

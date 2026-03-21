@@ -2,11 +2,9 @@ import { Navigate, createBrowserRouter } from "react-router-dom"
 
 import { OpsLayout } from "@/app/layout/ops-layout"
 import { ContainersPage } from "@/pages/containers"
-import { JobLogsPage } from "@/pages/job-logs"
 import { OverviewPage } from "@/pages/overview"
 import { PerfTestPage } from "@/pages/perf-test"
 import { RealtimePage } from "@/pages/realtime"
-import { ServiceLogsPage } from "@/pages/service-logs"
 import { TasksPage } from "@/pages/tasks"
 
 function resolveBasename() {
@@ -30,8 +28,7 @@ export const router = createBrowserRouter(
         { path: "perf-test", element: <PerfTestPage /> },
         { path: "containers", element: <ContainersPage /> },
         { path: "tasks", element: <TasksPage /> },
-        { path: "job-logs", element: <JobLogsPage /> },
-        { path: "service-logs", element: <ServiceLogsPage /> },
+        { path: "job-logs", element: <Navigate to="/tasks" replace /> },
       ],
     },
   ],

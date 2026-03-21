@@ -9,8 +9,6 @@ import type {
   MetricsSnapshotResponse,
   ObservabilityLinks,
   PromQueryResult,
-  ServiceLogFile,
-  ServiceLogTail,
   StatusSnapshot,
   TaskDef,
 } from "@/api/types"
@@ -71,18 +69,6 @@ export const opsApi = {
     return data.log || ""
   },
 
-  async listServiceLogFiles(): Promise<ServiceLogFile[]> {
-    const data = await requestJSON<{ files: ServiceLogFile[] }>("api/v1/service-logs/files")
-    return data.files || []
-  },
-
-  async getServiceLogTail(fileId: string, lines: number): Promise<ServiceLogTail> {
-    const safeFileId = encodeURIComponent(fileId)
-    return requestJSON<ServiceLogTail>(
-      `api/v1/service-logs/${safeFileId}/tail?lines=${encodeURIComponent(String(lines))}`
-    )
-  },
-
   buildJobStreamURL(jobId: string): string {
     const safeJobId = encodeURIComponent(jobId)
     const params = new URLSearchParams()
@@ -91,17 +77,6 @@ export const opsApi = {
       params.set("key", key)
     }
     return buildApiUrl(`api/v1/jobs/${safeJobId}/stream`, params)
-  },
-
-  buildServiceLogStreamURL(fileId: string, fromEnd = true): string {
-    const safeFileId = encodeURIComponent(fileId)
-    const params = new URLSearchParams()
-    const key = getOpsAccessKey()
-    if (key) {
-      params.set("key", key)
-    }
-    params.set("from_end", fromEnd ? "true" : "false")
-    return buildApiUrl(`api/v1/service-logs/${safeFileId}/stream`, params)
   },
 
   async getContainersStatus(): Promise<ContainerRuntimeSnapshot> {

@@ -21,7 +21,7 @@ import {
   type TimeWindow,
 } from "@/features/realtime/use-realtime-monitor"
 
-// RealtimePageFeature — 上下平分：上方图表 + 下方控件。
+// RealtimePageFeature: top control row, chart area below.
 export function RealtimePageFeature() {
   const {
     samples,
@@ -42,7 +42,6 @@ export function RealtimePageFeature() {
     toggleMetric,
   } = useChartMetrics()
 
-  // 从最新采样点中取容器/副本数据
   const latest = samples.length > 0 ? samples[samples.length - 1] : null
   const runningCont = latest?.runningContainers ?? 0
   const totalCont = latest?.totalContainers ?? 0
@@ -51,26 +50,11 @@ export function RealtimePageFeature() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* ─── 上方：图表区域（占 60%） ─── */}
-      <div className="min-h-0 flex-1 bg-card p-4">
-        <RealtimeUnifiedChart
-          samples={samples}
-          visibleKeys={visibleKeys}
-          className="h-full"
-        />
-      </div>
-
-      {/* ─── 下方：控制区域（占 40%） ─── */}
-      <div className="shrink-0 border-t border-border/30 bg-background/60 px-6 py-3">
-        {/* 顶行：控制按钮 + 状态徽章 */}
+      <div className="shrink-0 border-b border-border/30 bg-background/60 px-6 py-3">
         <div className="flex items-center justify-between gap-4">
-          {/* 左侧：采样控制 + 指标筛选 */}
           <div className="flex items-center gap-2">
-            {/* 采样控制 Popover */}
             <Popover>
-              <PopoverTrigger
-                className="inline-flex items-center gap-1.5 rounded-lg bg-background px-3 py-2 text-sm font-medium shadow-sm border border-border/50 hover:bg-muted/50 transition-colors cursor-pointer"
-              >
+              <PopoverTrigger className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted/50">
                 <SlidersHorizontal className="size-4" />
                 采样控制
               </PopoverTrigger>
@@ -110,11 +94,8 @@ export function RealtimePageFeature() {
               </PopoverContent>
             </Popover>
 
-            {/* 指标筛选 Popover */}
             <Popover>
-              <PopoverTrigger
-                className="inline-flex items-center gap-1.5 rounded-lg bg-background px-3 py-2 text-sm font-medium shadow-sm border border-border/50 hover:bg-muted/50 transition-colors cursor-pointer"
-              >
+              <PopoverTrigger className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted/50">
                 <Filter className="size-4" />
                 指标筛选
               </PopoverTrigger>
@@ -130,18 +111,25 @@ export function RealtimePageFeature() {
             </Popover>
           </div>
 
-          {/* 右侧：容器 / 副本 状态徽章 */}
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="gap-1.5 text-xs py-1 px-2.5">
+            <Badge variant="outline" className="gap-1.5 px-2.5 py-1 text-xs">
               <Box className="size-3.5 text-blue-500" />
               容器 {runningCont}/{totalCont}
             </Badge>
-            <Badge variant="outline" className="gap-1.5 text-xs py-1 px-2.5">
+            <Badge variant="outline" className="gap-1.5 px-2.5 py-1 text-xs">
               <Server className="size-3.5 text-emerald-500" />
               副本 {runningRep}/{totalRep}
             </Badge>
           </div>
         </div>
+      </div>
+
+      <div className="min-h-0 flex-1 bg-card p-4">
+        <RealtimeUnifiedChart
+          samples={samples}
+          visibleKeys={visibleKeys}
+          className="h-full"
+        />
       </div>
     </div>
   )

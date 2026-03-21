@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 
 import { opsApi, type PersistedSample } from "@/api/modules/ops"
 import type { JobDetail, PerfProgress } from "@/api/types"
+import { OVERVIEW_LOOKBACK_SECONDS, normalizeServerMetrics } from "@/features/realtime/precision-metrics"
 import {
     mergeRealtimeSamplesWithPerfPoints,
     parsePerfMetricPointsFromLog,
@@ -22,9 +23,6 @@ function perfProgressToSample(p: PerfProgress): RealtimeSample {
         promQps: null,
         promP99LatencyMs: null,
         promErrorRate: null,
-        purchaseTaskQueueDepth: null,
-        purchaseTaskQueueCap: null,
-        purchaseTaskDropped: null,
         qps: p.qps,
         successRate: p.successRate,
         rejectRate: p.rejectRate,
@@ -36,7 +34,7 @@ function perfProgressToSample(p: PerfProgress): RealtimeSample {
 }
 
 function persistedToRealtime(sample: PersistedSample): RealtimeSample {
-    return {
+    return normalizeServerMetrics({
         timestamp: sample.ts,
         label: sample.label,
         portRate: sample.portRate,
@@ -52,7 +50,7 @@ function persistedToRealtime(sample: PersistedSample): RealtimeSample {
         purchaseTaskQueueDepth: sample.purchaseTaskQueueDepth,
         purchaseTaskQueueCap: sample.purchaseTaskQueueCap,
         purchaseTaskDropped: sample.purchaseTaskDropped,
-    }
+    }, OVERVIEW_LOOKBACK_SECONDS)
 }
 
 function parseTimeMs(isoTime?: string): number | null {
@@ -165,7 +163,7 @@ export function usePerfTestSamples(
         : null
     const monitorStartMs = useMemo(
         () => buildMonitorStartMs(activeJob, perfStartTs),
-        [activeJob?.created_at, activeJob?.started_at, perfStartTs]
+        [activeJob, perfStartTs]
     )
     const [monitorSamples, setMonitorSamples] = useState<RealtimeSample[]>([])
     const perfEndRef = useRef<number | null>(null)
@@ -179,12 +177,7 @@ export function usePerfTestSamples(
     }, [activeJob?.finished_at, activeJob?.status, perfEndTs])
 
     useEffect(() => {
-        setMonitorSamples([])
-    }, [activeJob?.id])
-
-    useEffect(() => {
         if (monitorStartMs == null) {
-            setMonitorSamples([])
             return
         }
 
@@ -231,10 +224,13 @@ export function usePerfTestSamples(
 
     const chartSamples = useMemo(() => {
         if (perfChartSamples.length === 0) {
-            return monitorSamples
+            return monitorStartMs == null ? [] : monitorSamples
+        }
+        if (monitorStartMs == null) {
+            return perfChartSamples
         }
         return attachMonitorMetrics(perfChartSamples, monitorSamples)
-    }, [monitorSamples, perfChartSamples])
+    }, [monitorSamples, monitorStartMs, perfChartSamples])
 
     return {
         chartSamples,

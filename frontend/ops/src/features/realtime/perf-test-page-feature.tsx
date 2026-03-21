@@ -31,11 +31,14 @@ import {
     computeMax,
     computeLatest,
 } from "@/features/realtime/perf-metric-cards"
+import { PerfDiagnosisCard } from "@/features/realtime/perf-diagnosis-card"
 import { PerfSummaryCard } from "@/features/realtime/perf-summary-card"
 import { RealtimeTestLauncher } from "@/features/realtime/realtime-test-launcher"
 import { getRealtimeTestPreset } from "@/features/realtime/realtime-test-presets"
 import { usePerfTestSamples } from "@/features/realtime/use-perf-test-samples"
 import { useRealtimeTestRunner } from "@/features/realtime/use-realtime-test-runner"
+
+const DISPLAY_PERF_METRICS = PERF_METRICS
 
 function statusBadgeVariant(status: string) {
     if (status === "running") return "secondary" as const
@@ -364,7 +367,7 @@ function exportTestReport(
                     : null,
         },
         summary: Object.fromEntries(
-            PERF_METRICS.map((m) => [
+            DISPLAY_PERF_METRICS.map((m) => [
                 m.key,
                 {
                     label: m.label,
@@ -485,9 +488,10 @@ function ChartView({
                 <div className="grid auto-rows-[180px] grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-4">
                     {/* ① 测试摘要 */}
                     <PerfSummaryCard samples={chartSamples} />
+                    <PerfDiagnosisCard job={activeJob} samples={chartSamples} />
 
                     {/* ② 各指标图表卡片 */}
-                    {PERF_METRICS.map((metric) => (
+                    {DISPLAY_PERF_METRICS.map((metric) => (
                         <PerfMetricChartCard
                             key={metric.key}
                             metric={metric}

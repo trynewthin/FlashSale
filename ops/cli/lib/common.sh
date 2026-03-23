@@ -222,6 +222,89 @@ compose_cmd() {
     docker compose --env-file "$DEPLOY_ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
+retry_cmd() {
+    local max_attempts="$1"
+    local sleep_seconds="$2"
+    shift 2
+
+    local attempt=1
+    local rc=0
+    while true; do
+        "$@"
+        rc=$?
+        if [[ $rc -eq 0 ]]; then
+            return 0
+        fi
+        if [[ $attempt -ge $max_attempts ]]; then
+            return $rc
+        fi
+
+        echo -e "${C_YELLOW}命令失败，${sleep_seconds}s 后重试 (${attempt}/${max_attempts})...${C_RESET}"
+        sleep "$sleep_seconds"
+        attempt=$((attempt + 1))
+    done
+}
+
+retry_eval_cmd() {
+    local max_attempts="$1"
+    local sleep_seconds="$2"
+    local cmd="$3"
+
+    local attempt=1
+    local rc=0
+    while true; do
+        eval "$cmd"
+        rc=$?
+        if [[ $rc -eq 0 ]]; then
+            return 0
+        fi
+        if [[ $attempt -ge $max_attempts ]]; then
+            return $rc
+        fi
+
+        echo -e "${C_YELLOW}命令失败，${sleep_seconds}s 后重试 (${attempt}/${max_attempts})...${C_RESET}"
+        sleep "$sleep_seconds"
+        attempt=$((attempt + 1))
+    done
+}
+
+docker_image_id() {
+    local image_name="$1"
+    docker image inspect "$image_name" --format '{{.Id}}' 2>/dev/null
+}
+
+docker_container_image_id() {
+    local container_name="$1"
+    docker inspect "$container_name" --format '{{.Image}}' 2>/dev/null
+}
+
+assert_container_uses_image() {
+    local container_name="$1"
+    local image_name="$2"
+    local expected_id actual_id
+
+    expected_id="$(docker_image_id "$image_name")"
+    actual_id="$(docker_container_image_id "$container_name")"
+
+    if [[ -z "$expected_id" ]]; then
+        echo -e "${C_RED}未找到镜像: ${image_name}${C_RESET}"
+        return 1
+    fi
+    if [[ -z "$actual_id" ]]; then
+        echo -e "${C_RED}未找到容器: ${container_name}${C_RESET}"
+        return 1
+    fi
+    if [[ "$expected_id" != "$actual_id" ]]; then
+        echo -e "${C_RED}容器 ${container_name} 未使用最新镜像 ${image_name}${C_RESET}"
+        echo -e "${C_GRAY}expected=${expected_id}${C_RESET}"
+        echo -e "${C_GRAY}actual  =${actual_id}${C_RESET}"
+        return 1
+    fi
+
+    echo -e "${C_GREEN}  镜像已生效${C_RESET} ${container_name} -> ${expected_id}"
+    return 0
+}
+
 wait_for_containers_healthy() {
     local timeout="$1"
     shift

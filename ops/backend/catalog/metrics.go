@@ -184,41 +184,49 @@ var metricCatalog = []metricCatalogEntry{
 	},
 	{
 		Def: model.MetricDef{
-			Name:   "seckill_purchase_task_queue_depth",
-			Unit:   "",
-			Desc:   "Seckill async purchase queue depth",
+			Name:   "seckill_purchase_kafka_publish_rate",
+			Unit:   "req/s",
+			Desc:   "Seckill purchase Kafka publish rate",
 			Format: "scalar",
 		},
-		OverviewQuery: `seckill_purchase_task_queue_depth`,
-		BurstQuery:    `seckill_purchase_task_queue_depth`,
-		ReplayQueryFunc: func(_ string, _ string) (string, error) {
-			return `seckill_purchase_task_queue_depth`, nil
+		OverviewQuery: `sum(rate(seckill_purchase_kafka_published_total[1m]))`,
+		BurstQuery:    `sum(rate(seckill_purchase_kafka_published_total[30s]))`,
+		ReplayQueryFunc: func(start, end string) (string, error) {
+			lookback, err := replayLookback(start, end)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf(`sum(rate(seckill_purchase_kafka_published_total[%s]))`, lookback), nil
 		},
 	},
 	{
 		Def: model.MetricDef{
-			Name:   "seckill_purchase_task_queue_cap",
+			Name:   "seckill_purchase_kafka_publish_failed",
 			Unit:   "",
-			Desc:   "Seckill async purchase queue capacity",
+			Desc:   "Seckill purchase Kafka publish failures in the last minute",
 			Format: "scalar",
 		},
-		OverviewQuery: `seckill_purchase_task_queue_cap`,
-		BurstQuery:    `seckill_purchase_task_queue_cap`,
+		OverviewQuery: `sum(increase(seckill_purchase_kafka_publish_failed_total[1m]))`,
+		BurstQuery:    `sum(increase(seckill_purchase_kafka_publish_failed_total[1m]))`,
 		ReplayQueryFunc: func(_ string, _ string) (string, error) {
-			return `seckill_purchase_task_queue_cap`, nil
+			return `sum(increase(seckill_purchase_kafka_publish_failed_total[1m]))`, nil
 		},
 	},
 	{
 		Def: model.MetricDef{
-			Name:   "seckill_purchase_task_dropped_total",
-			Unit:   "",
-			Desc:   "Seckill async purchase dropped tasks in the last minute",
+			Name:   "seckill_order_state_consume_rate",
+			Unit:   "req/s",
+			Desc:   "Seckill order-state Kafka consume rate",
 			Format: "scalar",
 		},
-		OverviewQuery: `sum(increase(seckill_purchase_task_dropped_total[1m]))`,
-		BurstQuery:    `sum(increase(seckill_purchase_task_dropped_total[1m]))`,
-		ReplayQueryFunc: func(_ string, _ string) (string, error) {
-			return `sum(increase(seckill_purchase_task_dropped_total[1m]))`, nil
+		OverviewQuery: `sum(rate(seckill_order_state_consumed_total[1m]))`,
+		BurstQuery:    `sum(rate(seckill_order_state_consumed_total[30s]))`,
+		ReplayQueryFunc: func(start, end string) (string, error) {
+			lookback, err := replayLookback(start, end)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf(`sum(rate(seckill_order_state_consumed_total[%s]))`, lookback), nil
 		},
 	},
 }

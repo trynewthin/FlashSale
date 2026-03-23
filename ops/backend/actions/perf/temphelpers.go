@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const maxAutoTempUsers = 500
+const maxAutoTempUsers = 1000000
 
 func MergeArgsWithTempData(perfArgs []string, scenario string, activityID, itemID int64, tokenFile string) []string {
 	out := StripFlags(perfArgs, "activity-id", "item-id", "token", "token-file")

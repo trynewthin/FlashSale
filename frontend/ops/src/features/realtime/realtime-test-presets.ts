@@ -29,6 +29,11 @@ export interface RealtimeTestPreset {
   fields: RealtimeTestFieldDef[]
 }
 
+const MAX_OPEN_RATE = 100000
+const MAX_CONCURRENCY = 100000
+const MAX_REQUESTS = 10000000
+const MAX_TEMP_USERS = 1000000
+
 const realtimeTestPresets: Record<string, RealtimeTestPreset> = {
   "perf.purchase_open": {
     taskID: "perf.purchase_open",
@@ -37,19 +42,19 @@ const realtimeTestPresets: Record<string, RealtimeTestPreset> = {
     description: "默认临时数据模式：自动创建临时商品/活动/用户，结束自动清理。",
     recommended: true,
     fields: [
-      { flag: "rate", label: "每秒请求数 (RPS)", type: "number", min: 1, max: 5000, step: 10, helper: "固定到达率。" },
+      { flag: "rate", label: "每秒请求数 (RPS)", type: "number", min: 1, max: MAX_OPEN_RATE, step: 100, helper: "固定到达率，可按压测机能力提升到更高规模。" },
       { flag: "open-duration", label: "持续时间", type: "duration", placeholder: "30s", helper: "例如 30s / 2m。" },
-      { flag: "concurrency", label: "并发上限", type: "number", min: 1, max: 5000, step: 10 },
+      { flag: "concurrency", label: "并发上限", type: "number", min: 1, max: MAX_CONCURRENCY, step: 100 },
       {
         flag: "temp-users",
         label: "测试用户数（可选）",
         type: "number",
         min: 1,
-        max: 10000,
-        step: 1,
+        max: MAX_TEMP_USERS,
+        step: 100,
         required: false,
         placeholder: "留空则按并发自动推导",
-        helper: "仅购买类场景生效。",
+        helper: "仅购买类场景生效，可扩展到百万级用户池。",
       },
       { flag: "timeout", label: "请求超时", type: "duration", placeholder: "7s", helper: "建议 3s~10s。" },
       {
@@ -69,19 +74,19 @@ const realtimeTestPresets: Record<string, RealtimeTestPreset> = {
     subtitle: "固定总请求，观察全程成功率",
     description: "默认临时数据模式：自动创建临时商品/活动/用户，结束自动清理。",
     fields: [
-      { flag: "concurrency", label: "并发数", type: "number", min: 1, max: 5000, step: 10 },
+      { flag: "concurrency", label: "并发数", type: "number", min: 1, max: MAX_CONCURRENCY, step: 100 },
       {
         flag: "temp-users",
         label: "测试用户数（可选）",
         type: "number",
         min: 1,
-        max: 10000,
-        step: 1,
+        max: MAX_TEMP_USERS,
+        step: 100,
         required: false,
         placeholder: "留空则按并发自动推导",
-        helper: "仅购买类场景生效。",
+        helper: "仅购买类场景生效，可扩展到百万级用户池。",
       },
-      { flag: "requests", label: "总请求数", type: "number", min: 1, max: 1000000, step: 100 },
+      { flag: "requests", label: "总请求数", type: "number", min: 1, max: MAX_REQUESTS, step: 1000 },
       { flag: "timeout", label: "请求超时", type: "duration", placeholder: "7s" },
       {
         flag: "output",
@@ -100,9 +105,9 @@ const realtimeTestPresets: Record<string, RealtimeTestPreset> = {
     subtitle: "固定到达率，观察事件上报吞吐",
     description: "推荐用于验证点击流采集和队列处理。",
     fields: [
-      { flag: "rate", label: "每秒请求数 (RPS)", type: "number", min: 1, max: 20000, step: 50 },
+      { flag: "rate", label: "每秒请求数 (RPS)", type: "number", min: 1, max: MAX_OPEN_RATE, step: 100 },
       { flag: "open-duration", label: "持续时间", type: "duration", placeholder: "30s" },
-      { flag: "concurrency", label: "并发上限", type: "number", min: 1, max: 8000, step: 10 },
+      { flag: "concurrency", label: "并发上限", type: "number", min: 1, max: MAX_CONCURRENCY, step: 100 },
       { flag: "timeout", label: "请求超时", type: "duration", placeholder: "4s" },
       {
         flag: "event-type",
@@ -131,8 +136,8 @@ const realtimeTestPresets: Record<string, RealtimeTestPreset> = {
     subtitle: "固定总请求，验证事件上报稳定性",
     description: "适合回归阶段快速验证埋点成功率。",
     fields: [
-      { flag: "concurrency", label: "并发数", type: "number", min: 1, max: 8000, step: 10 },
-      { flag: "requests", label: "总请求数", type: "number", min: 1, max: 1000000, step: 100 },
+      { flag: "concurrency", label: "并发数", type: "number", min: 1, max: MAX_CONCURRENCY, step: 100 },
+      { flag: "requests", label: "总请求数", type: "number", min: 1, max: MAX_REQUESTS, step: 1000 },
       { flag: "timeout", label: "请求超时", type: "duration", placeholder: "4s" },
       {
         flag: "event-type",
@@ -161,8 +166,8 @@ const realtimeTestPresets: Record<string, RealtimeTestPreset> = {
     subtitle: "重复请求同一键，验证唯一成功约束",
     description: "用于验证幂等保护和重复扣减防护。",
     fields: [
-      { flag: "concurrency", label: "并发数", type: "number", min: 1, max: 2000, step: 10 },
-      { flag: "requests", label: "总请求数", type: "number", min: 1, max: 100000, step: 100 },
+      { flag: "concurrency", label: "并发数", type: "number", min: 1, max: MAX_CONCURRENCY, step: 100 },
+      { flag: "requests", label: "总请求数", type: "number", min: 1, max: MAX_REQUESTS, step: 1000 },
       { flag: "expect-max-success", label: "成功上限断言", type: "number", min: 1, max: 10, step: 1 },
       {
         flag: "output",

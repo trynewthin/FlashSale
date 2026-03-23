@@ -14,7 +14,7 @@ FROM golang:1.25-alpine AS base
 
 WORKDIR /src
 ENV CGO_ENABLED=0
-ENV GOPROXY=https://goproxy.cn,direct
+ENV GOPROXY=https://goproxy.cn|https://proxy.golang.org|direct
 
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \

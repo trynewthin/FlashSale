@@ -397,9 +397,9 @@ func TestResolveTempUserCount(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("idempotency should force 1, got=%d", count)
 	}
-	count = resolveTempUserCount(perfScenarioPurchaseStress, 0, []string{"--concurrency", "2000"})
-	if count != 500 {
-		t.Fatalf("should cap to 500, got=%d", count)
+	count = resolveTempUserCount(perfScenarioPurchaseStress, 0, []string{"--concurrency", "2000000"})
+	if count != 1000000 {
+		t.Fatalf("should cap to 1000000, got=%d", count)
 	}
 }
 

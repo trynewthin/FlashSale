@@ -35,12 +35,19 @@ OPS_HEALTH_CONTAINERS=(
     flashsale-app-ops-control
 )
 
+OPS_IMAGE_NAME="${OPS_IMAGE_NAME:-flashsale-app-ops-control}"
+OPS_CONTAINER_NAME="${OPS_CONTAINER_NAME:-flashsale-app-ops-control}"
+
 compose_cli_cmd() {
     printf 'docker compose --env-file configs/deploy.env -f deploy/compose/docker-compose.app.yml'
 }
 
 backend_build_cmd() {
     printf 'docker buildx build --file deploy/docker/backend.Dockerfile --tag flashsale-backend:local --target runtime-serial --progress=plain --load .'
+}
+
+ops_build_cmd() {
+    printf 'bash ops/cli/scripts/build_ops_image.sh %q' "$OPS_IMAGE_NAME"
 }
 
 compose_ps_container_names() {

@@ -10,222 +10,268 @@ show_recreate_hint() {
     echo '提示: 构建只更新镜像。若服务已在运行，请执行“重建”使新镜像生效。'
 }
 
+retry_build_step() {
+    retry_cmd 3 5 "$@"
+}
+
+retry_build_eval_step() {
+    retry_eval_cmd 3 5 "$1"
+}
+
+run_step() {
+    "$@"
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+        return $rc
+    fi
+    return 0
+}
+
+run_eval_step() {
+    eval "$1"
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+        return $rc
+    fi
+    return 0
+}
+
+require_step() {
+    run_step "$@"
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+        return $rc
+    fi
+    return 0
+}
+
+require_eval_step() {
+    run_eval_step "$1"
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+        return $rc
+    fi
+    return 0
+}
+
 build_all_images_sequence_no_hint() {
     echo '[全部] 构建后端镜像'
-    eval "$(backend_build_cmd)"
+    retry_build_eval_step "$(backend_build_cmd)" || return
 
     echo '[全部] 构建代理镜像'
-    compose_cmd --progress=plain build media-store
+    retry_build_step compose_cmd --progress=plain build media-store || return
 
     echo '[全部] 构建 Ops 镜像'
-    compose_cmd --progress=plain build --no-cache ops-control
+    retry_build_eval_step "$(ops_build_cmd)" || return
 }
 
 build_all_images_sequence() {
-    build_all_images_sequence_no_hint
+    build_all_images_sequence_no_hint || return
     show_recreate_hint
 }
 
 apply_all_scope_sequence() {
-    build_all_images_sequence_no_hint
-    restart_all_scope_sequence
+    build_all_images_sequence_no_hint || return
+    restart_all_scope_sequence || return
 }
 
 run_all_scope_sequence() {
     local backend_health
 
     echo '[全部] 启动基础设施'
-    compose_cmd up -d "${INFRA_SERVICES[@]}"
-    wait_for_containers_healthy 120 "${INFRA_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d "${INFRA_SERVICES[@]}"
+    require_step wait_for_containers_healthy 120 "${INFRA_HEALTH_CONTAINERS[@]}"
 
     echo '[全部] 启动后端服务'
-    compose_cmd up -d "${BACKEND_RUNTIME_SERVICES[@]}"
+    require_step compose_cmd up -d "${BACKEND_RUNTIME_SERVICES[@]}"
     mapfile -t backend_health < <(backend_health_containers)
-    wait_for_containers_healthy 120 "${backend_health[@]}"
+    require_step wait_for_containers_healthy 120 "${backend_health[@]}"
 
     echo '[全部] 启动代理服务'
-    compose_cmd up -d "${PROXY_SERVICES[@]}"
-    wait_for_containers_healthy 60 "${PROXY_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d "${PROXY_SERVICES[@]}"
+    require_step wait_for_containers_healthy 60 "${PROXY_HEALTH_CONTAINERS[@]}"
 
     echo '[全部] 启动 Ops 服务'
-    compose_cmd up -d "${OPS_SERVICES[@]}"
-    wait_for_containers_healthy 60 "${OPS_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d "${OPS_SERVICES[@]}"
+    require_step wait_for_containers_healthy 60 "${OPS_HEALTH_CONTAINERS[@]}"
 
     echo '[全部] 启动可观测组件'
-    compose_cmd --profile observability up -d "${OBSERVABILITY_SERVICES[@]}"
+    require_step compose_cmd --profile observability up -d "${OBSERVABILITY_SERVICES[@]}"
 }
 
 restart_all_scope_sequence() {
     local backend_health
 
     echo '[全部] 重建基础设施容器'
-    compose_cmd up -d --force-recreate "${INFRA_SERVICES[@]}"
-    wait_for_containers_healthy 120 "${INFRA_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d --force-recreate "${INFRA_SERVICES[@]}"
+    require_step wait_for_containers_healthy 120 "${INFRA_HEALTH_CONTAINERS[@]}"
 
     echo '[全部] 重建后端服务容器'
-    compose_cmd up -d --force-recreate "${BACKEND_RUNTIME_SERVICES[@]}"
+    require_step compose_cmd up -d --force-recreate "${BACKEND_RUNTIME_SERVICES[@]}"
     mapfile -t backend_health < <(backend_health_containers)
-    wait_for_containers_healthy 120 "${backend_health[@]}"
+    require_step wait_for_containers_healthy 120 "${backend_health[@]}"
 
     echo '[全部] 重建代理服务容器'
-    compose_cmd up -d --force-recreate "${PROXY_SERVICES[@]}"
-    wait_for_containers_healthy 60 "${PROXY_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d --force-recreate "${PROXY_SERVICES[@]}"
+    require_step wait_for_containers_healthy 60 "${PROXY_HEALTH_CONTAINERS[@]}"
 
     echo '[全部] 重建 Ops 服务容器'
-    compose_cmd up -d --force-recreate "${OPS_SERVICES[@]}"
-    wait_for_containers_healthy 60 "${OPS_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d --force-recreate "${OPS_SERVICES[@]}"
+    require_step wait_for_containers_healthy 60 "${OPS_HEALTH_CONTAINERS[@]}"
+    require_step assert_container_uses_image "$OPS_CONTAINER_NAME" "$OPS_IMAGE_NAME"
 
     echo '[全部] 重建可观测组件容器'
-    compose_cmd --profile observability up -d --force-recreate "${OBSERVABILITY_SERVICES[@]}"
+    require_step compose_cmd --profile observability up -d --force-recreate "${OBSERVABILITY_SERVICES[@]}"
 }
 
 stop_all_scope_sequence() {
     echo '[全部] 停止全部服务'
-    compose_cmd --profile observability down --remove-orphans
+    require_step compose_cmd --profile observability down --remove-orphans
 }
 
 build_backend_sequence_no_hint() {
     echo '[后端] 构建后端镜像'
-    eval "$(backend_build_cmd)"
+    retry_build_eval_step "$(backend_build_cmd)" || return
 }
 
 build_backend_sequence() {
-    build_backend_sequence_no_hint
+    build_backend_sequence_no_hint || return
     show_recreate_hint
 }
 
 apply_backend_sequence() {
-    build_backend_sequence_no_hint
-    restart_backend_sequence
+    build_backend_sequence_no_hint || return
+    restart_backend_sequence || return
 }
 
 run_backend_sequence() {
     local backend_health
 
     echo '[后端] 启动后端服务'
-    compose_cmd up -d "${BACKEND_RUNTIME_SERVICES[@]}"
+    require_step compose_cmd up -d "${BACKEND_RUNTIME_SERVICES[@]}"
     mapfile -t backend_health < <(backend_health_containers)
-    wait_for_containers_healthy 120 "${backend_health[@]}"
+    require_step wait_for_containers_healthy 120 "${backend_health[@]}"
 }
 
 restart_backend_sequence() {
     local backend_health
 
     echo '[后端] 重建后端服务容器'
-    compose_cmd up -d --force-recreate "${BACKEND_RUNTIME_SERVICES[@]}"
+    require_step compose_cmd up -d --force-recreate "${BACKEND_RUNTIME_SERVICES[@]}"
     mapfile -t backend_health < <(backend_health_containers)
-    wait_for_containers_healthy 120 "${backend_health[@]}"
+    require_step wait_for_containers_healthy 120 "${backend_health[@]}"
 }
 
 stop_backend_sequence() {
     echo '[后端] 停止后端服务'
-    compose_cmd stop "${BACKEND_RUNTIME_SERVICES[@]}"
+    require_step compose_cmd stop "${BACKEND_RUNTIME_SERVICES[@]}"
 }
 
 build_proxy_sequence_no_hint() {
     echo '[代理] 构建 media-store 镜像'
-    compose_cmd --progress=plain build media-store
+    retry_build_step compose_cmd --progress=plain build media-store || return
 }
 
 build_proxy_sequence() {
-    build_proxy_sequence_no_hint
+    build_proxy_sequence_no_hint || return
     show_recreate_hint
 }
 
 apply_proxy_sequence() {
-    build_proxy_sequence_no_hint
-    restart_proxy_sequence
+    build_proxy_sequence_no_hint || return
+    restart_proxy_sequence || return
 }
 
 run_proxy_sequence() {
     echo '[代理] 启动代理服务'
-    compose_cmd up -d "${PROXY_SERVICES[@]}"
-    wait_for_containers_healthy 60 "${PROXY_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d "${PROXY_SERVICES[@]}"
+    require_step wait_for_containers_healthy 60 "${PROXY_HEALTH_CONTAINERS[@]}"
 }
 
 restart_proxy_sequence() {
     echo '[代理] 重建代理服务容器'
-    compose_cmd up -d --force-recreate "${PROXY_SERVICES[@]}"
-    wait_for_containers_healthy 60 "${PROXY_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d --force-recreate "${PROXY_SERVICES[@]}"
+    require_step wait_for_containers_healthy 60 "${PROXY_HEALTH_CONTAINERS[@]}"
 }
 
 stop_proxy_sequence() {
     echo '[代理] 停止代理服务'
-    compose_cmd stop "${PROXY_SERVICES[@]}"
+    require_step compose_cmd stop "${PROXY_SERVICES[@]}"
 }
 
 build_ops_sequence_no_hint() {
     echo '[Ops] 构建 ops-control 镜像'
-    compose_cmd --progress=plain build --no-cache ops-control
+    retry_build_eval_step "$(ops_build_cmd)" || return
 }
 
 build_ops_sequence() {
-    build_ops_sequence_no_hint
+    build_ops_sequence_no_hint || return
     show_recreate_hint
 }
 
 apply_ops_sequence() {
-    build_ops_sequence_no_hint
-    restart_ops_sequence
+    build_ops_sequence_no_hint || return
+    restart_ops_sequence || return
 }
 
 run_ops_sequence() {
     echo '[Ops] 启动 ops-control'
-    compose_cmd up -d "${OPS_SERVICES[@]}"
-    wait_for_containers_healthy 60 "${OPS_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d "${OPS_SERVICES[@]}"
+    require_step wait_for_containers_healthy 60 "${OPS_HEALTH_CONTAINERS[@]}"
 }
 
 restart_ops_sequence() {
     echo '[Ops] 重建 ops-control 容器'
-    compose_cmd up -d --force-recreate "${OPS_SERVICES[@]}"
-    wait_for_containers_healthy 60 "${OPS_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d --force-recreate "${OPS_SERVICES[@]}"
+    require_step wait_for_containers_healthy 60 "${OPS_HEALTH_CONTAINERS[@]}"
+    require_step assert_container_uses_image "$OPS_CONTAINER_NAME" "$OPS_IMAGE_NAME"
 }
 
 stop_ops_sequence() {
     echo '[Ops] 停止 ops-control'
-    compose_cmd stop "${OPS_SERVICES[@]}"
+    require_step compose_cmd stop "${OPS_SERVICES[@]}"
 }
 
 run_infra_sequence() {
     echo '[基础设施] 启动基础设施'
-    compose_cmd up -d "${INFRA_SERVICES[@]}"
-    wait_for_containers_healthy 120 "${INFRA_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d "${INFRA_SERVICES[@]}"
+    require_step wait_for_containers_healthy 120 "${INFRA_HEALTH_CONTAINERS[@]}"
 }
 
 restart_infra_sequence() {
     echo '[基础设施] 重建基础设施容器'
-    compose_cmd up -d --force-recreate "${INFRA_SERVICES[@]}"
-    wait_for_containers_healthy 120 "${INFRA_HEALTH_CONTAINERS[@]}"
+    require_step compose_cmd up -d --force-recreate "${INFRA_SERVICES[@]}"
+    require_step wait_for_containers_healthy 120 "${INFRA_HEALTH_CONTAINERS[@]}"
 }
 
 apply_infra_sequence() {
     echo '[基础设施] 没有需要构建的本地镜像，直接重建容器'
-    restart_infra_sequence
+    restart_infra_sequence || return
 }
 
 stop_infra_sequence() {
     echo '[基础设施] 停止基础设施'
-    compose_cmd stop "${INFRA_SERVICES[@]}"
+    require_step compose_cmd stop "${INFRA_SERVICES[@]}"
 }
 
 run_observability_sequence() {
     echo '[可观测] 启动可观测组件'
-    compose_cmd --profile observability up -d "${OBSERVABILITY_SERVICES[@]}"
+    require_step compose_cmd --profile observability up -d "${OBSERVABILITY_SERVICES[@]}"
 }
 
 restart_observability_sequence() {
     echo '[可观测] 重建可观测组件容器'
-    compose_cmd --profile observability up -d --force-recreate "${OBSERVABILITY_SERVICES[@]}"
+    require_step compose_cmd --profile observability up -d --force-recreate "${OBSERVABILITY_SERVICES[@]}"
 }
 
 apply_observability_sequence() {
     echo '[可观测] 没有需要构建的本地镜像，直接重建容器'
-    restart_observability_sequence
+    restart_observability_sequence || return
 }
 
 stop_observability_sequence() {
     echo '[可观测] 停止可观测组件'
-    compose_cmd stop "${OBSERVABILITY_SERVICES[@]}"
+    require_step compose_cmd stop "${OBSERVABILITY_SERVICES[@]}"
 }
 
 run_scope_action() {

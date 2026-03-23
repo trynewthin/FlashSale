@@ -28,6 +28,7 @@ import (
 	basetracing "flashsale/pkg/base/tracing"
 
 	"github.com/bwmarrin/snowflake"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"github.com/zeromicro/go-zero/zrpc"
 	"go.uber.org/zap"
@@ -98,6 +99,8 @@ type ServiceContext struct {
 	perfCtx               context.Context
 	perfCancel            context.CancelFunc
 	perfWG                sync.WaitGroup
+	metricsCollector      prometheus.Collector
+	metricsCollectorOwned bool
 	traceShutdown         func(context.Context) error
 	activityItemCache     sync.Map
 }
@@ -273,6 +276,12 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 	out.startOrderLinkWorkers(orderLinkWorkers)
 	out.startTrafficWorkers(trafficWorkers)
 	out.startPerfReporter()
+	metricsCollector, metricsCollectorOwned, err := registerPurchaseKafkaMetrics(prometheus.DefaultRegisterer, out)
+	if err != nil {
+		return nil, fmt.Errorf("register purchase kafka metrics: %w", err)
+	}
+	out.metricsCollector = metricsCollector
+	out.metricsCollectorOwned = metricsCollectorOwned
 	return out, nil
 }
 
@@ -348,6 +357,9 @@ func (s *ServiceContext) Close() error {
 		if err := s.Redis.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("close redis: %w", err))
 		}
+	}
+	if s.metricsCollector != nil && s.metricsCollectorOwned {
+		prometheus.DefaultRegisterer.Unregister(s.metricsCollector)
 	}
 	if s.Logger != nil {
 		if err := s.Logger.Sync(); err != nil && !strings.Contains(strings.ToLower(err.Error()), "invalid argument") {
@@ -637,6 +649,27 @@ func (s *ServiceContext) orderLinkQueueStats() (depth, capVal int) {
 		return 0, 0
 	}
 	return len(s.orderLinkTasks), cap(s.orderLinkTasks)
+}
+
+func (s *ServiceContext) PurchaseKafkaPublishedTotal() float64 {
+	if s == nil || s.Perf == nil {
+		return 0
+	}
+	return float64(s.Perf.PurchaseKafkaPublished())
+}
+
+func (s *ServiceContext) PurchaseKafkaPublishFailedTotal() float64 {
+	if s == nil || s.Perf == nil {
+		return 0
+	}
+	return float64(s.Perf.PurchaseKafkaPublishFailed())
+}
+
+func (s *ServiceContext) OrderStateConsumedTotal() float64 {
+	if s == nil || s.Perf == nil {
+		return 0
+	}
+	return float64(s.Perf.OrderStateConsumed())
 }
 
 func (s *ServiceContext) trafficQueueStats() (depth, capVal int) {

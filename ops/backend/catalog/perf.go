@@ -28,31 +28,38 @@ type perfTaskSpec struct {
 	Fields []perfFieldSpec
 }
 
+const (
+	maxPerfOpenRate    int64 = 100_000
+	maxPerfConcurrency int64 = 100_000
+	maxPerfRequests    int64 = 10_000_000
+	maxPerfTempUsers   int64 = 1_000_000
+)
+
 var perfTaskSpecs = map[string]perfTaskSpec{
 	"perf.purchase_open": {
 		Fields: []perfFieldSpec{
-			numberField("rate", true, 1, 5000),
+			numberField("rate", true, 1, maxPerfOpenRate),
 			durationField("open-duration", true),
-			numberField("concurrency", true, 1, 5000),
-			numberField("temp-users", false, 1, 10000),
+			numberField("concurrency", true, 1, maxPerfConcurrency),
+			numberField("temp-users", false, 1, maxPerfTempUsers),
 			durationField("timeout", true),
 			selectField("output", true, "json", "text"),
 		},
 	},
 	"perf.purchase_stress": {
 		Fields: []perfFieldSpec{
-			numberField("concurrency", true, 1, 5000),
-			numberField("temp-users", false, 1, 10000),
-			numberField("requests", true, 1, 1_000_000),
+			numberField("concurrency", true, 1, maxPerfConcurrency),
+			numberField("temp-users", false, 1, maxPerfTempUsers),
+			numberField("requests", true, 1, maxPerfRequests),
 			durationField("timeout", true),
 			selectField("output", true, "json", "text"),
 		},
 	},
 	"perf.track_open": {
 		Fields: []perfFieldSpec{
-			numberField("rate", true, 1, 20_000),
+			numberField("rate", true, 1, maxPerfOpenRate),
 			durationField("open-duration", true),
-			numberField("concurrency", true, 1, 8000),
+			numberField("concurrency", true, 1, maxPerfConcurrency),
 			durationField("timeout", true),
 			selectField("event-type", true, "pv", "click", "purchase_attempt"),
 			selectField("output", true, "json", "text"),
@@ -60,8 +67,8 @@ var perfTaskSpecs = map[string]perfTaskSpec{
 	},
 	"perf.track_stress": {
 		Fields: []perfFieldSpec{
-			numberField("concurrency", true, 1, 8000),
-			numberField("requests", true, 1, 1_000_000),
+			numberField("concurrency", true, 1, maxPerfConcurrency),
+			numberField("requests", true, 1, maxPerfRequests),
 			durationField("timeout", true),
 			selectField("event-type", true, "pv", "click", "purchase_attempt"),
 			selectField("output", true, "json", "text"),
@@ -69,8 +76,8 @@ var perfTaskSpecs = map[string]perfTaskSpec{
 	},
 	"perf.idempotency": {
 		Fields: []perfFieldSpec{
-			numberField("concurrency", true, 1, 2000),
-			numberField("requests", true, 1, 100_000),
+			numberField("concurrency", true, 1, maxPerfConcurrency),
+			numberField("requests", true, 1, maxPerfRequests),
 			numberField("expect-max-success", true, 1, 10),
 			selectField("output", true, "json", "text"),
 		},

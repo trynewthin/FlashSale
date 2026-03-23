@@ -16,7 +16,7 @@ FROM golang:1.25-alpine AS rebuild
 
 WORKDIR /src
 
-ENV GOPROXY=https://goproxy.cn,direct
+ENV GOPROXY=https://goproxy.cn|https://proxy.golang.org|direct
 ENV CGO_ENABLED=0
 
 COPY go.mod go.sum ./

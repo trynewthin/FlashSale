@@ -371,6 +371,13 @@ func (p *PerfStats) MarkOrderLinkDropped() {
 	}
 }
 
+func (p *PerfStats) OrderLinkDropped() int64 {
+	if p == nil {
+		return 0
+	}
+	return p.orderLinkDropped.Load()
+}
+
 func (p *PerfStats) MarkOrderLinkSyncFallback() {
 	if p != nil {
 		p.orderLinkSyncFallback.Add(1)
@@ -419,10 +426,31 @@ func (p *PerfStats) MarkPurchaseKafkaPublishFailed() {
 	}
 }
 
+func (p *PerfStats) PurchaseKafkaPublished() int64 {
+	if p == nil {
+		return 0
+	}
+	return p.purchaseKafkaPublished.Load()
+}
+
+func (p *PerfStats) PurchaseKafkaPublishFailed() int64 {
+	if p == nil {
+		return 0
+	}
+	return p.purchaseKafkaPublishFailed.Load()
+}
+
 func (p *PerfStats) MarkOrderStateConsumed() {
 	if p != nil {
 		p.orderStateConsumed.Add(1)
 	}
+}
+
+func (p *PerfStats) OrderStateConsumed() int64 {
+	if p == nil {
+		return 0
+	}
+	return p.orderStateConsumed.Load()
 }
 
 func (p *PerfStats) MarkOrderStateDecodeFailed() {

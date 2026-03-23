@@ -91,6 +91,12 @@ export interface PerfProgress {
   systemErrorRate: number
   networkErrorRate: number
   stockDeductionRate: number
+  promQps?: number | null
+  promP99LatencyMs?: number | null
+  promErrorRate?: number | null
+  purchaseKafkaPublishRate?: number | null
+  purchaseKafkaPublishFailed?: number | null
+  orderStateConsumeRate?: number | null
 }
 
 export interface PerfReport {

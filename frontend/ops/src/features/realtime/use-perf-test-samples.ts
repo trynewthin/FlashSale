@@ -20,9 +20,9 @@ function perfProgressToSample(p: PerfProgress): RealtimeSample {
         totalContainers: 0,
         runningReplicas: 0,
         totalReplicas: 0,
-        promQps: null,
-        promP99LatencyMs: null,
-        promErrorRate: null,
+        promQps: p.promQps ?? null,
+        promP99LatencyMs: p.promP99LatencyMs ?? null,
+        promErrorRate: p.promErrorRate ?? null,
         qps: p.qps,
         successRate: p.successRate,
         rejectRate: p.rejectRate,
@@ -30,6 +30,9 @@ function perfProgressToSample(p: PerfProgress): RealtimeSample {
         p95LatencyMs: p.p95LatencyMs,
         networkErrorRate: p.networkErrorRate,
         stockDeductionRate: p.stockDeductionRate,
+        purchaseKafkaPublishRate: p.purchaseKafkaPublishRate ?? null,
+        purchaseKafkaPublishFailed: p.purchaseKafkaPublishFailed ?? null,
+        orderStateConsumeRate: p.orderStateConsumeRate ?? null,
     }
 }
 
@@ -47,9 +50,9 @@ function persistedToRealtime(sample: PersistedSample): RealtimeSample {
         promQps: sample.promQps,
         promP99LatencyMs: sample.promP99LatencyMs,
         promErrorRate: sample.promErrorRate,
-        purchaseTaskQueueDepth: sample.purchaseTaskQueueDepth,
-        purchaseTaskQueueCap: sample.purchaseTaskQueueCap,
-        purchaseTaskDropped: sample.purchaseTaskDropped,
+        purchaseKafkaPublishRate: sample.purchaseKafkaPublishRate,
+        purchaseKafkaPublishFailed: sample.purchaseKafkaPublishFailed,
+        orderStateConsumeRate: sample.orderStateConsumeRate,
     }, OVERVIEW_LOOKBACK_SECONDS)
 }
 
@@ -118,9 +121,9 @@ function attachMonitorMetrics(
             promQps: matchedMonitorSample.promQps,
             promP99LatencyMs: matchedMonitorSample.promP99LatencyMs,
             promErrorRate: matchedMonitorSample.promErrorRate,
-            purchaseTaskQueueDepth: matchedMonitorSample.purchaseTaskQueueDepth,
-            purchaseTaskQueueCap: matchedMonitorSample.purchaseTaskQueueCap,
-            purchaseTaskDropped: matchedMonitorSample.purchaseTaskDropped,
+            purchaseKafkaPublishRate: matchedMonitorSample.purchaseKafkaPublishRate,
+            purchaseKafkaPublishFailed: matchedMonitorSample.purchaseKafkaPublishFailed,
+            orderStateConsumeRate: matchedMonitorSample.orderStateConsumeRate,
         }
     })
 }

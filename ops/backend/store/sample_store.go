@@ -14,21 +14,21 @@ import (
 )
 
 type MonitorSample struct {
-	Timestamp              int64    `json:"ts"`
-	Label                  string   `json:"label"`
-	PortRate               float64  `json:"portRate"`
-	HttpRate               float64  `json:"httpRate"`
-	ReplicaRate            float64  `json:"replicaRate"`
-	RunningContainers      int      `json:"runningContainers"`
-	TotalContainers        int      `json:"totalContainers"`
-	RunningReplicas        int      `json:"runningReplicas"`
-	TotalReplicas          int      `json:"totalReplicas"`
-	PromQps                *float64 `json:"promQps,omitempty"`
-	PromP99LatencyMs       *float64 `json:"promP99LatencyMs,omitempty"`
-	PromErrorRate          *float64 `json:"promErrorRate,omitempty"`
-	PurchaseTaskQueueDepth *float64 `json:"purchaseTaskQueueDepth,omitempty"`
-	PurchaseTaskQueueCap   *float64 `json:"purchaseTaskQueueCap,omitempty"`
-	PurchaseTaskDropped    *float64 `json:"purchaseTaskDropped,omitempty"`
+	Timestamp                  int64    `json:"ts"`
+	Label                      string   `json:"label"`
+	PortRate                   float64  `json:"portRate"`
+	HttpRate                   float64  `json:"httpRate"`
+	ReplicaRate                float64  `json:"replicaRate"`
+	RunningContainers          int      `json:"runningContainers"`
+	TotalContainers            int      `json:"totalContainers"`
+	RunningReplicas            int      `json:"runningReplicas"`
+	TotalReplicas              int      `json:"totalReplicas"`
+	PromQps                    *float64 `json:"promQps,omitempty"`
+	PromP99LatencyMs           *float64 `json:"promP99LatencyMs,omitempty"`
+	PromErrorRate              *float64 `json:"promErrorRate,omitempty"`
+	PurchaseKafkaPublishRate   *float64 `json:"purchaseKafkaPublishRate,omitempty"`
+	PurchaseKafkaPublishFailed *float64 `json:"purchaseKafkaPublishFailed,omitempty"`
+	OrderStateConsumeRate      *float64 `json:"orderStateConsumeRate,omitempty"`
 }
 
 type SampleStore struct {

@@ -48,26 +48,26 @@ function makeSample(
     p95LatencyMs: 15,
     networkErrorRate: 0,
     stockDeductionRate: 100,
-    purchaseTaskQueueDepth: 0,
-    purchaseTaskQueueCap: 0,
-    purchaseTaskDropped: 0,
+    purchaseKafkaPublishRate: 100,
+    purchaseKafkaPublishFailed: 0,
+    orderStateConsumeRate: 100,
     ...overrides,
   }
 }
 
 describe("perf-diagnosis", () => {
-  it("prioritizes queue saturation when queue is near full and drops tasks", () => {
+  it("prioritizes kafka pipeline risk when kafka publish starts failing", () => {
     const samples = [
-      makeSample(1_000, { qps: 2200, p95LatencyMs: 220, promP99LatencyMs: 320, purchaseTaskQueueDepth: 70, purchaseTaskQueueCap: 100, purchaseTaskDropped: 0 }),
-      makeSample(2_000, { qps: 2300, p95LatencyMs: 260, promP99LatencyMs: 420, purchaseTaskQueueDepth: 85, purchaseTaskQueueCap: 100, purchaseTaskDropped: 1 }),
-      makeSample(3_000, { qps: 2250, p95LatencyMs: 310, promP99LatencyMs: 480, purchaseTaskQueueDepth: 90, purchaseTaskQueueCap: 100, purchaseTaskDropped: 3 }),
+      makeSample(1_000, { qps: 2200, p95LatencyMs: 220, promP99LatencyMs: 320, purchaseKafkaPublishRate: 2100, orderStateConsumeRate: 1800, purchaseKafkaPublishFailed: 0 }),
+      makeSample(2_000, { qps: 2300, p95LatencyMs: 260, promP99LatencyMs: 420, purchaseKafkaPublishRate: 2200, orderStateConsumeRate: 1700, purchaseKafkaPublishFailed: 1 }),
+      makeSample(3_000, { qps: 2250, p95LatencyMs: 310, promP99LatencyMs: 480, purchaseKafkaPublishRate: 2150, orderStateConsumeRate: 1600, purchaseKafkaPublishFailed: 3 }),
     ]
 
     const report = analyzePerfDiagnostics(samples, makeJob({ open_rate: 3000, concurrency: 1500, timeout_ms: 7000 }))
 
-    expect(report.primary.kind).toBe("queue_saturation")
+    expect(report.primary.kind).toBe("kafka_pipeline_risk")
     expect(report.primary.level).toBe("critical")
-    expect(report.primary.evidence.some((item) => item.includes("任务丢弃峰值 3"))).toBe(true)
+    expect(report.primary.evidence.some((item) => item.includes("Kafka 发布失败峰值 3"))).toBe(true)
   })
 
   it("identifies load generation limit when target rate is far above actual but latency stays low", () => {

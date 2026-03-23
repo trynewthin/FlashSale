@@ -4,7 +4,7 @@ import { computeAvg, computeLatest, computeMax } from "@/features/realtime/perf-
 
 export type PerfDiagnosisLevel = "critical" | "high" | "medium" | "info"
 export type PerfDiagnosisKind =
-  | "queue_saturation"
+  | "kafka_pipeline_risk"
   | "service_saturation"
   | "system_errors"
   | "network_instability"
@@ -57,12 +57,12 @@ interface PerfSnapshot {
   latestServerErrorRate: number
   avgStockDeductionRate: number
   latestStockDeductionRate: number
-  maxQueueDepth: number
-  latestQueueDepth: number
-  maxQueueCap: number
-  latestQueueCap: number
-  maxQueueDropped: number
-  latestQueueDropped: number
+  avgKafkaPublishRate: number
+  latestKafkaPublishRate: number
+  avgOrderStateConsumeRate: number
+  latestOrderStateConsumeRate: number
+  maxKafkaPublishFailed: number
+  latestKafkaPublishFailed: number
 }
 
 function parseNumericLike(value: unknown): number | null {
@@ -156,12 +156,12 @@ function snapshotFromSamples(samples: RealtimeSample[]): PerfSnapshot {
     latestServerErrorRate: computeLatest(samples, "promErrorRate"),
     avgStockDeductionRate: computeAvg(samples, "stockDeductionRate"),
     latestStockDeductionRate: computeLatest(samples, "stockDeductionRate"),
-    maxQueueDepth: computeMax(samples, "purchaseTaskQueueDepth"),
-    latestQueueDepth: computeLatest(samples, "purchaseTaskQueueDepth"),
-    maxQueueCap: computeMax(samples, "purchaseTaskQueueCap"),
-    latestQueueCap: computeLatest(samples, "purchaseTaskQueueCap"),
-    maxQueueDropped: computeMax(samples, "purchaseTaskDropped"),
-    latestQueueDropped: computeLatest(samples, "purchaseTaskDropped"),
+    avgKafkaPublishRate: computeAvg(samples, "purchaseKafkaPublishRate"),
+    latestKafkaPublishRate: computeLatest(samples, "purchaseKafkaPublishRate"),
+    avgOrderStateConsumeRate: computeAvg(samples, "orderStateConsumeRate"),
+    latestOrderStateConsumeRate: computeLatest(samples, "orderStateConsumeRate"),
+    maxKafkaPublishFailed: computeMax(samples, "purchaseKafkaPublishFailed"),
+    latestKafkaPublishFailed: computeLatest(samples, "purchaseKafkaPublishFailed"),
   }
 }
 
@@ -235,29 +235,23 @@ export function analyzePerfDiagnostics(
     }
   }
 
-  const queueUtil = snapshot.maxQueueCap > 0
-    ? snapshot.maxQueueDepth / snapshot.maxQueueCap
-    : 0
-
-  if (snapshot.maxQueueDropped > 0 || (snapshot.maxQueueCap > 0 && queueUtil >= 0.8)) {
+  if (snapshot.maxKafkaPublishFailed > 0) {
     diagnoses.push({
-      kind: "queue_saturation",
-      level: snapshot.maxQueueDropped > 0 ? "critical" : "high",
-      title: "异步任务队列已饱和",
-      summary: snapshot.maxQueueDropped > 0
-        ? "秒杀异步任务已出现丢弃，快路径失效后请求会回退或堆积，尾延迟通常会快速抬升。"
-        : "异步任务队列接近打满，继续提压时更容易出现任务堆积和尾延迟抬升。",
-      module: "秒杀异步任务队列",
-      confidence: clampConfidence(0.78 + Math.min(0.18, queueUtil * 0.2) + (snapshot.maxQueueDropped > 0 ? 0.08 : 0)),
+      kind: "kafka_pipeline_risk",
+      level: "critical",
+      title: "Kafka 建单链路已出现发布失败",
+      summary: "秒杀建单消息在发布到 Kafka 时已经出现失败，这说明异步建单链路存在真实故障，继续提压只会放大丢单或延迟问题。",
+      module: "seckill-rpc -> Kafka",
+      confidence: clampConfidence(0.84 + Math.min(0.1, snapshot.maxKafkaPublishFailed / 10)),
       suggestions: [
-        "优先扩容处理异步订单/回写的消费模块，先让队列恢复可排空状态。",
-        "如果扩容后深度仍持续升高，再检查下游 MySQL、Kafka 或订单写路径的消费速度。",
-        "仅在消费者已能及时排空时再考虑增大队列容量，避免把问题从延迟暴露改成延迟隐藏。",
+        "先检查 seckill-rpc 到 Kafka broker 的错误日志、网络连通性、topic 配置和 broker 健康状态。",
+        "再核对 Kafka broker 资源、磁盘、ISR 和配额限制，确认不是基础设施层拒绝写入。",
+        "如果发布恢复正常但订单状态消费仍长期偏低，再继续排查 order-rpc 消费与回流链路。",
       ],
       evidence: [
-        `队列峰值占用 ${pct(queueUtil * 100)}`,
-        `队列深度峰值 ${Math.round(snapshot.maxQueueDepth)}`,
-        `任务丢弃峰值 ${Math.round(snapshot.maxQueueDropped)}`,
+        `Kafka 发布失败峰值 ${Math.round(snapshot.maxKafkaPublishFailed)}`,
+        `Kafka 发布速率 ${req(snapshot.latestKafkaPublishRate)}`,
+        `订单状态消费速率 ${req(snapshot.latestOrderStateConsumeRate)}`,
       ],
     })
   }

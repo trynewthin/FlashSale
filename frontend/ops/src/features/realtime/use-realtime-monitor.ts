@@ -65,9 +65,9 @@ const REALTIME_METRIC_NAMES = [
   "rpc_request_rate",
   "rpc_error_rate",
   "rpc_p99_latency",
-  "seckill_purchase_task_queue_depth",
-  "seckill_purchase_task_queue_cap",
-  "seckill_purchase_task_dropped_total",
+  "seckill_purchase_kafka_publish_rate",
+  "seckill_purchase_kafka_publish_failed",
+  "seckill_order_state_consume_rate",
 ]
 
 function findWindow(value: TimeWindow): TimeWindowOption {
@@ -88,9 +88,9 @@ function persistedToRealtime(sample: PersistedSample): RealtimeSample {
     promQps: sample.promQps,
     promP99LatencyMs: sample.promP99LatencyMs,
     promErrorRate: sample.promErrorRate,
-    purchaseTaskQueueDepth: sample.purchaseTaskQueueDepth,
-    purchaseTaskQueueCap: sample.purchaseTaskQueueCap,
-    purchaseTaskDropped: sample.purchaseTaskDropped,
+    purchaseKafkaPublishRate: sample.purchaseKafkaPublishRate,
+    purchaseKafkaPublishFailed: sample.purchaseKafkaPublishFailed,
+    orderStateConsumeRate: sample.orderStateConsumeRate,
   }, OVERVIEW_LOOKBACK_SECONDS)
 }
 

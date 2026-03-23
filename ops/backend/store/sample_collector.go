@@ -79,15 +79,15 @@ func (c *SampleCollector) collectOnce() {
 	sample.ReplicaRate = safeRateFloat(runRep, totalRep)
 	metricNames := []string{
 		"rpc_request_rate", "rpc_error_rate", "rpc_p99_latency",
-		"seckill_purchase_task_queue_depth", "seckill_purchase_task_queue_cap", "seckill_purchase_task_dropped_total",
+		"seckill_purchase_kafka_publish_rate", "seckill_purchase_kafka_publish_failed", "seckill_order_state_consume_rate",
 	}
 	snapshot := catalog.MetricsSnapshot(c.env, metricNames, catalog.MetricProfileOverview)
 	sample.PromQps = extractPromScalar(snapshot, "rpc_request_rate")
 	sample.PromErrorRate = extractPromScalar(snapshot, "rpc_error_rate")
 	sample.PromP99LatencyMs = extractPromScalar(snapshot, "rpc_p99_latency")
-	sample.PurchaseTaskQueueDepth = extractPromScalar(snapshot, "seckill_purchase_task_queue_depth")
-	sample.PurchaseTaskQueueCap = extractPromScalar(snapshot, "seckill_purchase_task_queue_cap")
-	sample.PurchaseTaskDropped = extractPromScalar(snapshot, "seckill_purchase_task_dropped_total")
+	sample.PurchaseKafkaPublishRate = extractPromScalar(snapshot, "seckill_purchase_kafka_publish_rate")
+	sample.PurchaseKafkaPublishFailed = extractPromScalar(snapshot, "seckill_purchase_kafka_publish_failed")
+	sample.OrderStateConsumeRate = extractPromScalar(snapshot, "seckill_order_state_consume_rate")
 	if err := c.store.Append(sample); err != nil {
 		log.Printf("[sample_collector] write failed: %v", err)
 	}

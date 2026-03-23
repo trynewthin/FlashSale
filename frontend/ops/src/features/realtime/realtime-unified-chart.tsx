@@ -30,11 +30,11 @@ type ChartMetricKey =
   | "promQps"
   | "promP99LatencyMs"
   | "promErrorRate"
-  | "purchaseTaskQueueDepth"
-  | "purchaseTaskQueueCap"
-  | "purchaseTaskDropped"
+  | "purchaseKafkaPublishRate"
+  | "purchaseKafkaPublishFailed"
+  | "orderStateConsumeRate"
 
-type MetricGroupKey = "server_metrics" | "infra_health" | "async_queue" | "all"
+type MetricGroupKey = "server_metrics" | "infra_health" | "kafka_pipeline" | "all"
 
 interface MetricDef {
   key: ChartMetricKey
@@ -58,9 +58,9 @@ const METRICS: MetricDef[] = [
   { key: "promQps", label: "服务端 RPC QPS", color: "var(--chart-3)", axis: "count", unit: " req/s" },
   { key: "promP99LatencyMs", label: "服务端 RPC P99", color: "var(--chart-7)", axis: "count", unit: " ms" },
   { key: "promErrorRate", label: "服务端错误率", color: "var(--chart-5)", axis: "percent", unit: "%" },
-  { key: "purchaseTaskQueueDepth", label: "异步队列深度", color: "hsl(200 80% 50%)", axis: "count", unit: "" },
-  { key: "purchaseTaskQueueCap", label: "异步队列容量", color: "hsl(200 60% 70%)", axis: "count", unit: "" },
-  { key: "purchaseTaskDropped", label: "队列丢弃数", color: "hsl(0 85% 60%)", axis: "count", unit: "" },
+  { key: "purchaseKafkaPublishRate", label: "Kafka 发布速率", color: "hsl(200 80% 50%)", axis: "count", unit: " req/s" },
+  { key: "orderStateConsumeRate", label: "订单状态消费速率", color: "hsl(200 60% 70%)", axis: "count", unit: " req/s" },
+  { key: "purchaseKafkaPublishFailed", label: "Kafka 发布失败数", color: "hsl(0 85% 60%)", axis: "count", unit: "" },
 ]
 
 const GROUPS: MetricGroupDef[] = [
@@ -77,10 +77,10 @@ const GROUPS: MetricGroupDef[] = [
     metrics: ["portRate", "httpRate", "replicaRate"],
   },
   {
-    key: "async_queue",
-    label: "异步队列",
-    description: "秒杀异步购买任务队列状态。",
-    metrics: ["purchaseTaskQueueDepth", "purchaseTaskQueueCap", "purchaseTaskDropped"],
+    key: "kafka_pipeline",
+    label: "Kafka 链路",
+    description: "秒杀建单发布与订单状态回流的 Kafka 指标。",
+    metrics: ["purchaseKafkaPublishRate", "orderStateConsumeRate", "purchaseKafkaPublishFailed"],
   },
   {
     key: "all",

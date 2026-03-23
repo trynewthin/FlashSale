@@ -18,7 +18,7 @@ export interface RealtimeSample {
   p95LatencyMs?: number | null
   networkErrorRate?: number | null
   stockDeductionRate?: number | null
-  purchaseTaskQueueDepth?: number | null
-  purchaseTaskQueueCap?: number | null
-  purchaseTaskDropped?: number | null
+  purchaseKafkaPublishRate?: number | null
+  purchaseKafkaPublishFailed?: number | null
+  orderStateConsumeRate?: number | null
 }

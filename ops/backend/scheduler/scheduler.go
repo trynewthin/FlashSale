@@ -14,6 +14,7 @@ import (
 
 	"flashsale/ops/backend/executor"
 	"flashsale/ops/backend/model"
+	"flashsale/ops/backend/store"
 	"flashsale/ops/backend/stream"
 
 	"github.com/google/uuid"
@@ -84,12 +85,13 @@ func (r *jobRecord) nextSeqLocked() int64 {
 }
 
 type Scheduler struct {
-	repoRoot   string
-	tasks      map[string]model.TaskDef
-	executor   *executor.Executor
-	logRootDir string
-	maxJobs    int
-	maxLogSize int
+	repoRoot    string
+	tasks       map[string]model.TaskDef
+	executor    *executor.Executor
+	sampleStore *store.SampleStore
+	logRootDir  string
+	maxJobs     int
+	maxLogSize  int
 
 	mu      sync.RWMutex
 	jobs    map[string]*jobRecord
@@ -107,15 +109,16 @@ func New(repoRoot string, tasks map[string]model.TaskDef) *Scheduler {
 	logRoot := filepath.Join(repoRoot, "log", "ops-jobs")
 	_ = os.MkdirAll(logRoot, 0o755)
 	s := &Scheduler{
-		repoRoot:   repoRoot,
-		tasks:      tasks,
-		executor:   executor.New(repoRoot),
-		logRootDir: logRoot,
-		maxJobs:    defaultMaxJobs,
-		maxLogSize: defaultMaxLogSize,
-		jobs:       make(map[string]*jobRecord),
-		jobList:    make([]string, 0, 64),
-		subs:       make(map[string]map[string]chan stream.Envelope),
+		repoRoot:    repoRoot,
+		tasks:       tasks,
+		executor:    executor.New(repoRoot),
+		sampleStore: store.NewSampleStore(repoRoot),
+		logRootDir:  logRoot,
+		maxJobs:     defaultMaxJobs,
+		maxLogSize:  defaultMaxLogSize,
+		jobs:        make(map[string]*jobRecord),
+		jobList:     make([]string, 0, 64),
+		subs:        make(map[string]map[string]chan stream.Envelope),
 	}
 	s.loadPersistedJobs()
 	return s
@@ -305,11 +308,13 @@ func (s *Scheduler) onStarted(jobID string, event executor.Event) {
 }
 
 func (s *Scheduler) onLogLine(jobID string, event executor.Event) {
-	formatted := fmt.Sprintf("[%s][%s] %s", event.Time.Format(time.RFC3339), event.Source, event.Line)
-	s.appendJobLog(jobID, formatted, event.Source)
+	line := event.Line
 	if event.Source == "stdout" && len(event.Line) > 0 && event.Line[0] == '{' {
 		progress, report := model.ParseSeckillloadLine(event.Line)
 		if progress != nil {
+			*progress = s.enrichPerfProgress(*progress)
+			line = enrichPerfRawLine(event.Line, *progress)
+			enrichPerfReportSummary(report, *progress)
 			s.updateJob(jobID, func(rec *jobRecord) {
 				rec.mu.Lock()
 				defer rec.mu.Unlock()
@@ -321,6 +326,8 @@ func (s *Scheduler) onLogLine(jobID string, event executor.Event) {
 			s.publish(jobID, stream.PerfProgress(jobID, s.nextSeq(jobID), *progress))
 		}
 	}
+	formatted := fmt.Sprintf("[%s][%s] %s", event.Time.Format(time.RFC3339), event.Source, line)
+	s.appendJobLog(jobID, formatted, event.Source)
 }
 
 func (s *Scheduler) onFinished(jobID string, event executor.Event) {
@@ -443,6 +450,7 @@ func (s *Scheduler) finalizePerfReport(rec *jobRecord) {
 	if len(rec.perfSamples) == 0 {
 		return
 	}
+	rec.perfSamples = s.enrichPerfProgressSeries(rec.perfSamples)
 	if rec.perfReport == nil {
 		rec.perfReport = &model.PerfReport{}
 	}

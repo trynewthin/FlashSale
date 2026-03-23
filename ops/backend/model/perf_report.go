@@ -14,15 +14,21 @@ var (
 // PerfProgress 是 seckillload 每秒输出的 progress JSON 解析结果。
 // 后端在 pipeToLog 中拦截并解析，通过 SSE perf_progress 事件实时推送给前端。
 type PerfProgress struct {
-	Timestamp        int64   `json:"timestamp"`
-	Label            string  `json:"label"`
-	QPS              float64 `json:"qps"`
-	P95LatencyMs     float64 `json:"p95LatencyMs"`
-	SuccessRate      float64 `json:"successRate"`
-	RejectRate       float64 `json:"rejectRate"`
-	SystemErrorRate  float64 `json:"systemErrorRate"`
-	NetworkErrorRate float64 `json:"networkErrorRate"`
-	StockDeductRate  float64 `json:"stockDeductionRate"`
+	Timestamp                  int64    `json:"timestamp"`
+	Label                      string   `json:"label"`
+	QPS                        float64  `json:"qps"`
+	P95LatencyMs               float64  `json:"p95LatencyMs"`
+	SuccessRate                float64  `json:"successRate"`
+	RejectRate                 float64  `json:"rejectRate"`
+	SystemErrorRate            float64  `json:"systemErrorRate"`
+	NetworkErrorRate           float64  `json:"networkErrorRate"`
+	StockDeductRate            float64  `json:"stockDeductionRate"`
+	PromQps                    *float64 `json:"promQps,omitempty"`
+	PromP99LatencyMs           *float64 `json:"promP99LatencyMs,omitempty"`
+	PromErrorRate              *float64 `json:"promErrorRate,omitempty"`
+	PurchaseKafkaPublishRate   *float64 `json:"purchaseKafkaPublishRate,omitempty"`
+	PurchaseKafkaPublishFailed *float64 `json:"purchaseKafkaPublishFailed,omitempty"`
+	OrderStateConsumeRate      *float64 `json:"orderStateConsumeRate,omitempty"`
 }
 
 // PerfReport 是 seckillload 完成后生成的完整报告。
@@ -40,13 +46,19 @@ type PerfReport struct {
 type seckillloadProgress struct {
 	Kind    string `json:"kind"`
 	Summary struct {
-		Total            int                `json:"total"`
-		Success          int                `json:"success"`
-		RPS              float64            `json:"rps"`
-		SuccessRate      float64            `json:"success_rate"`
-		NetworkErrorRate float64            `json:"network_error_rate"`
-		LatencyP95Ms     float64            `json:"latency_p95_ms"`
-		BusinessCode     map[string]float64 `json:"business_code"`
+		Total                      int                `json:"total"`
+		Success                    int                `json:"success"`
+		RPS                        float64            `json:"rps"`
+		SuccessRate                float64            `json:"success_rate"`
+		NetworkErrorRate           float64            `json:"network_error_rate"`
+		LatencyP95Ms               float64            `json:"latency_p95_ms"`
+		BusinessCode               map[string]float64 `json:"business_code"`
+		PromQps                    *float64           `json:"promQps"`
+		PromP99LatencyMs           *float64           `json:"promP99LatencyMs"`
+		PromErrorRate              *float64           `json:"promErrorRate"`
+		PurchaseKafkaPublishRate   *float64           `json:"purchaseKafkaPublishRate"`
+		PurchaseKafkaPublishFailed *float64           `json:"purchaseKafkaPublishFailed"`
+		OrderStateConsumeRate      *float64           `json:"orderStateConsumeRate"`
 	} `json:"summary"`
 	GeneratedAt string          `json:"generated_at"`
 	Config      json.RawMessage `json:"config"`
@@ -94,15 +106,21 @@ func ParseSeckillloadLine(raw string) (progress *PerfProgress, report *PerfRepor
 	stockDeductRate := calcStockDeductionRate(probe.Summary.Success, probe.Summary.SuccessRate, probe.Summary.BusinessCode)
 
 	pp := &PerfProgress{
-		Timestamp:        ts,
-		Label:            label,
-		QPS:              probe.Summary.RPS,
-		P95LatencyMs:     probe.Summary.LatencyP95Ms,
-		SuccessRate:      asPercent(probe.Summary.SuccessRate),
-		RejectRate:       rejectRate,
-		SystemErrorRate:  systemErrorRate,
-		NetworkErrorRate: asPercent(probe.Summary.NetworkErrorRate),
-		StockDeductRate:  stockDeductRate,
+		Timestamp:                  ts,
+		Label:                      label,
+		QPS:                        probe.Summary.RPS,
+		P95LatencyMs:               probe.Summary.LatencyP95Ms,
+		SuccessRate:                asPercent(probe.Summary.SuccessRate),
+		RejectRate:                 rejectRate,
+		SystemErrorRate:            systemErrorRate,
+		NetworkErrorRate:           asPercent(probe.Summary.NetworkErrorRate),
+		StockDeductRate:            stockDeductRate,
+		PromQps:                    cloneFloatPtr(probe.Summary.PromQps),
+		PromP99LatencyMs:           cloneFloatPtr(probe.Summary.PromP99LatencyMs),
+		PromErrorRate:              cloneFloatPtr(probe.Summary.PromErrorRate),
+		PurchaseKafkaPublishRate:   cloneFloatPtr(probe.Summary.PurchaseKafkaPublishRate),
+		PurchaseKafkaPublishFailed: cloneFloatPtr(probe.Summary.PurchaseKafkaPublishFailed),
+		OrderStateConsumeRate:      cloneFloatPtr(probe.Summary.OrderStateConsumeRate),
 	}
 
 	if probe.Kind == "progress" {
@@ -186,4 +204,12 @@ func roundPercent(v float64) float64 {
 
 func roundTo2(v float64) float64 {
 	return float64(int64(v*100+0.5)) / 100
+}
+
+func cloneFloatPtr(v *float64) *float64 {
+	if v == nil {
+		return nil
+	}
+	cloned := *v
+	return &cloned
 }

@@ -38,6 +38,9 @@ func runOpsSyncWeb(args []string) error {
 	if err := copyDir(distAbs, webAbs); err != nil {
 		return err
 	}
+	if err := ensureEmbeddedWebGitIgnore(webAbs); err != nil {
+		return err
+	}
 	fmt.Printf("[ops.sync-web] synced dist=%s -> web=%s\n", distAbs, webAbs)
 	return nil
 }
@@ -59,10 +62,22 @@ func cleanDir(path string) error {
 		return fmt.Errorf("read web dir failed: %w", err)
 	}
 	for _, entry := range entries {
+		if entry.Name() == ".gitignore" {
+			continue
+		}
 		target := filepath.Join(path, entry.Name())
 		if err := os.RemoveAll(target); err != nil {
 			return fmt.Errorf("remove old asset failed: %w", err)
 		}
+	}
+	return nil
+}
+
+func ensureEmbeddedWebGitIgnore(path string) error {
+	const content = "*\n!.gitignore\n"
+	target := filepath.Join(path, ".gitignore")
+	if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("write web gitignore failed: %w", err)
 	}
 	return nil
 }

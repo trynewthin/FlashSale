@@ -16,7 +16,7 @@ import (
 	"flashsale/ops/backend/store"
 )
 
-//go:embed web/*
+//go:embed all:web
 var opsWebFS embed.FS
 
 type Server struct {

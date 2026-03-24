@@ -1,31 +1,37 @@
-# FlashSale 文档中心（重构版）
+# FlashSale 文档中心
 
-> 本目录已按“旧文档归档 + 新文档体系”重建。历史文档见：`docs/archive/2026-02-14-legacy-full/`。
-> `docs/reviews/` 中的评审报告同样属于历史快照，可能提到已经下线的旧入口或旧目录结构。
+这里汇总了 FlashSale 的核心说明文档，适合按“先理解项目，再理解结构，最后看部署维护”的顺序阅读。
 
-## 1. 架构与代码
+## 系统需求定位
 
-- 系统与代码总览：`docs/architecture/01-system-and-code-architecture.md`
-- 目录预览：`docs/architecture/02-directory-preview.md`
-- 网关模块：`docs/architecture/modules/gateway-module.md`
-- 用户模块：`docs/architecture/modules/user-module.md`
-- 管理员模块：`docs/architecture/modules/admin-module.md`
-- 商品模块：`docs/architecture/modules/product-module.md`
-- 订单模块：`docs/architecture/modules/order-module.md`
-- 秒杀模块：`docs/architecture/modules/seckill-module.md`
-- 基础能力模块：`docs/architecture/modules/base-module.md`
+这一部分介绍项目要解决的问题、当前实现范围以及适合展示和讨论的能力边界。
 
-## 2. 特点文档（关键词与方法论）
+- 板块索引：[positioning/README.md](positioning/README.md)
+- 系统需求与定位：[positioning/01-requirements-and-positioning.md](positioning/01-requirements-and-positioning.md)
+- 当前范围、能力与边界：[positioning/02-capabilities-and-boundaries.md](positioning/02-capabilities-and-boundaries.md)
 
-- 关键词与特性说明：`docs/handbook/01-keywords-and-characteristics.md`
-- 测试方法与测试依据：`docs/handbook/02-testing-methods-and-basis.md`
+## 系统架构
 
-## 3. 构建与运行文档
+这一部分介绍系统拆分方式、主要模块、关键链路和仓库组织结构。
 
-- 从拉取到跑通全流程：`docs/runbook/01-from-clone-to-green.md`
-- Ops 运维控制台使用指南：`docs/runbook/02-ops-control-guide.md`
-- 常见问题与排障：`docs/runbook/03-troubleshooting.md`
+- 板块索引：[architecture/README.md](architecture/README.md)
+- 总体架构：[architecture/01-system-overview.md](architecture/01-system-overview.md)
+- 核心模块与主链路：[architecture/02-modules-and-main-flows.md](architecture/02-modules-and-main-flows.md)
+- 仓库结构与代码组织：[architecture/03-repository-structure.md](architecture/03-repository-structure.md)
+- Gateway API 对齐矩阵：[architecture/04-gateway-api-matrix.md](architecture/04-gateway-api-matrix.md)
 
-## 4. 参考清单
+## 部署与维护
 
-- 网关 API 对齐矩阵：`docs/reference/gateway-api-matrix.md`
+这一部分介绍环境配置、本地运行、部署方式、验证方法和常见排障路径。
+
+- 板块索引：[operations/README.md](operations/README.md)
+- 环境与配置：[operations/01-environment-and-configuration.md](operations/01-environment-and-configuration.md)
+- 本地启动与运行路径：[operations/02-local-development-and-runbook.md](operations/02-local-development-and-runbook.md)
+- 部署与日常维护：[operations/03-deployment-and-maintenance.md](operations/03-deployment-and-maintenance.md)
+- 测试、验证与排障：[operations/04-testing-and-troubleshooting.md](operations/04-testing-and-troubleshooting.md)
+
+## 素材目录
+
+- 素材说明：[assets/README.md](assets/README.md)
+- 截图目录：`docs/assets/images/`
+- GIF 目录：`docs/assets/gifs/`

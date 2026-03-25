@@ -16,7 +16,7 @@ import {
   analyzePerfDiagnostics,
   type PerfDiagnosis,
   type PerfDiagnosisLevel,
-} from "@/features/realtime/perf-diagnosis"
+} from "@/features/perf-test/perf-diagnosis"
 import type { RealtimeSample } from "@/features/realtime/types"
 import { cn } from "@/lib/utils"
 

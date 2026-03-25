@@ -1,6 +1,6 @@
 import type { JobDetail } from "@/api/types"
 import type { RealtimeSample } from "@/features/realtime/types"
-import { computeAvg, computeLatest, computeMax } from "@/features/realtime/perf-metric-cards"
+import { computeAvg, computeLatest, computeMax } from "@/features/perf-test/perf-metric-cards"
 
 export type PerfDiagnosisLevel = "critical" | "high" | "medium" | "info"
 export type PerfDiagnosisKind =

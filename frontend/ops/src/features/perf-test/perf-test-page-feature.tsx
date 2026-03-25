@@ -30,13 +30,13 @@ import {
     computeAvg,
     computeMax,
     computeLatest,
-} from "@/features/realtime/perf-metric-cards"
-import { PerfDiagnosisCard } from "@/features/realtime/perf-diagnosis-card"
-import { PerfSummaryCard } from "@/features/realtime/perf-summary-card"
-import { RealtimeTestLauncher } from "@/features/realtime/realtime-test-launcher"
-import { getRealtimeTestPreset } from "@/features/realtime/realtime-test-presets"
-import { usePerfTestSamples } from "@/features/realtime/use-perf-test-samples"
-import { useRealtimeTestRunner } from "@/features/realtime/use-realtime-test-runner"
+} from "@/features/perf-test/perf-metric-cards"
+import { PerfDiagnosisCard } from "@/features/perf-test/perf-diagnosis-card"
+import { PerfSummaryCard } from "@/features/perf-test/perf-summary-card"
+import { RealtimeTestLauncher } from "@/features/perf-test/realtime-test-launcher"
+import { getRealtimeTestPreset } from "@/features/perf-test/realtime-test-presets"
+import { usePerfTestSamples } from "@/features/perf-test/use-perf-test-samples"
+import { useRealtimeTestRunner } from "@/features/perf-test/use-realtime-test-runner"
 
 const DISPLAY_PERF_METRICS = PERF_METRICS
 

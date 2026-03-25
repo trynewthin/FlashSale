@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 
 import type { RealtimeSample } from "@/features/realtime/types"
-import { computeAvg, computeMax } from "@/features/realtime/perf-metric-cards"
+import { computeAvg, computeMax } from "@/features/perf-test/perf-metric-cards"
 import { cn } from "@/lib/utils"
 
 // 单个 KPI 定义

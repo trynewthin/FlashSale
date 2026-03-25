@@ -6,7 +6,7 @@ import { OVERVIEW_LOOKBACK_SECONDS, normalizeServerMetrics } from "@/features/re
 import {
     mergeRealtimeSamplesWithPerfPoints,
     parsePerfMetricPointsFromLog,
-} from "@/features/realtime/perf-report-parser"
+} from "@/features/perf-test/perf-report-parser"
 import type { RealtimeSample } from "@/features/realtime/types"
 
 function perfProgressToSample(p: PerfProgress): RealtimeSample {

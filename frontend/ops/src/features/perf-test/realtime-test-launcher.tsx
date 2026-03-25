@@ -19,7 +19,7 @@ import {
   getRealtimeTaskDisplayName,
   getRealtimeTestPreset,
   type RealtimeTestPreset,
-} from "@/features/realtime/realtime-test-presets"
+} from "@/features/perf-test/realtime-test-presets"
 import { cn } from "@/lib/utils"
 
 interface RealtimeTestLauncherProps {

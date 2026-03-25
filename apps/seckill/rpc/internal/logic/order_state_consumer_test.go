@@ -125,8 +125,9 @@ func TestConsumeOrderStateMessage_ReleaseAndTraffic(t *testing.T) {
 		},
 	}
 	svcCtx := &svc.ServiceContext{
-		SeckillRepo: repoMock,
-		Logger:      zap.NewNop(),
+		SeckillRepo:     repoMock,
+		Logger:          zap.NewNop(),
+		TrafficRecorder: svc.NewTrafficRecorder(100*time.Millisecond, 100*time.Millisecond, repoMock, nil, nil, nil),
 	}
 	evt := eventx.SeckillOrderStateEvent{
 		EventType:            eventx.SeckillOrderStateEventTypeClosed,

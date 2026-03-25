@@ -1,29 +1,82 @@
 package svc
 
 import (
+	"context"
+	"fmt"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
 )
 
-func (s *ServiceContext) startPerfReporter() {
-	if s == nil || s.perfCtx == nil || s.perfLogInterval <= 0 || s.Logger == nil || s.Perf == nil {
-		return
+// QueueStatsFunc 用于从外部注入队列统计信息。
+type QueueStatsFunc func() (depth, capVal int)
+
+// PerfReporterLoop 管理周期性性能快照日志打印。
+type PerfReporterLoop struct {
+	interval           time.Duration
+	ctx                context.Context
+	cancel             context.CancelFunc
+	wg                 sync.WaitGroup
+	logger             *zap.Logger
+	perf               *PerfStats
+	orderLinkQueueStats QueueStatsFunc
+	trafficQueueStats   QueueStatsFunc
+}
+
+// NewPerfReporterLoop 创建 PerfReporter；interval 为 0 时返回 nil。
+func NewPerfReporterLoop(interval time.Duration, logger *zap.Logger, perf *PerfStats, orderLinkStats, trafficStats QueueStatsFunc) *PerfReporterLoop {
+	if interval <= 0 || logger == nil || perf == nil {
+		return nil
 	}
-	s.perfWG.Add(1)
+	ctx, cancel := context.WithCancel(context.Background())
+	r := &PerfReporterLoop{
+		interval:           interval,
+		ctx:                ctx,
+		cancel:             cancel,
+		logger:             logger,
+		perf:               perf,
+		orderLinkQueueStats: orderLinkStats,
+		trafficQueueStats:   trafficStats,
+	}
+	r.start()
+	return r
+}
+
+// Stop 优雅关闭 PerfReporter。
+func (r *PerfReporterLoop) Stop(timeout time.Duration) error {
+	if r == nil || r.cancel == nil {
+		return nil
+	}
+	r.cancel()
+	done := make(chan struct{})
 	go func() {
-		defer s.perfWG.Done()
-		ticker := time.NewTicker(s.perfLogInterval)
+		r.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-time.After(timeout):
+		return fmt.Errorf("stop perf reporter timeout")
+	}
+}
+
+func (r *PerfReporterLoop) start() {
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		ticker := time.NewTicker(r.interval)
 		defer ticker.Stop()
 		for {
 			select {
-			case <-s.perfCtx.Done():
+			case <-r.ctx.Done():
 				return
 			case <-ticker.C:
-				orderQueueDepth, orderQueueCap := s.orderLinkQueueStats()
-				trafficQueueDepth, trafficQueueCap := s.trafficQueueStats()
-				snap := s.Perf.Snapshot(orderQueueDepth, orderQueueCap, trafficQueueDepth, trafficQueueCap)
-				s.Logger.Info("seckill perf snapshot",
+				oDepth, oCap := r.safeOrderLinkStats()
+				tDepth, tCap := r.safeTrafficStats()
+				snap := r.perf.Snapshot(oDepth, oCap, tDepth, tCap)
+				r.logger.Info("seckill perf snapshot",
 					zap.Int64("reserve_calls", snap.ReserveCalls),
 					zap.Int64("reserve_success", snap.ReserveSuccess),
 					zap.Int64("reserve_errors", snap.ReserveErrors),
@@ -84,16 +137,16 @@ func (s *ServiceContext) startPerfReporter() {
 	}()
 }
 
-func (s *ServiceContext) orderLinkQueueStats() (depth, capVal int) {
-	if s == nil || s.orderLinkTasks == nil {
+func (r *PerfReporterLoop) safeOrderLinkStats() (int, int) {
+	if r == nil || r.orderLinkQueueStats == nil {
 		return 0, 0
 	}
-	return len(s.orderLinkTasks), cap(s.orderLinkTasks)
+	return r.orderLinkQueueStats()
 }
 
-func (s *ServiceContext) trafficQueueStats() (depth, capVal int) {
-	if s == nil || s.trafficTasks == nil {
+func (r *PerfReporterLoop) safeTrafficStats() (int, int) {
+	if r == nil || r.trafficQueueStats == nil {
 		return 0, 0
 	}
-	return len(s.trafficTasks), cap(s.trafficTasks)
+	return r.trafficQueueStats()
 }

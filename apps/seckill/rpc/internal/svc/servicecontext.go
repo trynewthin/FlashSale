@@ -81,21 +81,12 @@ type ServiceContext struct {
 	OrderLinkSyncFallback     bool
 	Perf                      *PerfStats
 
-	orderLinkTasks        chan *model.OrderLink
-	orderLinkWG           sync.WaitGroup
-	orderLinkCtx          context.Context
-	orderLinkCancel       context.CancelFunc
-	orderLinkWriteTimeout time.Duration
-	trafficTasks          chan *model.TrafficEvent
-	trafficWG             sync.WaitGroup
-	trafficCtx            context.Context
-	trafficCancel         context.CancelFunc
-	trafficWriteTimeout   time.Duration
-	trafficPublishTimeout time.Duration
-	perfLogInterval       time.Duration
-	perfCtx               context.Context
-	perfCancel            context.CancelFunc
-	perfWG                sync.WaitGroup
+	// 子模块
+	OrderLinkWriter  *OrderLinkWriter
+	TrafficWorker    *TrafficWorker
+	TrafficRecorder  *TrafficRecorder
+	perfReporter     *PerfReporterLoop
+
 	metricsCollector      prometheus.Collector
 	metricsCollectorOwned bool
 	traceShutdown         func(context.Context) error
@@ -208,39 +199,32 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 	orderLinkWorkers := maxInt(c.OrderLinkAsyncWorkers, 0)
 	orderLinkWriteTimeout := time.Duration(maxInt(c.OrderLinkWriteTimeoutMs, 0)) * time.Millisecond
 	trafficQueueSize := maxInt(c.TrafficAsyncQueueSize, 0)
-	trafficWorkers := maxInt(c.TrafficAsyncWorkers, 0)
+	trafficWorkerCount := maxInt(c.TrafficAsyncWorkers, 0)
 	trafficWriteTimeout := time.Duration(maxInt(c.TrafficWriteTimeoutMs, 0)) * time.Millisecond
 	trafficPublishTimeout := time.Duration(maxInt(c.TrafficPublishTimeoutMs, 0)) * time.Millisecond
 	perfLogInterval := time.Duration(maxInt(c.PerfLogIntervalSec, 0)) * time.Second
 
-	var (
-		orderLinkTasks  chan *model.OrderLink
-		orderLinkCtx    context.Context
-		orderLinkCancel context.CancelFunc
-		trafficTasks    chan *model.TrafficEvent
-		trafficCtx      context.Context
-		trafficCancel   context.CancelFunc
-		perfCtx         context.Context
-		perfCancel      context.CancelFunc
-	)
-	if c.OrderLinkWriteOnPurchase && orderLinkQueueSize > 0 && orderLinkWorkers > 0 {
-		orderLinkTasks = make(chan *model.OrderLink, orderLinkQueueSize)
-		orderLinkCtx, orderLinkCancel = context.WithCancel(context.Background())
+	perf := newPerfStats()
+	repo := repository.NewMySQLSeckillRepository(db, c.ReserveDBUserLimitCheck)
+
+	// 构建流量记录器（同步写 + Kafka 发布）
+	trafficRecorder := NewTrafficRecorder(trafficWriteTimeout, trafficPublishTimeout, repo, producer, appCfg, perf)
+
+	// 构建订单关联异步写入器
+	var olWriter *OrderLinkWriter
+	if c.OrderLinkWriteOnPurchase {
+		olWriter = NewOrderLinkWriter(orderLinkQueueSize, orderLinkWorkers, orderLinkWriteTimeout, repo, logger, perf)
 	}
-	if trafficQueueSize > 0 && trafficWorkers > 0 {
-		trafficTasks = make(chan *model.TrafficEvent, trafficQueueSize)
-		trafficCtx, trafficCancel = context.WithCancel(context.Background())
-	}
-	if perfLogInterval > 0 {
-		perfCtx, perfCancel = context.WithCancel(context.Background())
-	}
+
+	// 构建流量埋点异步写入器
+	tWorker := NewTrafficWorker(trafficQueueSize, trafficWorkerCount, trafficRecorder.Record, logger, perf)
 
 	out := &ServiceContext{
 		Config:                    c,
 		AppConfig:                 appCfg,
 		Logger:                    logger,
 		DB:                        db,
-		SeckillRepo:               repository.NewMySQLSeckillRepository(db, c.ReserveDBUserLimitCheck),
+		SeckillRepo:               repo,
 		ProductRPCCli:             productrpc.NewProductRpc(productClient),
 		OrderRPCCli:               orderrpc.NewOrderRpc(orderClient),
 		Producer:                  producer,
@@ -255,24 +239,23 @@ func NewServiceContext(c config.Config) (_ *ServiceContext, err error) {
 		OrderCreateAcquireTimeout: orderCreateAcquireTimeout,
 		OrderLinkWriteOnPurchase:  c.OrderLinkWriteOnPurchase,
 		OrderLinkSyncFallback:     c.OrderLinkSyncFallback,
-		Perf:                      newPerfStats(),
-		orderLinkTasks:            orderLinkTasks,
-		orderLinkCtx:              orderLinkCtx,
-		orderLinkCancel:           orderLinkCancel,
-		orderLinkWriteTimeout:     orderLinkWriteTimeout,
-		trafficTasks:              trafficTasks,
-		trafficCtx:                trafficCtx,
-		trafficCancel:             trafficCancel,
-		trafficWriteTimeout:       trafficWriteTimeout,
-		trafficPublishTimeout:     trafficPublishTimeout,
-		perfLogInterval:           perfLogInterval,
-		perfCtx:                   perfCtx,
-		perfCancel:                perfCancel,
+		Perf:                      perf,
+		OrderLinkWriter:           olWriter,
+		TrafficWorker:             tWorker,
+		TrafficRecorder:           trafficRecorder,
 		traceShutdown:             traceShutdown,
 	}
-	out.startOrderLinkWorkers(orderLinkWorkers)
-	out.startTrafficWorkers(trafficWorkers)
-	out.startPerfReporter()
+
+	// 构建 perf reporter，注入队列统计函数
+	var olStats, tStats QueueStatsFunc
+	if olWriter != nil {
+		olStats = olWriter.QueueStats
+	}
+	if tWorker != nil {
+		tStats = tWorker.QueueStats
+	}
+	out.perfReporter = NewPerfReporterLoop(perfLogInterval, logger, perf, olStats, tStats)
+
 	metricsCollector, metricsCollectorOwned, err := registerPurchaseKafkaMetrics(prometheus.DefaultRegisterer, out)
 	if err != nil {
 		return nil, fmt.Errorf("register purchase kafka metrics: %w", err)
@@ -287,50 +270,61 @@ func (s *ServiceContext) IssueProductManagementToken() (string, error) {
 	return baseauth.IssueWithClaims(baseauth.TokenTypeAdmin, fmt.Sprintf("%d", internalAdminID), 5*time.Minute, []string{"product_management"}, "all")
 }
 
+// EnqueueOrderLink 委托给 OrderLinkWriter；未初始化时安全返回 false。
+func (s *ServiceContext) EnqueueOrderLink(link *model.OrderLink) bool {
+	if s == nil || s.OrderLinkWriter == nil {
+		return false
+	}
+	return s.OrderLinkWriter.Enqueue(link)
+}
+
+// EnqueueTrafficEvent 委托给 TrafficWorker；未初始化时安全返回 false。
+func (s *ServiceContext) EnqueueTrafficEvent(event *model.TrafficEvent) bool {
+	if s == nil || s.TrafficWorker == nil {
+		return false
+	}
+	return s.TrafficWorker.Enqueue(event)
+}
+
+// RecordTrafficEvent 委托给 TrafficRecorder。
+func (s *ServiceContext) RecordTrafficEvent(event *model.TrafficEvent) error {
+	if s == nil || s.TrafficRecorder == nil {
+		return nil
+	}
+	return s.TrafficRecorder.Record(event)
+}
+
+// OrderLinkWriteTimeout 委托给 OrderLinkWriter。
+func (s *ServiceContext) OrderLinkWriteTimeout() time.Duration {
+	if s == nil || s.OrderLinkWriter == nil {
+		return 600 * time.Millisecond
+	}
+	return s.OrderLinkWriter.WriteTimeout()
+}
+
+// TrafficPublishTimeout 委托给 TrafficRecorder。
+func (s *ServiceContext) TrafficPublishTimeout() time.Duration {
+	if s == nil || s.TrafficRecorder == nil {
+		return 120 * time.Millisecond
+	}
+	return s.TrafficRecorder.PublishTimeout()
+}
+
 // Close 释放 ServiceContext 管理资源。
 func (s *ServiceContext) Close() error {
 	if s == nil {
 		return nil
 	}
+	const stopTimeout = 2 * time.Second
 	var errs []error
-	if s.orderLinkCancel != nil {
-		s.orderLinkCancel()
+	if err := s.OrderLinkWriter.Stop(stopTimeout); err != nil {
+		errs = append(errs, err)
 	}
-	if s.trafficCancel != nil {
-		s.trafficCancel()
+	if err := s.TrafficWorker.Stop(stopTimeout); err != nil {
+		errs = append(errs, err)
 	}
-	if s.perfCancel != nil {
-		s.perfCancel()
-	}
-	done := make(chan struct{})
-	go func() {
-		s.orderLinkWG.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		errs = append(errs, fmt.Errorf("stop order link workers timeout"))
-	}
-	trafficDone := make(chan struct{})
-	go func() {
-		s.trafficWG.Wait()
-		close(trafficDone)
-	}()
-	select {
-	case <-trafficDone:
-	case <-time.After(2 * time.Second):
-		errs = append(errs, fmt.Errorf("stop traffic workers timeout"))
-	}
-	perfDone := make(chan struct{})
-	go func() {
-		s.perfWG.Wait()
-		close(perfDone)
-	}()
-	select {
-	case <-perfDone:
-	case <-time.After(2 * time.Second):
-		errs = append(errs, fmt.Errorf("stop perf reporter timeout"))
+	if err := s.perfReporter.Stop(stopTimeout); err != nil {
+		errs = append(errs, err)
 	}
 	if closer, ok := s.Producer.(interface{ Close() error }); ok {
 		if err := closer.Close(); err != nil {

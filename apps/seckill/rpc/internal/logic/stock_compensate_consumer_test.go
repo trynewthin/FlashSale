@@ -38,10 +38,11 @@ func TestConsumeStockCompensateMessage_Success(t *testing.T) {
 
 	repoMock := &seckillRepoMock{item: item}
 	svcCtx := &svc.ServiceContext{
-		SeckillRepo: repoMock,
-		Redis:       redisCli,
-		Logger:      zap.NewNop(),
-		Perf:        &svc.PerfStats{},
+		SeckillRepo:     repoMock,
+		Redis:           redisCli,
+		Logger:          zap.NewNop(),
+		Perf:            &svc.PerfStats{},
+		TrafficRecorder: svc.NewTrafficRecorder(100*time.Millisecond, 100*time.Millisecond, repoMock, nil, nil, &svc.PerfStats{}),
 	}
 	payload, err := json.Marshal(eventx.SeckillStockCompensateEvent{
 		OrderNo:        "SCKORDER9201",

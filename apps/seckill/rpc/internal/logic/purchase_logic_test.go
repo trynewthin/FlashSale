@@ -665,7 +665,10 @@ func TestPurchase_CacheReservePublishFailFallsBackToSync(t *testing.T) {
 
 func TestTrackEvent_DegradeOnRecordFailure(t *testing.T) {
 	repoMock := &seckillRepoMock{trafficErr: errors.New("mock traffic write failed")}
-	logic := NewSeckillLogic(context.Background(), &svc.ServiceContext{SeckillRepo: repoMock})
+	logic := NewSeckillLogic(context.Background(), &svc.ServiceContext{
+		SeckillRepo:     repoMock,
+		TrafficRecorder: svc.NewTrafficRecorder(100*time.Millisecond, 100*time.Millisecond, repoMock, nil, nil, nil),
+	})
 	resp, err := logic.TrackEvent(&pb.TrackEventReq{
 		ActivityId:     401,
 		ActivityItemId: 41,

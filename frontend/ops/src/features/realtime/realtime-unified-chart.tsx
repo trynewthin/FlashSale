@@ -1,9 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 
-import { useCallback, useMemo, useState } from "react"
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { useMemo } from "react"
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts"
 
-import { Button } from "@/components/ui/button"
 import {
   ChartContainer,
   ChartLegend,
@@ -12,18 +11,11 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import type { RealtimeSample } from "@/features/realtime/types"
 import { cn } from "@/lib/utils"
 
-type MetricAxis = "percent" | "count"
-type ChartMetricKey =
+export type MetricAxis = "percent" | "count"
+export type ChartMetricKey =
   | "portRate"
   | "httpRate"
   | "replicaRate"
@@ -34,9 +26,9 @@ type ChartMetricKey =
   | "purchaseKafkaPublishFailed"
   | "orderStateConsumeRate"
 
-type MetricGroupKey = "server_metrics" | "infra_health" | "kafka_pipeline" | "all"
+export type MetricGroupKey = "server_metrics" | "infra_health" | "kafka_pipeline" | "all"
 
-interface MetricDef {
+export interface MetricDef {
   key: ChartMetricKey
   label: string
   color: string
@@ -44,7 +36,7 @@ interface MetricDef {
   unit: string
 }
 
-interface MetricGroupDef {
+export interface MetricGroupDef {
   key: MetricGroupKey
   label: string
   description: string
@@ -90,13 +82,12 @@ const GROUPS: MetricGroupDef[] = [
   },
 ]
 
-const DEFAULT_GROUP_KEY: MetricGroupKey = "server_metrics"
 
-function metricByKey(key: ChartMetricKey): MetricDef {
+export function metricByKey(key: ChartMetricKey): MetricDef {
   return METRICS.find((metric) => metric.key === key) ?? METRICS[0]
 }
 
-function groupByKey(key: MetricGroupKey): MetricGroupDef {
+export function groupByKey(key: MetricGroupKey): MetricGroupDef {
   return GROUPS.find((group) => group.key === key) ?? GROUPS[0]
 }
 
@@ -105,87 +96,7 @@ function readMetricValue(sample: RealtimeSample, key: ChartMetricKey): number {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : 0
 }
 
-export function useChartMetrics() {
-  const [activeGroup, setActiveGroup] = useState<MetricGroupKey>(DEFAULT_GROUP_KEY)
-  const [visibleKeys, setVisibleKeys] = useState<ChartMetricKey[]>(() => groupByKey(DEFAULT_GROUP_KEY).metrics)
 
-  const activeGroupDef = useMemo(() => groupByKey(activeGroup), [activeGroup])
-  const groupMetrics = useMemo(
-    () => activeGroupDef.metrics.map((key) => metricByKey(key)),
-    [activeGroupDef.metrics]
-  )
-
-  const handleGroupChange = useCallback((key: MetricGroupKey) => {
-    setActiveGroup(key)
-    setVisibleKeys(groupByKey(key).metrics)
-  }, [])
-
-  const toggleMetric = useCallback((metricKey: ChartMetricKey) => {
-    setVisibleKeys((previous) => {
-      if (previous.includes(metricKey)) {
-        return previous.length <= 1 ? previous : previous.filter((key) => key !== metricKey)
-      }
-      const next = new Set(previous)
-      next.add(metricKey)
-      return groupByKey(activeGroup).metrics.filter((key) => next.has(key))
-    })
-  }, [activeGroup])
-
-  return { activeGroup, activeGroupDef, groupMetrics, visibleKeys, handleGroupChange, toggleMetric }
-}
-
-interface MetricFilterPanelProps {
-  activeGroup: MetricGroupKey
-  groupMetrics: MetricDef[]
-  visibleKeys: ChartMetricKey[]
-  onGroupChange: (key: MetricGroupKey) => void
-  onToggleMetric: (key: ChartMetricKey) => void
-}
-
-export function MetricFilterPanel({
-  activeGroup,
-  groupMetrics,
-  visibleKeys,
-  onGroupChange,
-  onToggleMetric,
-}: MetricFilterPanelProps) {
-  return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="max-h-[88px] overflow-y-auto">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {groupMetrics.map((metric) => {
-            const enabled = visibleKeys.includes(metric.key)
-            return (
-              <Button
-                key={metric.key}
-                size="sm"
-                variant={enabled ? "secondary" : "outline"}
-                className={cn("h-7 px-2.5 text-xs", !enabled && "text-muted-foreground")}
-                onClick={() => onToggleMetric(metric.key)}
-              >
-                <span className="mr-1.5 inline-block size-2 rounded-full" style={{ backgroundColor: metric.color }} />
-                {metric.label}
-              </Button>
-            )
-          })}
-        </div>
-      </div>
-
-      <Select value={activeGroup} onValueChange={(value) => onGroupChange(value as MetricGroupKey)}>
-        <SelectTrigger className="h-8 w-full text-xs">
-          <SelectValue placeholder="选择分组" />
-        </SelectTrigger>
-        <SelectContent className="rounded-xl">
-          {GROUPS.map((group) => (
-            <SelectItem key={group.key} value={group.key} className="rounded-lg text-xs">
-              {group.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  )
-}
 
 interface RealtimeUnifiedChartProps {
   samples: RealtimeSample[]
@@ -224,100 +135,102 @@ export function RealtimeUnifiedChart({ samples, visibleKeys, mode = "live", clas
   }, [visibleMetrics])
 
   return (
-    <ChartContainer config={chartConfig} className={cn("min-h-[200px] w-full", className)} data-mode={mode}>
-      <AreaChart data={samples}>
-        <defs>
-          {visibleMetrics.map((metric) => (
-            <linearGradient key={metric.key} id={`fill-${metric.key}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={`var(--color-${metric.key})`} stopOpacity={0.8} />
-              <stop offset="95%" stopColor={`var(--color-${metric.key})`} stopOpacity={0.1} />
-            </linearGradient>
-          ))}
-        </defs>
-        <CartesianGrid vertical={false} />
-        <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={24} />
+    <ChartContainer config={chartConfig} className={cn("min-h-[200px] w-full !aspect-auto", className)} data-mode={mode}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={samples}>
+          <defs>
+            {visibleMetrics.map((metric) => (
+              <linearGradient key={metric.key} id={`fill-${metric.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={`var(--color-${metric.key})`} stopOpacity={0.8} />
+                <stop offset="95%" stopColor={`var(--color-${metric.key})`} stopOpacity={0.1} />
+              </linearGradient>
+            ))}
+          </defs>
+          <CartesianGrid vertical={false} />
+          <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={24} />
 
-        {hasPercentMetric ? (
-          <YAxis
-            yAxisId="percent"
-            orientation="left"
-            domain={[0, 100]}
-            tickLine={false}
-            axisLine={false}
-            width={40}
-            tickFormatter={(value) => `${value}%`}
-          />
-        ) : null}
-
-        {hasCountMetric ? (
-          <YAxis
-            yAxisId="count"
-            orientation="right"
-            domain={[0, maxCountY]}
-            tickLine={false}
-            axisLine={false}
-            width={40}
-          />
-        ) : null}
-
-        <ChartTooltip
-          cursor={false}
-          content={
-            <ChartTooltipContent
-              labelFormatter={(value) => String(value)}
-              indicator="dot"
-              formatter={(value, _name, item) => {
-                const metric = METRICS.find((candidate) => candidate.key === item.dataKey)
-                if (!metric) {
-                  return null
-                }
-                const formatted = (() => {
-                  if (metric.key === "promP99LatencyMs" && value == null) {
-                    return "样本不足"
-                  }
-                  if (typeof value !== "number" || Number.isNaN(value)) {
-                    return String(value ?? "-")
-                  }
-                  if (metric.unit.trim() === "%") {
-                    return `${value.toFixed(2)}%`
-                  }
-                  if (metric.unit.trim().length > 0) {
-                    return `${value.toFixed(2)}${metric.unit}`
-                  }
-                  return value.toFixed(0)
-                })()
-                return (
-                  <div className="flex w-full items-center gap-2">
-                    <span
-                      className="inline-block size-2.5 shrink-0 rounded-[2px]"
-                      style={{ backgroundColor: `var(--color-${metric.key})` }}
-                    />
-                    <span className="flex-1 text-muted-foreground">{metric.label}</span>
-                    <span className="font-mono font-medium tabular-nums text-foreground">{formatted}</span>
-                  </div>
-                )
-              }}
+          {hasPercentMetric ? (
+            <YAxis
+              yAxisId="percent"
+              orientation="left"
+              domain={[0, 100]}
+              tickLine={false}
+              axisLine={false}
+              width={40}
+              tickFormatter={(value) => `${value}%`}
             />
-          }
-        />
+          ) : null}
 
-        {visibleMetrics.map((metric) => (
-          <Area
-            key={metric.key}
-            yAxisId={metric.axis}
-            type="monotone"
-            dataKey={metric.key}
-            name={metric.label}
-            stroke={`var(--color-${metric.key})`}
-            fill={`url(#fill-${metric.key})`}
-            strokeWidth={2}
-            dot={false}
-            isAnimationActive={false}
+          {hasCountMetric ? (
+            <YAxis
+              yAxisId="count"
+              orientation="right"
+              domain={[0, maxCountY]}
+              tickLine={false}
+              axisLine={false}
+              width={40}
+            />
+          ) : null}
+
+          <ChartTooltip
+            cursor={false}
+            content={
+              <ChartTooltipContent
+                labelFormatter={(value) => String(value)}
+                indicator="dot"
+                formatter={(value, _name, item) => {
+                  const metric = METRICS.find((candidate) => candidate.key === item.dataKey)
+                  if (!metric) {
+                    return null
+                  }
+                  const formatted = (() => {
+                    if (metric.key === "promP99LatencyMs" && value == null) {
+                      return "样本不足"
+                    }
+                    if (typeof value !== "number" || Number.isNaN(value)) {
+                      return String(value ?? "-")
+                    }
+                    if (metric.unit.trim() === "%") {
+                      return `${value.toFixed(2)}%`
+                    }
+                    if (metric.unit.trim().length > 0) {
+                      return `${value.toFixed(2)}${metric.unit}`
+                    }
+                    return value.toFixed(0)
+                  })()
+                  return (
+                    <div className="flex w-full items-center gap-2">
+                      <span
+                        className="inline-block size-2.5 shrink-0 rounded-[2px]"
+                        style={{ backgroundColor: `var(--color-${metric.key})` }}
+                      />
+                      <span className="flex-1 text-muted-foreground">{metric.label}</span>
+                      <span className="font-mono font-medium tabular-nums text-foreground">{formatted}</span>
+                    </div>
+                  )
+                }}
+              />
+            }
           />
-        ))}
 
-        <ChartLegend content={<ChartLegendContent />} />
-      </AreaChart>
+          {visibleMetrics.map((metric) => (
+            <Area
+              key={metric.key}
+              yAxisId={metric.axis}
+              type="monotone"
+              dataKey={metric.key}
+              name={metric.label}
+              stroke={`var(--color-${metric.key})`}
+              fill={`url(#fill-${metric.key})`}
+              strokeWidth={2}
+              dot={false}
+              isAnimationActive={false}
+            />
+          ))}
+
+          <ChartLegend verticalAlign="top" align="left" content={<ChartLegendContent className="-ml-1 justify-start" />} wrapperStyle={{ paddingBottom: 16 }} />
+        </AreaChart>
+      </ResponsiveContainer>
     </ChartContainer>
   )
 }

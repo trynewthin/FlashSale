@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { opsApi, type PersistedSample } from "@/api/modules/ops"
-import type { PromQueryResult } from "@/api/types"
+import type { PromQueryResult, SysInfo } from "@/api/types"
 import { buildRealtimeSample } from "@/features/realtime/build-sample"
 import {
   advancePrecisionMode,
@@ -139,6 +139,7 @@ function replayIsActive(replayState: ReplayState): boolean {
 }
 
 interface UseRealtimeMonitorResult {
+  sysInfo: SysInfo | null
   samples: RealtimeSample[]
   latest: RealtimeSample | null
   previous: RealtimeSample | null
@@ -166,6 +167,7 @@ export function useRealtimeMonitor(): UseRealtimeMonitorResult {
   const showApiError = useOpsApiError()
   const [overviewSamples, setOverviewSamples] = useState<RealtimeSample[]>([])
   const [precisionServerSamples, setPrecisionServerSamples] = useState<ServerMetricSample[]>([])
+  const [sysInfo, setSysInfo] = useState<SysInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [running, setRunning] = useState(true)
   const [timeWindow, setTimeWindowRaw] = useState<TimeWindow>("3m")
@@ -221,12 +223,16 @@ export function useRealtimeMonitor(): UseRealtimeMonitorResult {
         if (manual) {
           setLoading(true)
         }
-        const [status, containers, metricsResult] = await Promise.all([
+        const [status, containers, metricsResult, sysInfoResult] = await Promise.all([
           opsApi.getStatus(),
           opsApi.getContainersStatus(),
           opsApi.getMetricsSnapshot(REALTIME_METRIC_NAMES, "overview").catch(() => null),
+          opsApi.getSysInfo().catch(() => null),
         ])
         appendOverviewSample(buildRealtimeSample(status, containers, metricsResult?.snapshot))
+        if (sysInfoResult) {
+          setSysInfo(sysInfoResult)
+        }
         hasLoadedRef.current = true
       } catch (error) {
         handleRealtimeError(error, "实时监测采样失败", manual)
@@ -487,6 +493,7 @@ export function useRealtimeMonitor(): UseRealtimeMonitorResult {
   }, [overviewSamples, precisionServerSamples, precisionState.active])
 
   return {
+    sysInfo,
     samples,
     latest,
     previous,

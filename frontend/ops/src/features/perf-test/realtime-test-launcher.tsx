@@ -1,8 +1,8 @@
-import { FlaskConical, Play, RefreshCcw } from "lucide-react"
+import { FlaskConical, Play } from "lucide-react"
 
 import type { TaskDef } from "@/api/types"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -34,7 +34,6 @@ interface RealtimeTestLauncherProps {
   onSelectTask: (taskID: string) => void
   onSetFormValue: (flag: string, value: string) => void
   onChangeExtraArgs: (value: string) => void
-  onRefreshTasks: () => void
   onStartTest: () => void
   showFloatingTrigger?: boolean
 }
@@ -52,7 +51,6 @@ export function RealtimeTestLauncher({
   onSelectTask,
   onSetFormValue,
   onChangeExtraArgs,
-  onRefreshTasks,
   onStartTest,
   showFloatingTrigger = true,
 }: RealtimeTestLauncherProps) {
@@ -70,40 +68,17 @@ export function RealtimeTestLauncher({
       ) : null}
 
       <SheetContent side="right" className="w-[98vw] max-w-none gap-0 p-0 sm:max-w-2xl">
-        <SheetHeader className="border-b bg-background">
+        <SheetHeader className="border-b bg-background px-6 py-4">
           <SheetTitle>启动测试任务</SheetTitle>
-          <SheetDescription>默认临时数据模式：自动创建测试数据，完成后自动清理。</SheetDescription>
+          <SheetDescription className="sr-only">配置并启动压力测试</SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">测试场景</CardTitle>
-              <CardDescription>优先从推荐场景开始，之后再做细调。</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Select value={selectedTaskID || undefined} onValueChange={(value) => onSelectTask(value || "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="选择测试场景" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tasks.map((task) => {
-                      const preset = getRealtimeTestPreset(task.id)
-                      return (
-                        <SelectItem key={task.id} value={task.id}>
-                          {preset?.recommended ? "推荐 · " : ""}
-                          {getRealtimeTaskDisplayName(task)}
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
-                <Button variant="outline" size="icon-sm" onClick={onRefreshTasks} title="刷新测试场景">
-                  <RefreshCcw className="size-4" />
-                </Button>
-              </div>
-
               <div className="grid gap-2 sm:grid-cols-2">
                 {tasks.map((task) => {
                   const preset = getRealtimeTestPreset(task.id)
@@ -130,7 +105,6 @@ export function RealtimeTestLauncher({
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">参数配置</CardTitle>
-              <CardDescription>{selectedPreset?.description || "根据测试目标调整参数。"}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {selectedPreset ? (
@@ -180,7 +154,6 @@ export function RealtimeTestLauncher({
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">高级参数（可选）</CardTitle>
-              <CardDescription>仅在需要覆盖默认行为时填写，支持原始命令行参数。</CardDescription>
             </CardHeader>
             <CardContent>
               <Textarea

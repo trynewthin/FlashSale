@@ -19,12 +19,12 @@ import {
   type RealtimeTestFieldDef,
   type RealtimeTestPreset,
   sortRealtimeTestTasks,
-} from "@/features/realtime/realtime-test-presets"
+} from "@/features/perf-test/realtime-test-presets"
 import {
   formatTaskArgs,
   getFlagArg,
   removeFlagArg,
-} from "@/features/realtime/realtime-test-utils"
+} from "@/features/perf-test/realtime-test-utils"
 import { useEventSource } from "@/hooks/use-event-source"
 import { useOpsApiError } from "@/hooks/use-ops-api-error"
 import { useOpsUIStore } from "@/store/ops-ui-store"

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { JobDetail } from "@/api/types"
-import { analyzePerfDiagnostics } from "@/features/realtime/perf-diagnosis"
+import { analyzePerfDiagnostics } from "@/features/perf-test/perf-diagnosis"
 import type { RealtimeSample } from "@/features/realtime/types"
 
 function makeJob(config: Record<string, unknown> = {}): JobDetail {

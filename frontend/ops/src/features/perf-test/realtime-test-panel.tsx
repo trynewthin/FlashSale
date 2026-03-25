@@ -5,9 +5,9 @@ import { LogStreamViewer } from "@/components/common/log-stream-viewer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getRealtimeTestPreset } from "@/features/realtime/realtime-test-presets"
+import { getRealtimeTestPreset } from "@/features/perf-test/realtime-test-presets"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { jobDurationSeconds } from "@/features/realtime/realtime-test-utils"
+import { jobDurationSeconds } from "@/features/perf-test/realtime-test-utils"
 
 interface RealtimeTestPanelProps {
   activeJob: JobDetail | null

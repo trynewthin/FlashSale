@@ -270,7 +270,6 @@ export function PerfMetricChartCard({ metric, samples, className }: PerfMetricCh
                         )}
                         <MetricInfoPopover metric={metric} />
                     </div>
-                    <div className="mt-0.5 text-[10px] text-muted-foreground">{metric.description}</div>
                 </div>
                 <div className="shrink-0 text-right">
                     <div className="text-base font-bold tabular-nums text-foreground">{formattedLatest}</div>
@@ -334,7 +333,7 @@ function AreaMetricChart({
 
     return (
         <ChartContainer config={config} className="h-full w-full">
-            <AreaChart data={samples} margin={{ top: 4, right: 8, bottom: 16, left: 0 }}>
+            <AreaChart data={samples} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                 <defs>
                     <linearGradient id={`fill-${metric.key}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={metric.color} stopOpacity={0.65} />

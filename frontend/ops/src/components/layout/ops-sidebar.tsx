@@ -1,33 +1,21 @@
 import {
   Activity,
   Boxes,
-  Check,
   ChevronLeft,
   ChevronRight,
-  KeyRound,
   LayoutDashboard,
   ListChecks,
-  Pencil,
   Zap,
 } from "lucide-react"
 import { NavLink } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
 interface OpsSidebarProps {
   collapsed: boolean
   onToggle: () => void
-  accessKey: string
-  keySaved: boolean
-  editingKey: boolean
-  savingKey: boolean
-  onAccessKeyChange: (value: string) => void
-  onBeginEdit: () => void
-  onSaveAccessKey: () => void
 }
 
 const navItems = [
@@ -38,17 +26,7 @@ const navItems = [
   { to: "/tasks", label: "任务中心", icon: ListChecks },
 ]
 
-export function OpsSidebar({
-  collapsed,
-  onToggle,
-  accessKey,
-  keySaved,
-  editingKey,
-  savingKey,
-  onAccessKeyChange,
-  onBeginEdit,
-  onSaveAccessKey,
-}: OpsSidebarProps) {
+export function OpsSidebar({ collapsed, onToggle }: OpsSidebarProps) {
   return (
     <aside
       className={cn(
@@ -115,83 +93,6 @@ export function OpsSidebar({
           )
         })}
       </nav>
-
-      {/* Access Key Card (Floating Island) */}
-      <div className="shrink-0 p-3 pb-4">
-        {!collapsed ? (
-          <Card
-            size="sm"
-            className={cn(
-              "relative overflow-hidden transition-all duration-300 shadow-sm border border-border/50",
-              keySaved && !editingKey
-                ? "bg-linear-to-br from-emerald-50/80 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/10 border-emerald-200/50 dark:border-emerald-800/50"
-                : "bg-background/80 backdrop-blur-sm"
-            )}
-          >
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <KeyRound className="size-3.5" />
-                访问密钥
-              </CardTitle>
-              {!editingKey && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-6 rounded-full hover:bg-background/80"
-                  onClick={onBeginEdit}
-                  title="修改密钥"
-                >
-                  <Pencil className="size-3" />
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent>
-              {editingKey ? (
-                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
-                  <Input
-                    value={accessKey}
-                    onChange={(event) => onAccessKeyChange(event.target.value)}
-                    placeholder="X-Ops-Key..."
-                    type="password"
-                    className="h-8 text-xs font-mono bg-background shadow-inner"
-                    disabled={savingKey}
-                  />
-                  <Button
-                    size="icon-sm"
-                    className="h-8 w-8 shrink-0 hover:scale-105 active:scale-95 transition-all shadow-sm rounded-lg"
-                    onClick={onSaveAccessKey}
-                    title="保存密钥"
-                    disabled={savingKey}
-                  >
-                    <Check className="size-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 animate-in fade-in duration-300">
-                  <div className="flex size-4 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50">
-                    <Check className="size-2.5" />
-                  </div>
-                  已保存并生效
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Button
-            variant="ghost"
-            className={cn(
-              "w-full h-11 flex items-center justify-center rounded-xl transition-all px-0",
-              keySaved ? "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50" : "text-muted-foreground"
-            )}
-            onClick={() => {
-              onToggle()
-            }}
-            title="访问密钥"
-          >
-            <KeyRound className="size-5" />
-          </Button>
-        )}
-      </div>
     </aside>
   )
 }

@@ -30,13 +30,12 @@ import {
     computeAvg,
     computeMax,
     computeLatest,
-} from "@/features/realtime/perf-metric-cards"
-import { PerfDiagnosisCard } from "@/features/realtime/perf-diagnosis-card"
-import { PerfSummaryCard } from "@/features/realtime/perf-summary-card"
-import { RealtimeTestLauncher } from "@/features/realtime/realtime-test-launcher"
-import { getRealtimeTestPreset } from "@/features/realtime/realtime-test-presets"
-import { usePerfTestSamples } from "@/features/realtime/use-perf-test-samples"
-import { useRealtimeTestRunner } from "@/features/realtime/use-realtime-test-runner"
+} from "@/features/perf-test/perf-metric-cards"
+import { PerfSummaryCard } from "@/features/perf-test/perf-summary-card"
+import { RealtimeTestLauncher } from "@/features/perf-test/realtime-test-launcher"
+import { getRealtimeTestPreset } from "@/features/perf-test/realtime-test-presets"
+import { usePerfTestSamples } from "@/features/perf-test/use-perf-test-samples"
+import { useRealtimeTestRunner } from "@/features/perf-test/use-realtime-test-runner"
 
 const DISPLAY_PERF_METRICS = PERF_METRICS
 
@@ -79,8 +78,6 @@ export function PerfTestPageFeature() {
         perfSamples,
         recentTestJobs,
         startTest,
-        refreshTasks,
-        refreshTestJobs,
         refreshActiveJob,
         switchActiveJob,
         clearActiveLog,
@@ -154,7 +151,6 @@ export function PerfTestPageFeature() {
                     recentTestJobs={recentTestJobs}
                     onOpenLauncher={() => setLauncherOpen(true)}
                     onSelectJob={handleSelectJob}
-                    onRefreshTestJobs={() => void refreshTestJobs()}
                 />
             ) : (
                 <ChartView
@@ -173,9 +169,9 @@ export function PerfTestPageFeature() {
             {/* ─── 日志 Sheet（右侧滑出面板） ─── */}
             <Sheet open={logSheetOpen} onOpenChange={setLogSheetOpen}>
                 <SheetContent side="right" className="flex w-full flex-col sm:max-w-lg">
-                    <SheetHeader>
+                    <SheetHeader className="pb-4">
                         <SheetTitle>测试日志</SheetTitle>
-                        <SheetDescription>
+                        <SheetDescription className="sr-only">
                             {activeJob
                                 ? `${getRealtimeTestPreset(activeJob.task_id)?.title ?? activeJob.task_id} — ${activeJob.status}`
                                 : "无活跃任务"}
@@ -233,7 +229,6 @@ export function PerfTestPageFeature() {
                 onSelectTask={setSelectedTaskID}
                 onSetFormValue={setFormValue}
                 onChangeExtraArgs={setExtraArgsText}
-                onRefreshTasks={() => void refreshTasks()}
                 onStartTest={handleStartTest}
                 showFloatingTrigger={false}
             />
@@ -249,7 +244,6 @@ interface GuideViewProps {
     recentTestJobs: JobSummary[]
     onOpenLauncher: () => void
     onSelectJob: (jobId: string) => Promise<void>
-    onRefreshTestJobs: () => void
 }
 
 function GuideView({
@@ -258,7 +252,6 @@ function GuideView({
     recentTestJobs,
     onOpenLauncher,
     onSelectJob,
-    onRefreshTestJobs,
 }: GuideViewProps) {
     return (
         <div className="mx-auto flex h-full w-full max-w-2xl flex-col items-center justify-center gap-8 p-6">
@@ -269,9 +262,6 @@ function GuideView({
                 </div>
                 <div className="text-center">
                     <h2 className="text-lg font-semibold text-foreground">压力测试</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        启动新测试或查看历史记录
-                    </p>
                 </div>
                 <Button
                     size="lg"
@@ -296,15 +286,6 @@ function GuideView({
                             <Clock className="size-4 text-muted-foreground" />
                             历史记录
                         </div>
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 text-xs text-muted-foreground"
-                            onClick={onRefreshTestJobs}
-                        >
-                            <RefreshCcw className="mr-1 size-3" />
-                            刷新
-                        </Button>
                     </div>
 
                     <div className="max-h-64 overflow-y-auto rounded-xl border bg-card shadow-sm">
@@ -486,9 +467,8 @@ function ChartView({
 
             {hasData ? (
                 <div className="grid auto-rows-[180px] grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-4">
-                    {/* ① 测试摘要 */}
-                    <PerfSummaryCard samples={chartSamples} />
-                    <PerfDiagnosisCard job={activeJob} samples={chartSamples} />
+                    {/* ① 测试摘要 + 诊断结论（整合卡片） */}
+                    <PerfSummaryCard samples={chartSamples} job={activeJob} />
 
                     {/* ② 各指标图表卡片 */}
                     {DISPLAY_PERF_METRICS.map((metric) => (

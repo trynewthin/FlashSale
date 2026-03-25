@@ -48,20 +48,11 @@ var errOrderCreateOverloaded = errors.New("order create overloaded")
 
 // Purchase 执行秒杀抢购。
 func (l *SeckillLogic) Purchase(in *pb.PurchaseReq) (*pb.PurchaseResp, error) {
-	if in == nil {
-		return nil, errorx.New(errorx.CodeSysBadRequest, "请求不能为空")
+	// ── 阶段 1：参数校验 ──
+	idempotencyKey, now, err := l.validatePurchaseInput(in)
+	if err != nil {
+		return nil, err
 	}
-	if in.UserId <= 0 || in.ActivityId <= 0 || in.ActivityItemId <= 0 {
-		return nil, errorx.New(errorx.CodeSysBadRequest, "请求参数非法")
-	}
-	if in.Quantity <= 0 {
-		return nil, errorx.New(errorx.CodeSysBadRequest, "quantity 非法")
-	}
-	if strings.TrimSpace(in.IdempotencyKey) == "" {
-		return nil, errorx.New(errorx.CodeSysBadRequest, "idempotency_key 不能为空")
-	}
-	idempotencyKey := strings.TrimSpace(in.IdempotencyKey)
-	now := time.Now()
 	_ = l.svcCtx.EnqueueTrafficEvent(&model.TrafficEvent{
 		ActivityID:     in.ActivityId,
 		ActivityItemID: in.ActivityItemId,
@@ -88,44 +79,89 @@ func (l *SeckillLogic) Purchase(in *pb.PurchaseReq) (*pb.PurchaseResp, error) {
 		return nil, err
 	}
 
-	// ─── Kafka 异步建单快路径 ───
-	if cacheReserved && l.svcCtx != nil {
-		orderNo := eventx.BuildSeckillOrderNo(in.UserId, in.ActivityId, in.ActivityItemId, idempotencyKey)
-		publishErr := l.svcCtx.PublishSeckillPurchaseCreateEvent(&eventx.SeckillPurchaseCreateEvent{
-			OrderNo:           orderNo,
-			UserID:            in.UserId,
-			ActivityID:        in.ActivityId,
-			ActivityItemID:    in.ActivityItemId,
-			ProductID:         item.ProductID,
-			Quantity:          in.Quantity,
-			SeckillPriceCent:  item.SeckillPriceCent,
-			SnapshotName:      item.SnapshotName,
-			SnapshotMainImage: item.SnapshotMainImage,
-			SKUCode:           item.SKUCode,
-			IdempotencyKey:    idempotencyKey,
-			OccurredAtUnix:    now.Unix(),
-		})
-		if publishErr == nil {
-			_ = l.svcCtx.EnqueueTrafficEvent(&model.TrafficEvent{
-				ActivityID:     in.ActivityId,
-				ActivityItemID: in.ActivityItemId,
-				EventType:      model.TrafficEventPurchaseSuccess,
-				UserID:         in.UserId,
-				IdempotencyKey: idempotencyKey + ":async_enqueued",
-				OccurredAt:     time.Now(),
-			})
-			return &pb.PurchaseResp{
-				ActivityId:     in.ActivityId,
-				ActivityItemId: in.ActivityItemId,
-				OrderId:        0,
-				OrderNo:        orderNo,
-			}, nil
-		}
-		// Kafka 短暂不可用时回退同步建单，避免把消息总线抖动直接暴露给用户。
-		l.Logger.Errorf("publish purchase create event failed, fallback to sync create: activity_id=%d item_id=%d user_id=%d quantity=%d idempotency_key=%s err=%v",
-			in.ActivityId, in.ActivityItemId, in.UserId, in.Quantity, idempotencyKey, publishErr)
+	// ── 阶段 2：Kafka 异步建单快路径 ──
+	if resp, ok := l.tryAsyncKafkaPath(in, item, cacheReserved, idempotencyKey, now); ok {
+		return resp, nil
 	}
 
+	// ── 阶段 3：DB 预扣 + 幂等冲突处理 ──
+	reservation, reserveConflict, err := l.reserveDBAndHandleConflict(in, item, cacheReserved, idempotencyKey, now)
+	if err != nil {
+		return nil, err
+	}
+
+	// ── 阶段 4：建单 + 补偿 + 重放 ──
+	orderResp, err := l.createOrderWithCompensation(in, item, reservation, cacheReserved, reserveConflict, idempotencyKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// ── 阶段 5：关联写入和成功埋点 ──
+	return l.finalizePurchase(in, orderResp, idempotencyKey)
+}
+
+// validatePurchaseInput 校验抢购请求参数，返回规范化的幂等键和当前时间。
+func (l *SeckillLogic) validatePurchaseInput(in *pb.PurchaseReq) (string, time.Time, error) {
+	if in == nil {
+		return "", time.Time{}, errorx.New(errorx.CodeSysBadRequest, "请求不能为空")
+	}
+	if in.UserId <= 0 || in.ActivityId <= 0 || in.ActivityItemId <= 0 {
+		return "", time.Time{}, errorx.New(errorx.CodeSysBadRequest, "请求参数非法")
+	}
+	if in.Quantity <= 0 {
+		return "", time.Time{}, errorx.New(errorx.CodeSysBadRequest, "quantity 非法")
+	}
+	if strings.TrimSpace(in.IdempotencyKey) == "" {
+		return "", time.Time{}, errorx.New(errorx.CodeSysBadRequest, "idempotency_key 不能为空")
+	}
+	return strings.TrimSpace(in.IdempotencyKey), time.Now(), nil
+}
+
+// tryAsyncKafkaPath 尝试通过 Kafka 异步建单。发布成功返回响应和 true；失败或条件不满足返回 nil 和 false。
+func (l *SeckillLogic) tryAsyncKafkaPath(in *pb.PurchaseReq, item *model.ActivityItem, cacheReserved bool, idempotencyKey string, now time.Time) (*pb.PurchaseResp, bool) {
+	if !cacheReserved || l.svcCtx == nil {
+		return nil, false
+	}
+	orderNo := eventx.BuildSeckillOrderNo(in.UserId, in.ActivityId, in.ActivityItemId, idempotencyKey)
+	publishErr := l.svcCtx.PublishSeckillPurchaseCreateEvent(&eventx.SeckillPurchaseCreateEvent{
+		OrderNo:           orderNo,
+		UserID:            in.UserId,
+		ActivityID:        in.ActivityId,
+		ActivityItemID:    in.ActivityItemId,
+		ProductID:         item.ProductID,
+		Quantity:          in.Quantity,
+		SeckillPriceCent:  item.SeckillPriceCent,
+		SnapshotName:      item.SnapshotName,
+		SnapshotMainImage: item.SnapshotMainImage,
+		SKUCode:           item.SKUCode,
+		IdempotencyKey:    idempotencyKey,
+		OccurredAtUnix:    now.Unix(),
+	})
+	if publishErr == nil {
+		_ = l.svcCtx.EnqueueTrafficEvent(&model.TrafficEvent{
+			ActivityID:     in.ActivityId,
+			ActivityItemID: in.ActivityItemId,
+			EventType:      model.TrafficEventPurchaseSuccess,
+			UserID:         in.UserId,
+			IdempotencyKey: idempotencyKey + ":async_enqueued",
+			OccurredAt:     time.Now(),
+		})
+		return &pb.PurchaseResp{
+			ActivityId:     in.ActivityId,
+			ActivityItemId: in.ActivityItemId,
+			OrderId:        0,
+			OrderNo:        orderNo,
+		}, true
+	}
+	// Kafka 短暂不可用时回退同步建单，避免把消息总线抖动直接暴露给用户。
+	l.Logger.Errorf("publish purchase create event failed, fallback to sync create: activity_id=%d item_id=%d user_id=%d quantity=%d idempotency_key=%s err=%v",
+		in.ActivityId, in.ActivityItemId, in.UserId, in.Quantity, idempotencyKey, publishErr)
+	return nil, false
+}
+
+// reserveDBAndHandleConflict 执行 DB 预扣并处理幂等冲突。
+// 返回 reservation（冲突时为 nil）、reserveConflict 标记、以及终结性错误。
+func (l *SeckillLogic) reserveDBAndHandleConflict(in *pb.PurchaseReq, item *model.ActivityItem, cacheReserved bool, idempotencyKey string, now time.Time) (*model.PurchaseReservation, bool, error) {
 	reservation, err := l.reservePurchaseWithRetry(in.ActivityId, in.ActivityItemId, in.UserId, in.Quantity, idempotencyKey, now)
 	reserveConflict := err == repository.ErrIdempotencyConflict
 	l.markReserveResult(err)
@@ -135,26 +171,36 @@ func (l *SeckillLogic) Purchase(in *pb.PurchaseReq) (*pb.PurchaseResp, error) {
 	if err != nil {
 		// 幂等冲突说明历史请求已完成预扣，本次继续尝试幂等建单恢复，不直接失败。
 		if reserveConflict {
-			reservation = nil
-		} else {
-			if shouldLogReserveErrorAtErrorLevel(err) {
-				l.Logger.Errorf("reserve purchase failed: activity_id=%d item_id=%d user_id=%d quantity=%d idempotency_key=%s err=%v",
-					in.ActivityId, in.ActivityItemId, in.UserId, in.Quantity, idempotencyKey, err)
-			}
-			if cacheReserved {
-				l.rollbackReserveInCacheWithTimeout(item, in.UserId, in.Quantity, idempotencyKey)
-			}
-			_ = l.recordTraffic(&model.TrafficEvent{
-				ActivityID:     in.ActivityId,
-				ActivityItemID: in.ActivityItemId,
-				EventType:      model.TrafficEventPurchaseFail,
-				UserID:         in.UserId,
-				IdempotencyKey: idempotencyKey + ":reserve_fail",
-				OccurredAt:     time.Now(),
-			})
-			return nil, mapRepoErr(err)
+			return nil, true, nil
 		}
+		if shouldLogReserveErrorAtErrorLevel(err) {
+			l.Logger.Errorf("reserve purchase failed: activity_id=%d item_id=%d user_id=%d quantity=%d idempotency_key=%s err=%v",
+				in.ActivityId, in.ActivityItemId, in.UserId, in.Quantity, idempotencyKey, err)
+		}
+		if cacheReserved {
+			l.rollbackReserveInCacheWithTimeout(item, in.UserId, in.Quantity, idempotencyKey)
+		}
+		_ = l.recordTraffic(&model.TrafficEvent{
+			ActivityID:     in.ActivityId,
+			ActivityItemID: in.ActivityItemId,
+			EventType:      model.TrafficEventPurchaseFail,
+			UserID:         in.UserId,
+			IdempotencyKey: idempotencyKey + ":reserve_fail",
+			OccurredAt:     time.Now(),
+		})
+		return nil, false, mapRepoErr(err)
 	}
+	return reservation, false, nil
+}
+
+// createOrderWithCompensation 提取令牌、调用建单 RPC，失败时执行补偿和幂等重放。
+func (l *SeckillLogic) createOrderWithCompensation(
+	in *pb.PurchaseReq,
+	item *model.ActivityItem,
+	reservation *model.PurchaseReservation,
+	cacheReserved, reserveConflict bool,
+	idempotencyKey string,
+) (*orderpb.CreateOrderFromSeckillResp, error) {
 	token, ok := rpcmeta.AccessTokenFromIncomingContext(l.ctx)
 	if !ok {
 		if !reserveConflict {
@@ -243,7 +289,11 @@ func (l *SeckillLogic) Purchase(in *pb.PurchaseReq) (*pb.PurchaseResp, error) {
 		}
 		return nil, errorx.New(errorx.CodeSeckillPurchaseConflict, "订单处理中，请稍后重试")
 	}
+	return orderResp, nil
+}
 
+// finalizePurchase 写入订单关联、上报成功埋点、构建最终响应。
+func (l *SeckillLogic) finalizePurchase(in *pb.PurchaseReq, orderResp *orderpb.CreateOrderFromSeckillResp, idempotencyKey string) (*pb.PurchaseResp, error) {
 	if l.svcCtx != nil && l.svcCtx.OrderLinkWriteOnPurchase {
 		link := &model.OrderLink{
 			ID:             l.svcCtx.IDNode.Generate().Int64(),

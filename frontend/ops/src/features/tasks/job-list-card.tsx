@@ -27,10 +27,7 @@ export function JobListCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="text-xs text-muted-foreground">
-          执行任务后会自动选中新 job，右侧立即接管状态和日志查看。
-        </div>
-        <div className="max-h-[72vh] space-y-2 overflow-y-auto pr-1">
+        <div className="max-h-[72vh] min-h-[420px] space-y-2 overflow-y-auto pr-1">
           {jobs.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border/60 px-4 py-8 text-center text-sm text-muted-foreground">
               暂无任务记录

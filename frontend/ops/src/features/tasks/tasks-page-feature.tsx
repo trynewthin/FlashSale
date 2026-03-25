@@ -1,6 +1,5 @@
 import {
   Activity,
-  Clock3,
   Pause,
   Play,
   RefreshCcw,
@@ -23,14 +22,13 @@ import { LogStreamViewer } from "@/components/common/log-stream-viewer"
 import { PageShell } from "@/components/layout/page-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useEventSource } from "@/hooks/use-event-source"
 import { useOpsApiError } from "@/hooks/use-ops-api-error"
 import { useOpsUIStore } from "@/store/ops-ui-store"
 
 import { JobListCard } from "./job-list-card"
 import { TaskExecutorCard } from "./task-executor-card"
-import { MetaField, formatDateTime, formatDuration, parseArgs, statusVariant } from "./tasks-constants"
+import { formatDuration, parseArgs, statusVariant } from "./tasks-constants"
 
 export function TasksPageFeature() {
   const showApiError = useOpsApiError()
@@ -263,7 +261,7 @@ export function TasksPageFeature() {
           onRunTask={() => void runTask()}
         />
 
-        <div className="grid items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid items-stretch gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
           <JobListCard
             jobs={jobs}
             selectedJobId={selectedJobId}
@@ -274,66 +272,49 @@ export function TasksPageFeature() {
             }}
           />
 
-          <div className="grid gap-4">
-            <Card className="border-border/50 bg-background/70 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <TerminalSquare className="size-4 text-primary" />
-                  当前任务概览
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <MetaField label="任务 ID" value={selectedJobId || "未选择"} emphasis />
-                <MetaField label="状态" value={String(displayStatus)} emphasis />
-                <MetaField label="退出码" value={displayExitCode === null ? "-" : String(displayExitCode)} />
-                <MetaField label="持续时间" value={formatDuration(selectedJob)} />
-                <MetaField label="创建时间" value={formatDateTime(selectedJob?.created_at)} />
-                <MetaField label="开始时间" value={formatDateTime(selectedJob?.started_at)} />
-                <MetaField label="完成时间" value={formatDateTime(selectedJob?.finished_at)} />
-                <MetaField label="流式状态" value={streaming ? "实时跟踪中" : "静态日志"} />
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/50 bg-background/70 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between gap-3 text-base">
-                  <span>日志输出</span>
-                  <div className="flex items-center gap-2">
-                    {selectedJob ? <Badge variant={statusVariant(displayStatus)}>{displayStatus}</Badge> : null}
-                    {streaming ? (
-                      <Badge variant="outline" className="gap-1 border-emerald-500/30 bg-emerald-500/8 text-emerald-600">
-                        <Activity className="size-3" />
-                        实时流
-                      </Badge>
-                    ) : null}
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Clock3 className="size-3.5" />
-                    执行、切换任务和查看日志现在都在同一页完成，不再需要来回跳转。
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (selectedJobId) void loadJobLog(selectedJobId)
-                    }}
-                    disabled={!selectedJobId}
-                  >
-                    <RefreshCcw className="size-4" />
-                    重新加载日志
-                  </Button>
-                </div>
-                <LogStreamViewer
-                  value={logText}
-                  emptyText="请选择任务并查看日志"
-                  className="h-[72vh] min-h-[420px] rounded-xl border bg-muted/20"
-                />
-              </CardContent>
-            </Card>
+          <div className="flex flex-col gap-0 overflow-hidden rounded-xl border border-border/50 bg-background/70 shadow-sm">
+            {/* 元数据头部 */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-b border-border/40 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <TerminalSquare className="size-3.5 text-primary" />
+                <span className="text-xs font-medium text-muted-foreground">
+                  {selectedJobId || "未选择任务"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
+                {selectedJob ? (
+                  <Badge variant={statusVariant(displayStatus)} className="text-xs">{displayStatus}</Badge>
+                ) : null}
+                {displayExitCode !== null ? (
+                  <span className="text-[11px] text-muted-foreground">exit {displayExitCode}</span>
+                ) : null}
+                {selectedJob?.started_at ? (
+                  <span className="text-[11px] text-muted-foreground">{formatDuration(selectedJob)}</span>
+                ) : null}
+                {streaming ? (
+                  <Badge variant="outline" className="gap-1 border-emerald-500/30 bg-emerald-500/8 text-emerald-600 text-[10px]">
+                    <Activity className="size-3" />
+                    实时流
+                  </Badge>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground"
+                  onClick={() => { if (selectedJobId) void loadJobLog(selectedJobId) }}
+                  disabled={!selectedJobId}
+                >
+                  <RefreshCcw className="size-3" />
+                  刷新
+                </Button>
+              </div>
+            </div>
+            {/* 日志区 */}
+            <LogStreamViewer
+              value={logText}
+              emptyText="请选择任务并查看日志"
+              className="h-[72vh] min-h-[420px] rounded-none border-0 bg-muted/20"
+            />
           </div>
         </div>
       </div>

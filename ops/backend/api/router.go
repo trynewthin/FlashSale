@@ -23,6 +23,7 @@ func RegisterRoutes(mux *http.ServeMux, deps RouterDeps) {
 	metricsH := &MetricsHandler{Env: deps.Env}
 	obsH := &ObservabilityHandler{RepoRoot: deps.Env.RepoRoot}
 	logsH := &LogsHandler{RepoRoot: deps.Env.RepoRoot}
+	sysinfoH := &SysInfoHandler{}
 
 	auth := func(next http.HandlerFunc) http.HandlerFunc {
 		return WithAuthAPI(deps.AuthKey, next)
@@ -47,6 +48,7 @@ func RegisterRoutes(mux *http.ServeMux, deps RouterDeps) {
 	mux.HandleFunc("GET /api/v1/metrics/snapshot", auth(metricsH.GetSnapshot))
 	mux.HandleFunc("GET /api/v1/metrics/range", auth(metricsH.GetRange))
 	mux.HandleFunc("GET /api/v1/observability/links", auth(obsH.GetLinks))
+	mux.HandleFunc("GET /api/v1/sysinfo", auth(sysinfoH.GetSysInfo))
 	mux.HandleFunc("GET /api/v1/service-logs/files", auth(logsH.ListFiles))
 	mux.HandleFunc("GET /api/v1/service-logs/{file_id}/tail", auth(logsH.GetTail))
 	mux.HandleFunc("GET /api/v1/service-logs/{file_id}/stream", auth(logsH.StreamLog))

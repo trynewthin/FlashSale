@@ -249,3 +249,8 @@ export interface PromQueryResult {
 export interface MetricsSnapshotResponse {
   snapshot: Record<string, PromQueryResult | { error: string }>
 }
+
+export interface SysInfo {
+  cpu: { usage_pct: number; cores: number }
+  memory: { total_bytes: number; available_bytes: number; usage_pct: number }
+}

@@ -10,6 +10,7 @@ import type {
   ObservabilityLinks,
   PromQueryResult,
   StatusSnapshot,
+  SysInfo,
   TaskDef,
 } from "@/api/types"
 import type { MetricsProfile } from "@/features/realtime/precision-metrics"
@@ -167,6 +168,11 @@ export const opsApi = {
 
   async getAvailableDays(): Promise<{ days: string[] }> {
     return requestJSON<{ days: string[] }>("api/v1/samples/days")
+  },
+
+  async getSysInfo(): Promise<SysInfo> {
+    const data = await requestJSON<{ sysinfo: SysInfo }>("api/v1/sysinfo")
+    return data.sysinfo
   },
 }
 

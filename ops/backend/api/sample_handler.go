@@ -90,11 +90,14 @@ func (h *SampleHandler) GetAvailableDays(w http.ResponseWriter, _ *http.Request)
 }
 
 var rangeMap = map[string]time.Duration{
+	"1m":  time.Minute,
+	"5m":  5 * time.Minute,
+	"10m": 10 * time.Minute,
+	"30m": 30 * time.Minute,
 	"1h":  time.Hour,
-	"3h":  3 * time.Hour,
-	"6h":  6 * time.Hour,
+	"5h":  5 * time.Hour,
 	"12h": 12 * time.Hour,
-	"24h": 24 * time.Hour,
+	"1d":  24 * time.Hour,
 	"3d":  3 * 24 * time.Hour,
 	"7d":  7 * 24 * time.Hour,
 }
@@ -127,11 +130,13 @@ func parseStepMs(s string) (int64, error) {
 
 func autoStep(d time.Duration) int64 {
 	switch {
+	case d <= 10*time.Minute:
+		return 0 // 原始精度，不降采样
+	case d <= 30*time.Minute:
+		return 2000
 	case d <= time.Hour:
-		return 0
-	case d <= 3*time.Hour:
 		return 5000
-	case d <= 6*time.Hour:
+	case d <= 5*time.Hour:
 		return 15000
 	case d <= 24*time.Hour:
 		return 60000

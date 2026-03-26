@@ -13,7 +13,7 @@ import type {
   SysInfo,
   TaskDef,
 } from "@/api/types"
-import type { MetricsProfile } from "@/features/realtime/precision-metrics"
+type MetricsProfile = "overview" | "burst" | "replay"
 
 export interface CreateJobReq {
   task: string

@@ -1,13 +1,13 @@
 import { useState } from "react"
 import {
   ArrowLeftRight,
-  Pause,
-  Play,
+  CalendarRange,
   RefreshCcw,
   Settings2,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Popover,
   PopoverContent,
@@ -43,11 +43,16 @@ export function RealtimePageFeature() {
     latest,
     previous,
     loading,
-    running,
     timeWindow,
+    isCustomRange,
     setTimeWindow,
-    setRunning,
     refreshNow,
+    customRange,
+    openCustomRange,
+    closeCustomRange,
+    setCustomRangeStart,
+    setCustomRangeEnd,
+    applyCustomRange,
   } = useRealtimeMonitor()
 
   const [isServerLeft, setIsServerLeft] = useState(true)
@@ -71,6 +76,16 @@ export function RealtimePageFeature() {
             {/* 右上角浮动控件 */}
             <div className="absolute right-4 top-4 sm:right-5 sm:top-5 z-10 flex items-center gap-1">
 
+              {/* 刷新按钮 */}
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={loading}
+                onClick={() => void refreshNow()}
+                className="h-7 sm:h-8 w-7 sm:w-8 text-muted-foreground hover:text-accent-foreground"
+              >
+                <RefreshCcw className="size-3.5" />
+              </Button>
 
               {/* 设置 Popover */}
               <Popover>
@@ -81,9 +96,9 @@ export function RealtimePageFeature() {
                   {/* 显示粒度 */}
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs text-muted-foreground shrink-0">显示粒度</span>
-                    <Select value={timeWindow} onValueChange={(v) => setTimeWindow(v as TimeWindow)}>
+                    <Select value={isCustomRange ? "" : timeWindow} onValueChange={(v) => setTimeWindow(v as TimeWindow)}>
                       <SelectTrigger className="h-7 text-xs w-[120px]">
-                        <SelectValue placeholder="时间窗口" />
+                        <SelectValue placeholder={isCustomRange ? "自定义" : "时间窗口"} />
                       </SelectTrigger>
                       <SelectContent>
                         {TIME_WINDOWS.map((option) => (
@@ -93,6 +108,20 @@ export function RealtimePageFeature() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* 自定义时间范围 */}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground shrink-0">自定义范围</span>
+                    <Button
+                      size="sm"
+                      variant={customRange.open ? "secondary" : "outline"}
+                      onClick={() => customRange.open ? closeCustomRange() : openCustomRange()}
+                      className="h-7 text-xs gap-1.5"
+                    >
+                      <CalendarRange className="size-3" />
+                      指定日期
+                    </Button>
                   </div>
 
                   {/* 左右切换 */}
@@ -109,36 +138,38 @@ export function RealtimePageFeature() {
                     </Button>
                   </div>
 
-                  {/* 采集控制 */}
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs text-muted-foreground shrink-0">采集状态</span>
-                    <div className="flex gap-1.5">
-                      <Button
-                        size="sm"
-                        variant={running ? "outline" : "secondary"}
-                        onClick={() => setRunning(!running)}
-                        className="h-7 text-xs px-2.5"
-                      >
-                        {running ? <Pause className="size-3 mr-1" /> : <Play className="size-3 mr-1" />}
-                        {running ? "暂停" : "恢复"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={loading}
-                        onClick={() => void refreshNow()}
-                        className="h-7 text-xs px-2.5"
-                      >
-                        <RefreshCcw className="size-3 mr-1" />
-                        刷新
-                      </Button>
-                    </div>
-                  </div>
-
-
                 </PopoverContent>
               </Popover>
             </div>
+
+            {/* 自定义时间范围面板 */}
+            {customRange.open && (
+              <div className="absolute left-4 top-4 sm:left-5 sm:top-5 z-10 bg-background/95 backdrop-blur border rounded-lg p-3 shadow-lg space-y-2 w-[280px]">
+                <div className="text-xs font-medium text-muted-foreground">自定义时间范围</div>
+                <div className="space-y-1.5">
+                  <Input
+                    type="datetime-local"
+                    value={customRange.startInput}
+                    onChange={(e) => setCustomRangeStart(e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                  <Input
+                    type="datetime-local"
+                    value={customRange.endInput}
+                    onChange={(e) => setCustomRangeEnd(e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                </div>
+                <div className="flex gap-1.5 justify-end">
+                  <Button size="sm" variant="ghost" onClick={closeCustomRange} className="h-7 text-xs px-2">
+                    取消
+                  </Button>
+                  <Button size="sm" onClick={() => void applyCustomRange()} disabled={loading} className="h-7 text-xs px-3">
+                    查询
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* 图表区域 — absolute 填充确保 ResponsiveContainer 始终有确定的宽高 */}
             <div className="absolute inset-0 pt-4 sm:pt-5 px-4 sm:px-5 pb-4">

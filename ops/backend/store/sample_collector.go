@@ -88,6 +88,9 @@ func (c *SampleCollector) collectOnce() {
 	sample.PurchaseKafkaPublishRate = extractPromScalar(snapshot, "seckill_purchase_kafka_publish_rate")
 	sample.PurchaseKafkaPublishFailed = extractPromScalar(snapshot, "seckill_purchase_kafka_publish_failed")
 	sample.OrderStateConsumeRate = extractPromScalar(snapshot, "seckill_order_state_consume_rate")
+	// P99 降噪：采样间隔 2s 对应 lookback 约 300s（overview profile），
+	// 若窗口内总请求 < 100 则 P99 统计不可靠，置空。
+	maskP99ByQPS(sample, 300)
 	if err := c.store.Append(sample); err != nil {
 		log.Printf("[sample_collector] write failed: %v", err)
 	}
@@ -136,4 +139,15 @@ func extractPromScalar(snapshot map[string]any, metricName string) *float64 {
 		return nil
 	}
 	return &f
+}
+
+// maskP99ByQPS 在 QPS 过低时将 P99 延迟置空，避免噪声干扰图表。
+// minRequests 为统计窗口内最小请求数阈值（默认 100）。
+func maskP99ByQPS(s *MonitorSample, lookbackSeconds float64) {
+	if s.PromP99LatencyMs == nil {
+		return
+	}
+	if s.PromQps == nil || *s.PromQps*lookbackSeconds < 100 {
+		s.PromP99LatencyMs = nil
+	}
 }

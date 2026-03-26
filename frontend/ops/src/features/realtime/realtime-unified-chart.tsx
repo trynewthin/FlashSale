@@ -101,11 +101,10 @@ function readMetricValue(sample: RealtimeSample, key: ChartMetricKey): number {
 interface RealtimeUnifiedChartProps {
   samples: RealtimeSample[]
   visibleKeys: ChartMetricKey[]
-  mode?: "live" | "replay"
   className?: string
 }
 
-export function RealtimeUnifiedChart({ samples, visibleKeys, mode = "live", className }: RealtimeUnifiedChartProps) {
+export function RealtimeUnifiedChart({ samples, visibleKeys, className }: RealtimeUnifiedChartProps) {
   const visibleMetrics = useMemo(() => {
     const defs = visibleKeys.map((key) => metricByKey(key))
     return defs.length > 0 ? defs : [METRICS[0]]
@@ -135,7 +134,7 @@ export function RealtimeUnifiedChart({ samples, visibleKeys, mode = "live", clas
   }, [visibleMetrics])
 
   return (
-    <ChartContainer config={chartConfig} className={cn("min-h-[200px] w-full !aspect-auto", className)} data-mode={mode}>
+    <ChartContainer config={chartConfig} className={cn("min-h-[200px] w-full !aspect-auto", className)}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={samples}>
           <defs>

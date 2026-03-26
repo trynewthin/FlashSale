@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 
 import { opsApi, type PersistedSample } from "@/api/modules/ops"
 import type { JobDetail, PerfProgress } from "@/api/types"
-import { OVERVIEW_LOOKBACK_SECONDS, normalizeServerMetrics } from "@/features/realtime/precision-metrics"
+
 import {
     mergeRealtimeSamplesWithPerfPoints,
     parsePerfMetricPointsFromLog,
@@ -37,7 +37,7 @@ function perfProgressToSample(p: PerfProgress): RealtimeSample {
 }
 
 function persistedToRealtime(sample: PersistedSample): RealtimeSample {
-    return normalizeServerMetrics({
+    return {
         timestamp: sample.ts,
         label: sample.label,
         portRate: sample.portRate,
@@ -53,7 +53,7 @@ function persistedToRealtime(sample: PersistedSample): RealtimeSample {
         purchaseKafkaPublishRate: sample.purchaseKafkaPublishRate,
         purchaseKafkaPublishFailed: sample.purchaseKafkaPublishFailed,
         orderStateConsumeRate: sample.orderStateConsumeRate,
-    }, OVERVIEW_LOOKBACK_SECONDS)
+    }
 }
 
 function parseTimeMs(isoTime?: string): number | null {

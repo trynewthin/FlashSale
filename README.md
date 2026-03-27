@@ -2,9 +2,7 @@
 
 FlashSale 是一个面向秒杀场景的电商系统项目，覆盖用户侧购物、后台管理、秒杀活动、运维控制和本地部署编排。它不是单一接口的压测样例，而是一套从业务链路到运行体系都相对完整的工程实现。
 
-> 系统总览图预留：`docs/assets/images/README-system-overview.png`
->
-> 演示 GIF 预留：`docs/assets/gifs/README-seckill-demo.gif`
+![系统总览](docs/assets/images/README-system-overview.png)
 
 ## 这是什么
 
@@ -26,6 +24,8 @@ FlashSale 是一个面向秒杀场景的电商系统项目，覆盖用户侧购�
 - 素材链路独立：`media-store` 负责上传与管理，`cdn` 负责对外只读访问，适合商品图和活动资源场景。
 - 部署结构分层：基础设施、业务后端、代理与可观测性按 Compose 子文件拆分，便于扩展和排查问题。
 
+![秒杀下单链路](docs/assets/images/README-seckill-flow.png)
+
 ## 系统组成
 
 | 层次 | 组成 |
@@ -35,6 +35,8 @@ FlashSale 是一个面向秒杀场景的电商系统项目，覆盖用户侧购�
 | 辅助能力 | `media-store`、`cdn`、`ops-control` |
 | 前端应用 | `frontend/user`、`frontend/admin`、`frontend/ops` |
 | 基础设施 | MySQL、Redis、Kafka、etcd、Nginx、Prometheus、Grafana、Jaeger |
+
+![部署拓扑](docs/assets/images/README-deployment-topology.png)
 
 ## 当前覆盖范围
 
@@ -59,4 +61,4 @@ FlashSale 是一个面向秒杀场景的电商系统项目，覆盖用户侧购�
 - 系统需求定位：[docs/positioning/README.md](docs/positioning/README.md)
 - 系统架构：[docs/architecture/README.md](docs/architecture/README.md)
 - 部署与维护：[docs/operations/README.md](docs/operations/README.md)
-- 图片与 GIF 占位：[docs/assets/README.md](docs/assets/README.md)
+- 资源目录：[docs/assets/README.md](docs/assets/README.md)

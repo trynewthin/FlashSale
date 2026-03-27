@@ -29,9 +29,10 @@
 - 本地启动与运行路径：[operations/02-local-development-and-runbook.md](operations/02-local-development-and-runbook.md)
 - 部署与日常维护：[operations/03-deployment-and-maintenance.md](operations/03-deployment-and-maintenance.md)
 - 测试、验证与排障：[operations/04-testing-and-troubleshooting.md](operations/04-testing-and-troubleshooting.md)
+- Ops 控制台界面导览：[operations/05-ops-console-guide.md](operations/05-ops-console-guide.md)
 
 ## 素材目录
 
 - 素材说明：[assets/README.md](assets/README.md)
-- 截图目录：`docs/assets/images/`
+- 截图目录：`docs/assets/images/`（已有 Ops 控制台界面截图）
 - GIF 目录：`docs/assets/gifs/`

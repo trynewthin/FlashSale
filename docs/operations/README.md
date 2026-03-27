@@ -6,3 +6,4 @@
 - [本地启动与运行路径](02-local-development-and-runbook.md)
 - [部署与日常维护](03-deployment-and-maintenance.md)
 - [测试、验证与排障](04-testing-and-troubleshooting.md)
+- [Ops 控制台界面导览](05-ops-console-guide.md)

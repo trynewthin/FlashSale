@@ -67,6 +67,7 @@ func (s *Server) Start(addr string) error {
 		Scheduler:   s.scheduler,
 		Env:         s.env,
 		SampleStore: s.store,
+		Collector:   s.collector,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())

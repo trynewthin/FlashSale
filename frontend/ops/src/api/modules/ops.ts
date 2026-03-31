@@ -166,6 +166,12 @@ export const opsApi = {
     return requestJSON<SamplesResponse>(url)
   },
 
+  async syncSamples(): Promise<void> {
+    await requestJSON<{ message: string }>("api/v1/samples/sync", {
+      method: "POST",
+    })
+  },
+
   async getAvailableDays(): Promise<{ days: string[] }> {
     return requestJSON<{ days: string[] }>("api/v1/samples/days")
   },

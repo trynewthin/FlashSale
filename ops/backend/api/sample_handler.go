@@ -9,7 +9,15 @@ import (
 )
 
 type SampleHandler struct {
-	Store *store.SampleStore
+	Store     *store.SampleStore
+	Collector *store.SampleCollector
+}
+
+func (h *SampleHandler) SyncNow(w http.ResponseWriter, r *http.Request) {
+	if h.Collector != nil {
+		h.Collector.TriggerNow()
+	}
+	WriteOK(w, map[string]string{"message": "sync triggered"})
 }
 
 func (h *SampleHandler) GetSamples(w http.ResponseWriter, r *http.Request) {

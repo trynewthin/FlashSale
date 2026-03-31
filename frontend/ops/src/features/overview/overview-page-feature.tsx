@@ -61,7 +61,7 @@ export function OverviewPageFeature() {
     void refresh()
     const timer = window.setInterval(() => {
       void refresh()
-    }, 5000)
+    }, 15000)
     return () => window.clearInterval(timer)
   }, [refresh])
 

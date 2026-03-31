@@ -13,6 +13,7 @@ type RouterDeps struct {
 	Scheduler   *scheduler.Scheduler
 	Env         *catalog.EnvContext
 	SampleStore *store.SampleStore
+	Collector   *store.SampleCollector
 }
 
 func RegisterRoutes(mux *http.ServeMux, deps RouterDeps) {
@@ -54,8 +55,9 @@ func RegisterRoutes(mux *http.ServeMux, deps RouterDeps) {
 	mux.HandleFunc("GET /api/v1/service-logs/{file_id}/stream", auth(logsH.StreamLog))
 
 	if deps.SampleStore != nil {
-		sampleH := &SampleHandler{Store: deps.SampleStore}
+		sampleH := &SampleHandler{Store: deps.SampleStore, Collector: deps.Collector}
 		mux.HandleFunc("GET /api/v1/samples", auth(sampleH.GetSamples))
 		mux.HandleFunc("GET /api/v1/samples/days", auth(sampleH.GetAvailableDays))
+		mux.HandleFunc("POST /api/v1/samples/sync", auth(sampleH.SyncNow))
 	}
 }

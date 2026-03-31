@@ -8,7 +8,7 @@ import { useOpsApiError } from "@/hooks/use-ops-api-error"
 // --------------- 常量 ---------------
 
 /** 尾部实时轮询间隔（ms） */
-const TAIL_POLL_INTERVAL_MS = 5_000
+const TAIL_POLL_INTERVAL_MS = 15_000
 
 export type TimeWindow = "1m" | "5m" | "10m" | "30m" | "1h" | "5h" | "12h" | "1d" | "3d" | "7d"
 
@@ -193,6 +193,7 @@ export function useRealtimeMonitor(): UseRealtimeMonitorResult {
   const refreshNow = useCallback(async () => {
     setLoading(true)
     try {
+      await opsApi.syncSamples().catch(() => null)
       await loadSamples(currentQueryRef.current)
       await loadSysInfo()
     } finally {

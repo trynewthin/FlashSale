@@ -47,7 +47,7 @@ export function ContainersPageFeature() {
     void refresh()
     const timer = window.setInterval(() => {
       void refresh()
-    }, 3000)
+    }, 15000)
     return () => window.clearInterval(timer)
   }, [refresh])
 
@@ -58,7 +58,7 @@ export function ContainersPageFeature() {
   }, [])
   useEffect(() => {
     refreshEtcd()
-    const timer = window.setInterval(refreshEtcd, 5000)
+    const timer = window.setInterval(refreshEtcd, 15000)
     return () => window.clearInterval(timer)
   }, [refreshEtcd])
 

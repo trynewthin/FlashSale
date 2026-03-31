@@ -14,10 +14,23 @@ type SampleCollector struct {
 	env      *catalog.EnvContext
 	store    *SampleStore
 	interval time.Duration
+	trigger  chan struct{}
 }
 
 func NewSampleCollector(env *catalog.EnvContext, store *SampleStore) *SampleCollector {
-	return &SampleCollector{env: env, store: store, interval: 2 * time.Second}
+	return &SampleCollector{
+		env:      env,
+		store:    store,
+		interval: 15 * time.Second,
+		trigger:  make(chan struct{}, 1),
+	}
+}
+
+func (c *SampleCollector) TriggerNow() {
+	select {
+	case c.trigger <- struct{}{}:
+	default:
+	}
 }
 
 func (c *SampleCollector) Run(ctx context.Context) {
@@ -35,6 +48,9 @@ func (c *SampleCollector) Run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			c.collectOnce()
+		case <-c.trigger:
+			c.collectOnce()
+			ticker.Reset(c.interval)
 		case <-cleanupTicker.C:
 			c.store.Cleanup()
 		}
@@ -88,7 +104,7 @@ func (c *SampleCollector) collectOnce() {
 	sample.PurchaseKafkaPublishRate = extractPromScalar(snapshot, "seckill_purchase_kafka_publish_rate")
 	sample.PurchaseKafkaPublishFailed = extractPromScalar(snapshot, "seckill_purchase_kafka_publish_failed")
 	sample.OrderStateConsumeRate = extractPromScalar(snapshot, "seckill_order_state_consume_rate")
-	// P99 降噪：采样间隔 2s 对应 lookback 约 300s（overview profile），
+	// P99 降噪：采样间隔现为 15s，对应查询窗口约 300s（overview profile），
 	// 若窗口内总请求 < 100 则 P99 统计不可靠，置空。
 	maskP99ByQPS(sample, 300)
 	if err := c.store.Append(sample); err != nil {

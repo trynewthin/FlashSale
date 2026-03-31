@@ -14,6 +14,7 @@ services:
         condition: service_healthy
       admin-gateway:
         condition: service_healthy
+    mem_limit: ${FLASH_NGINX_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/nginx-healthz" ]
       interval: 10s
@@ -40,6 +41,7 @@ services:
       FLASHSALE_PROMETHEUS_ENDPOINT: http://prometheus:9090
       FLASHSALE_APP_COMPOSE_FILE: /app/deploy/compose/docker-compose.app.yml
       FLASHSALE_APP_ENV_FILE: /app/configs/deploy.env
+      FLASHSALE_OPS_ACCESS_KEY: ${FLASHSALE_OPS_ACCESS_KEY:-}
     command:
       - --addr=0.0.0.0:9100
       - --repo-root=/app
@@ -50,6 +52,7 @@ services:
       - ../../../configs:/app/configs:ro
       - ../../compose:/app/deploy/compose:ro
       - ../../nginx:/app/deploy/nginx:ro
+    mem_limit: ${FLASH_OPS_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:9100/healthz" ]
       interval: 10s
@@ -65,6 +68,7 @@ services:
     volumes:
       - ../../nginx/nginx.cdn.conf:/etc/nginx/nginx.conf:ro
       - ../../cdn/assets:/srv/cdn/assets:ro
+    mem_limit: ${FLASH_CDN_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/healthz" ]
       interval: 10s
@@ -85,6 +89,7 @@ services:
       MEDIA_STORE_SECRET: "${FLASH_MEDIA_STORE_SECRET:-flashsale-media-dev}"
     volumes:
       - ../../cdn/assets:/srv/cdn/assets:rw
+    mem_limit: ${FLASH_MEDIA_STORE_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:9200/healthz" ]
       interval: 10s

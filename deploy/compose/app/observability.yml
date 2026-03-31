@@ -8,6 +8,7 @@ services:
     ports:
       - "${FLASH_JAEGER_UI_PORT:-16686}:16686"
       - "${FLASH_OTEL_PORT:-4317}:4317"
+    mem_limit: ${FLASH_JAEGER_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD", "wget", "-qO-", "http://localhost:16686" ]
       interval: 10s
@@ -24,6 +25,7 @@ services:
       - ../../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
       - --config.file=/etc/prometheus/prometheus.yml
+    mem_limit: ${FLASH_PROMETHEUS_MEM_LIMIT:-0}
 
   grafana:
     image: grafana/grafana:10.4.5
@@ -41,3 +43,4 @@ services:
     depends_on:
       prometheus:
         condition: service_started
+    mem_limit: ${FLASH_GRAFANA_MEM_LIMIT:-0}

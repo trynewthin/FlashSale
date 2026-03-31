@@ -50,6 +50,7 @@ services:
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
     command: [ "/app/bin/user-rpc", "-f", "/app/apps/user/rpc/etc/user.docker.yaml" ]
+    mem_limit: ${FLASH_GO_SVC_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
       interval: 10s
@@ -78,6 +79,7 @@ services:
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
     command: [ "/app/bin/product-rpc", "-f", "/app/apps/product/rpc/etc/product.docker.yaml" ]
+    mem_limit: ${FLASH_GO_SVC_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
       interval: 10s
@@ -103,6 +105,7 @@ services:
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
     command: [ "/app/bin/admin-rpc", "-f", "/app/apps/admin/rpc/etc/admin.docker.yaml" ]
+    mem_limit: ${FLASH_GO_SVC_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
       interval: 10s
@@ -131,6 +134,7 @@ services:
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
     command: [ "/app/bin/order-rpc", "-f", "/app/apps/order/rpc/etc/order.docker.yaml" ]
+    mem_limit: ${FLASH_GO_SVC_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
       interval: 10s
@@ -162,6 +166,7 @@ services:
       FLASHSALE_JWT_USER_SECRET: ${FLASHSALE_JWT_USER_SECRET:-user-secret-change-me}
       FLASHSALE_JWT_ADMIN_SECRET: ${FLASHSALE_JWT_ADMIN_SECRET:-admin-secret-change-me}
     command: [ "/app/bin/seckill-rpc", "-f", "/app/apps/seckill/rpc/etc/seckill.docker.yaml" ]
+    mem_limit: ${FLASH_GO_SVC_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:6060/healthz || exit 1" ]
       interval: 10s
@@ -191,6 +196,7 @@ services:
       FLASHSALE_REDIS_ADDR: redis:6379
       FLASHSALE_KAFKA_BROKERS: kafka:9092
     command: [ "/app/bin/user-gateway", "-f", "/app/apps/gateway/user/etc/user-gateway.docker.yaml" ]
+    mem_limit: ${FLASH_GO_SVC_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:8082/healthz || exit 1" ]
       interval: 10s
@@ -218,6 +224,7 @@ services:
       FLASHSALE_REDIS_ADDR: redis:6379
       FLASHSALE_KAFKA_BROKERS: kafka:9092
     command: [ "/app/bin/admin-gateway", "-f", "/app/apps/gateway/admin/etc/admin-gateway.docker.yaml" ]
+    mem_limit: ${FLASH_GO_SVC_MEM_LIMIT:-0}
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:8083/healthz || exit 1" ]
       interval: 10s

@@ -39,7 +39,13 @@ OPS_IMAGE_NAME="${OPS_IMAGE_NAME:-flashsale-app-ops-control}"
 OPS_CONTAINER_NAME="${OPS_CONTAINER_NAME:-flashsale-app-ops-control}"
 
 compose_cli_cmd() {
-    printf 'docker compose --env-file configs/deploy.env -f deploy/compose/docker-compose.app.yml'
+    local cmd='docker compose --env-file configs/deploy.env'
+    local profile
+    profile="$(grep -E '^FLASH_PROFILE=' "$REPO_ROOT/configs/deploy.env" 2>/dev/null | tail -1 | cut -d= -f2 | tr -d '[:space:]')"
+    if [[ -n "$profile" && -f "$REPO_ROOT/configs/profiles/${profile}.env" ]]; then
+        cmd="$cmd --env-file configs/profiles/${profile}.env"
+    fi
+    printf '%s -f deploy/compose/docker-compose.app.yml' "$cmd"
 }
 
 backend_build_cmd() {

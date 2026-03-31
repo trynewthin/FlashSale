@@ -1,4 +1,4 @@
-﻿# ops.Dockerfile 鈥?ops-control 瀹瑰櫒鍖栬繍琛屻€?# 澶氶樁娈垫瀯寤猴細
+# ops.Dockerfile 鈥?ops-control 瀹瑰櫒鍖栬繍琛屻€?# 澶氶樁娈垫瀯寤猴細
 #   1. frontend: 鐢?node 鏋勫缓 ops 鍓嶇
 #   2. rebuild:  灏嗗墠绔?dist 宓屽叆 fs 浜岃繘鍒讹紙閲嶆柊缂栬瘧 ops/cmd锛?#   3. final:    鍩轰簬 alpine锛屽畨瑁?docker CLI + compose + git
 
@@ -38,8 +38,9 @@ FROM alpine:3.20
 WORKDIR /app
 ENV TZ=Asia/Shanghai
 
-# 瀹夎 docker CLI (涓嶅惈 daemon) + compose plugin + git
-RUN apk add --no-cache docker-cli docker-cli-compose git
+# 替换为阿里云镜像源加速国内下载，然后安装 docker CLI (不含 daemon) + compose plugin + git
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    apk add --no-cache docker-cli docker-cli-compose git
 
 # 浠?backend 闀滃儚澶嶅埗鍏朵粬浜岃繘鍒跺拰閰嶇疆锛堝鐢ㄥ凡鏈夐暅鍍忥級
 COPY --from=flashsale-backend:local /app/bin/ /app/bin/

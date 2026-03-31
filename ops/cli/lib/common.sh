@@ -10,6 +10,15 @@ REPO_ROOT="$(cd "$OPS_CLI_DIR/../.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/deploy/compose/docker-compose.app.yml"
 DEPLOY_ENV_FILE="$REPO_ROOT/configs/deploy.env"
 PROXY_ASSETS_DIR="$REPO_ROOT/deploy/cdn/assets"
+
+# 从 deploy.env 中解析 FLASH_PROFILE 并返回对应的 profile env 文件路径（若存在）。
+resolve_profile_env_file() {
+    local profile
+    profile="$(grep -E '^FLASH_PROFILE=' "$DEPLOY_ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2 | tr -d '[:space:]')"
+    if [[ -n "$profile" && -f "$REPO_ROOT/configs/profiles/${profile}.env" ]]; then
+        printf '%s' "$REPO_ROOT/configs/profiles/${profile}.env"
+    fi
+}
 OPS_CLI_CACHE_DIR="$REPO_ROOT/.memory/ops_cli"
 COMPOSE_STATUS_CACHE_FILE="$OPS_CLI_CACHE_DIR/compose_running_services.txt"
 COMPOSE_STATUS_LOCK_FILE="$OPS_CLI_CACHE_DIR/compose_status_refresh.lock"
@@ -219,7 +228,13 @@ run_shell_action() {
 }
 
 compose_cmd() {
-    docker compose --env-file "$DEPLOY_ENV_FILE" -f "$COMPOSE_FILE" "$@"
+    local profile_env
+    profile_env="$(resolve_profile_env_file)"
+    if [[ -n "$profile_env" ]]; then
+        docker compose --env-file "$DEPLOY_ENV_FILE" --env-file "$profile_env" -f "$COMPOSE_FILE" "$@"
+    else
+        docker compose --env-file "$DEPLOY_ENV_FILE" -f "$COMPOSE_FILE" "$@"
+    fi
 }
 
 retry_cmd() {
@@ -586,7 +601,13 @@ run_compose_action() {
     shift
 
     print_header "$title"
-    echo -e "${C_GRAY}\$ docker compose --env-file configs/deploy.env -f deploy/compose/docker-compose.app.yml $*${C_RESET}"
+    local _profile_hint
+    _profile_hint="$(resolve_profile_env_file)"
+    if [[ -n "$_profile_hint" ]]; then
+        echo -e "${C_GRAY}\$ docker compose --env-file configs/deploy.env --env-file ${_profile_hint##*/} -f ... $*${C_RESET}"
+    else
+        echo -e "${C_GRAY}\$ docker compose --env-file configs/deploy.env -f ... $*${C_RESET}"
+    fi
     echo
 
     set +e

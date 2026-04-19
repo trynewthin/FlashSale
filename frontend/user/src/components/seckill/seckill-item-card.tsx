@@ -5,6 +5,7 @@ import { Zap } from "lucide-react"
 import Counter from "@/components/Counter"
 import { useSeckillPurchaseMutation } from "@/hooks/user/use-seckill-hooks"
 import { useApiError } from "@/hooks/common/use-api-error"
+import { resolveSeckillPurchaseRedirect } from "@/components/seckill/purchase-redirect"
 import { cdnUrl } from "@/lib/cdn"
 import { formatCent } from "@/lib/format"
 import { toast } from "sonner"
@@ -52,13 +53,7 @@ export function SeckillItemCard({
     purchaseMutation.mutate(
       { activity_item_id: item.item_id, quantity: 1 },
       {
-        onSuccess: (data) => {
-          if (String(data.order_id) !== "0") {
-            navigate(`/orders/${data.order_id}`)
-            return
-          }
-          navigate(`/orders?order_no=${encodeURIComponent(data.order_no)}&pending=1`)
-        },
+        onSuccess: (data) => navigate(resolveSeckillPurchaseRedirect(data)),
         onError: (err) => toast.error(toUserMessage(err))
       }
     )

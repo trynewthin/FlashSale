@@ -40,7 +40,8 @@ export interface PurchaseReq {
 export interface PurchaseResp {
   activity_id: Int64
   activity_item_id: Int64
-  order_id: Int64
+  // Kafka 异步建单路径会返回 order_id=0；后端 JSON `omitempty` 会把该字段省略。
+  order_id?: Int64
   order_no: string
 }
 

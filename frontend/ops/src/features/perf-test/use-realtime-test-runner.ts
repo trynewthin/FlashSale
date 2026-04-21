@@ -365,10 +365,13 @@ export function useRealtimeTestRunner(): UseRealtimeTestRunnerResult {
         }
       },
       onError: () => {
-        // 如果已经收到 done 事件，这是后端正常关闭连接，不需要提示
-        if (doneReceivedRef.current) return
+        // EventSource 在服务端正常结束后也可能触发 onerror。
+        // 这里静默停流并刷新一次快照；真正的错误提示由显式 error 事件承担。
         setStreamEnabled(false)
-        showNotice("error", "测试日志流已断开，请手动重开")
+        if (doneReceivedRef.current) {
+          return
+        }
+        void refreshActiveJob()
       },
     },
   })

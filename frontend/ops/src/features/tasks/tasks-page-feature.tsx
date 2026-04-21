@@ -5,7 +5,7 @@ import {
   RefreshCcw,
   TerminalSquare,
 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { opsApi } from "@/api/modules/ops"
 import type {
@@ -47,6 +47,7 @@ export function TasksPageFeature() {
   const [logText, setLogText] = useState("")
   const [jobStatus, setJobStatus] = useState("")
   const [jobExitCode, setJobExitCode] = useState<number | null>(null)
+  const doneReceivedRef = useRef(false)
 
   const loadTasks = useCallback(async () => {
     try {
@@ -116,9 +117,11 @@ export function TasksPageFeature() {
       setJobStatus("")
       setJobExitCode(null)
       setStreaming(false)
+      doneReceivedRef.current = false
       return
     }
 
+    doneReceivedRef.current = false
     void loadJobLog(selectedJobId)
   }, [loadJobLog, selectedJobId])
 
@@ -172,6 +175,7 @@ export function TasksPageFeature() {
           }
           case "done": {
             const data = envelope.payload as JobStreamDonePayload
+            doneReceivedRef.current = true
             setJobStatus(data?.status || "")
             setJobExitCode(typeof data?.exit_code === "number" ? data.exit_code : null)
             setStreaming(false)
@@ -187,8 +191,11 @@ export function TasksPageFeature() {
         }
       },
       onError: () => {
-        showNotice("error", "任务日志流已断开，请重新开启")
         setStreaming(false)
+        if (doneReceivedRef.current || !selectedJobId) {
+          return
+        }
+        void loadJobLog(selectedJobId)
       },
     },
   })
